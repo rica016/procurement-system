@@ -1,0 +1,70 @@
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+function statusBadge(s){
+  if(!s||s==='—') return '<span class="badge badge-grey">—</span>';
+  s=String(s).trim();
+  if(s.indexOf('RETURNED TO')===0) return '<span class="badge badge-warn">'+s+'</span>';
+  var map={
+    'PROCESSING':'badge-blue',
+    'RECEIVED':'badge-op',
+    'FOR BAC':'badge-orange',
+    'FORWARDED TO BAC':'badge-amber',
+    'FORWARDED TO SUPPLY':'badge-teal',
+    'FORWARDED TO BUDGET':'badge-violet',
+    'FORWARDED TO ACCOUNTING':'badge-blue',
+    'FORWARDED TO CASHIER':'badge-green',
+    'RECEIVED BY BAC':'badge-amber',
+    'RECEIVED BY SUPPLY':'badge-teal',
+    'RECEIVED BY BUDGET':'badge-violet',
+    'RECEIVED BY ACCOUNTING':'badge-blue',
+    'RECEIVED BY CASHIER':'badge-green',
+    'FOR SIGNATURE':'badge-warn','FOR SIGNATURE OF BUDGET OFFICER':'badge-amber',
+    'FOR SIGNATURE OF ACCOUNTANT':'badge-violet','FOR CANVAS':'badge-warn',
+    'FOR REVIEW':'badge-warn','FOR REVISION':'badge-warn',
+    'FOR RELEASE':'badge-blue','FOR ACCEPTANCE':'badge-teal',
+    'INSPECTION ONGOING':'badge-blue','PAID':'badge-op','UNPAID':'badge-warn',
+    'LACKING OF ATTACHMENTS':'badge-down','RETURNED TO REQUESTING OFFICE':'badge-warn',
+    'RETURNED TO END-USER':'badge-warn','RETURNED':'badge-warn','CANCELLED':'badge-down'
+  };
+  return '<span class="badge '+(map[s]||'badge-grey')+'">'+s+'</span>';
+}
+function currency(v){
+  if(!v||v==='—') return '<span style="color:var(--muted2)">—</span>';
+  var n=parseFloat(String(v).replace(/[^0-9.]/g,''));
+  return isNaN(n)?v:'₱'+n.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function esc(v){ return String(v||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function esc2(v){ return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function emptyRow(cols){
+  return '<tr><td colspan="'+cols+'"><div class="empty"><div class="empty-icon">📭</div><div class="empty-title">No records found</div><div class="empty-sub">No transactions in this category yet.</div></div></td></tr>';
+}
+function errRow(cols,msg){
+  return '<tr><td colspan="'+cols+'"><div style="padding:20px;color:var(--red);text-align:center;font-size:13px;">⚠ '+esc2(msg)+'</div></td></tr>';
+}
+function statCard(cls,icon,label,value,hint){
+  return '<div class="stat-card '+cls+'"><div class="stat-stripe"></div><div class="stat-icon">'+icon+'</div>'+
+         '<div class="stat-label">'+label+'</div><div class="stat-value">'+(value||0)+'</div><div class="stat-hint">'+hint+'</div></div>';
+}
+function breakdownPanel(title,rows){
+  var html='<div class="panel"><div class="panel-header"><div class="panel-title">'+title+'</div></div><div class="panel-body"><div class="breakdown">';
+  rows.forEach(function(r){
+    var pct=r.total?Math.round(r.count/r.total*100):0;
+    html+='<div class="bk-row"><div class="bk-label">'+r.label+'</div><div class="bk-bar-wrap"><div class="bk-bar" style="width:'+pct+'%;background:'+r.color+'"></div></div><div class="bk-count">'+r.count+'</div></div>';
+  });
+  return html+'</div></div></div>';
+}
+function showToast(msg,type){
+  type=type||'info';
+  var tc=document.getElementById('toast');
+  var el=document.createElement('div');
+  el.className='toast-item toast-'+type;
+  el.textContent=msg;
+  tc.appendChild(el);
+  setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); },4500);
+}
+
+// ── BOOT ──
+document.getElementById('login-screen').style.display='flex';
+document.getElementById('app-screen').style.display='none';
+</script>
+

@@ -1,0 +1,18 @@
+<template id="tpl-audit">
+  <div class="section-head">
+    <div><div class="section-title">Audit Log</div><div class="section-sub">Complete history of all system activity</div></div>
+    <div class="section-actions audit-filter">
+      <div class="search-wrap"><span class="search-icon">🔍</span><input id="audit-search" placeholder="Filter by user, action, dept…" oninput="filterAuditTable()"/></div>
+      <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <div><div class="panel-title">Activity Records</div><div class="panel-sub" id="audit-panel-sub">Most recent first</div></div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Department</th><th>Record / Detail</th></tr></thead>
+      <tbody id="audit-tbody"><tr><td colspan="5"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
+    </table></div>
+  </div>
+</template>

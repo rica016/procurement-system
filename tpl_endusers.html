@@ -1,0 +1,18 @@
+<template id="tpl-endusers">
+  <div class="section-head">
+    <div><div class="section-title">End User Management</div><div class="section-sub">Manage end user records for dropdown selection in forms</div></div>
+    <div class="section-actions">
+      <div class="search-wrap"><span class="search-icon">🔍</span><input id="endusers-search" placeholder="Search end users…" oninput="filterEndUsersTable()"/></div>
+      <button class="tb-btn primary" onclick="openAddEndUserModal()">＋ Add End User</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <div><div class="panel-title">End Users</div><div class="panel-sub" id="endusers-panel-sub"></div></div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>End User Role</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="endusers-tbody"><tr><td colspan="4"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
+    </table></div>
+  </div>
+</template>

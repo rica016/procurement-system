@@ -1,0 +1,1007 @@
+<script>
+function returnedToDisplay(r){
+  var rt=String(r['RETURN TO']||'').trim();
+  if(rt!== 'Requesting Office') return rt||'—';
+  var eu=String(r['END-USER / REQUESTED BY']||r['END USER']||r['REQUESTED BY']||'').trim();
+  return eu||'Requesting Office';
+}
+
+function forwardedFromDisplay(r, page){
+  var v=String(r['FORWARDED FROM']||'').trim();
+  if(v) return v;
+  var fallback={bac:'Requesting Office',supply:'BAC',budget:'Supply',accounting:'Budget',cash:'Accounting'};
+  return fallback[page]||'—';
+}
+
+function canContinueReturnDone(r, page){
+  // User must be able to edit this department
+  var deptMap={bac:'BAC',supply:'SUPPLY',budget:'BUDGET',accounting:'ACCOUNTING',cash:'CASH'};
+  if(!canEdit(deptMap[page]||page.toUpperCase())) return false;
+  
+  // Record's RETURNED FROM must match this department's aliases
+  var rf=String(r['RETURNED FROM']||'').trim().toUpperCase();
+  var aliases={
+    bac:['BAC'],
+    supply:['SUPPLY','SUPPLY AND PROPERTY'],
+    budget:['BUDGET'],
+    accounting:['ACCOUNTING'],
+    cash:['CASH','CASHIER']
+  };
+  var list=aliases[page]||[];
+  return list.indexOf(rf)!==-1;
+}
+
+function continueReturnDone(sheetName, rowNum, page, btn){
+  if(!btn) btn=event.target; // fallback if not passed
+  var originalText=btn.textContent;
+  btn.textContent='Continuing…'; btn.disabled=true;
+  
+  var data = {
+    'STATUS':'PROCESSING',
+    'COMPLETED AT':'',
+    'IS NEW':'',
+    'RETURN TO':'',
+    'RETURNED FROM':'',
+    'RETURN REMARKS':'',
+    'RETURNED DATE':'',
+    'RETURN RECEIVED DATE':'',
+    'RETURN RECEIVED REMARKS':''
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(res&&res.success){
+        showToast('Transaction continued and set to PROCESSING.','success');
+        loadData();
+        setTimeout(function(){ switchTab(page,'active'); }, 150);
+      } else {
+        btn.textContent=originalText; btn.disabled=false;
+        showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      }
+    })
+    .withFailureHandler(function(e){ 
+      btn.textContent=originalText; btn.disabled=false;
+      showToast('Error: '+e.message,'error'); 
+    })
+    .updateTransaction(sheetName, rowNum, data, currentUser.username);
+}
+
+function continueReturnedNew(sheetName, rowNum, page, btn){
+  if(!btn) btn=event.target;
+  var originalText=btn.textContent;
+  btn.textContent='Continuing…'; btn.disabled=true;
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(res&&res.success){
+        showToast('Transaction continued.','success');
+        loadData();
+        setTimeout(function(){ switchTab(page,'active'); }, 150);
+      } else {
+        btn.textContent=originalText; btn.disabled=false;
+        showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      }
+    })
+    .withFailureHandler(function(e){
+      btn.textContent=originalText; btn.disabled=false;
+      showToast('Error: '+e.message,'error');
+    })
+    .continueReturnedNew(sheetName, rowNum, currentUser.username);
+}
+
+var ROW_BUILDERS={
+  bac:function(r,tab){
+      var active=tab==='active',isNew=tab==='new';
+      var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
+      var show=(active||isNew)&&canEdit('BAC');
+    var showReturned=tab==='returned'&&canEdit('BAC')&&String(r['RETURN TO']||'').trim()==='BAC';
+    var showCompletedAt=!(active||tab==='returned');
+    var cls=isNew?'new-row':((!active)?'completed-row':'');
+    if (tab==='returndone') return '<tr class="completed-row">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      (canContinueReturnDone(r,'bac')?'<button class="btn-sm forward" onclick="openForwardModal(\'BAC\','+r._rowNum+')">Forward</button>':'')+
+      '</div></div></td>'+
+      '</tr>';
+    if (tab==='returned') return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'bac\','+r._rowNum+')">👁 View</button>'+
+      (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'BAC\','+r._rowNum+',\'page\',\'bac\')">✔ Receive</button>':'')+
+      '</div></div></td></tr>';
+    var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'bac\','+r._rowNum+')">👁 View</button>'+
+      (active?'<button class="btn-sm edit" onclick="openEditModal(\'bac\','+r._rowNum+')">✏ Update</button>':'')+
+      (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BAC\','+r._rowNum+',\'bac\',this)">▶ Continue</button>':'')+
+      (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BAC\','+r._rowNum+')">Forward</button>':'')+
+      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BAC\','+r._rowNum+')">↩ Return</button>':'')+
+      (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'BAC\','+r._rowNum+')">🗑 Cancel</button>':'')+
+      '</div></div>':'';
+    if (isNew) return '<tr class="'+cls+'" data-category="'+esc(r['CATEGORY']||'')+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'bac'))+'</td>'+
+      '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+    return '<tr class="'+cls+'" data-category="'+esc(r['CATEGORY']||'')+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['PHIGEPS POSTED']||'—')+'</td>'+
+      '<td>'+currency(r['APPROVED ABC'])+'</td>'+
+      '<td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RFQ']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RFQ DATE OF COMPLETION']||'—')+'</td>'+
+      '<td>'+esc2(r['ABSTRACT OF AWARD']||'—')+'</td>'+
+      '<td>'+esc2(r['AWARDED TO']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['DATE OF AWARD']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['BAC RESO']||'—')+'</td>'+
+      '<td>'+esc2(r['NOA']||'—')+'</td>'+
+      '<td>'+esc2(r['NTP']||'—')+'</td>'+
+      '<td>'+statusBadge(r['STATUS'])+'</td>'+
+      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+  },
+  supply:function(r,tab){
+    var active=tab==='active',isNew=tab==='new';
+    var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
+    var show=(active||isNew)&&canEdit('SUPPLY');
+    var showReturned=tab==='returned'&&canEdit('SUPPLY')&&String(r['RETURN TO']||'').trim()==='Supply';
+    var showCompletedAt=!(active||tab==='returned');
+    var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
+    if (tab==='returndone') return '<tr class="completed-row">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      (canContinueReturnDone(r,'supply')?'<button class="btn-sm forward" onclick="openForwardModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">Forward</button>':'')+
+      '</div></div></td>'+
+      '</tr>';
+    if (tab==='returned') return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'supply\','+r._rowNum+')">👁 View</button>'+
+      (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'page\',\'supply\')">✔ Receive</button>':'')+
+      '</div></div></td></tr>';
+    var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'supply\','+r._rowNum+')">👁 View</button>'+
+      '<button class="btn-sm edit" onclick="openEditModal(\'supply\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">▶ Continue</button>':'')+
+      (active?'<button class="btn-sm forward" onclick="openForwardModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">Forward</button>':'')+
+      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">↩ Return</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'SUPPLY AND PROPERTY\','+r._rowNum+')">🗑 Cancel</button>':'')+
+      '</div></div>':'';
+    if (isNew) return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'supply'))+'</td>'+
+      '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+    return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['P.O. No.']||'—')+'</td>'+
+      '<td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td>'+
+      '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
+      '<td>'+esc2(r['PARTICULARS']||'—')+'</td>'+
+      '<td>'+currency(r['AMOUNT'])+'</td>'+
+      '<td class="td-mono">'+esc2(r['I.A.R #']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['INVOICE #']||'—')+'</td>'+
+      '<td>'+statusBadge(r['STATUS'])+'</td>'+
+      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+  },
+  budget:function(r,tab){
+    var active=tab==='active',isNew=tab==='new';
+    var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
+    var show=(active||isNew)&&canEdit('BUDGET');
+    var showReturned=tab==='returned'&&canEdit('BUDGET')&&String(r['RETURN TO']||'').trim()==='Budget';
+    var showCompletedAt=!(active||tab==='returned');
+    var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
+    if (tab==='returndone') return '<tr class="completed-row">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      (canContinueReturnDone(r,'budget')?'<button class="btn-sm forward" onclick="openForwardModal(\'BUDGET\','+r._rowNum+')">Forward</button>':'')+
+      '</div></div></td>'+
+      '</tr>';
+    if (tab==='returned') return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'budget\','+r._rowNum+')">👁 View</button>'+
+      (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'BUDGET\','+r._rowNum+',\'page\',\'budget\')">✔ Receive</button>':'')+
+      '</div></div></td></tr>';
+    var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'budget\','+r._rowNum+')">👁 View</button>'+
+      '<button class="btn-sm edit" onclick="openEditModal(\'budget\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BUDGET\','+r._rowNum+',\'budget\',this)">▶ Continue</button>':'')+
+      (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BUDGET\','+r._rowNum+')">Forward</button>':'')+
+      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BUDGET\','+r._rowNum+')">↩ Return</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'BUDGET\','+r._rowNum+')">🗑 Cancel</button>':'')+
+      '</div></div>':'';
+    if (isNew) return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'budget'))+'</td>'+
+      '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+    return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['ORS NO.']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['BUPR NO.']||'—')+'</td>'+
+      '<td>'+currency(r['AMOUNT'])+'</td>'+
+      '<td>'+statusBadge(r['STATUS'])+'</td>'+
+      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+  },
+  accounting:function(r,tab){
+    var active=tab==='active',isNew=tab==='new';
+    var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
+    var show=(active||isNew)&&canEdit('ACCOUNTING');
+    var showReturned=tab==='returned'&&canEdit('ACCOUNTING')&&String(r['RETURN TO']||'').trim()==='Accounting';
+    var showCompletedAt=!(active||tab==='returned');
+    var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
+    if (tab==='returndone') return '<tr class="completed-row">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      (canContinueReturnDone(r,'accounting')?'<button class="btn-sm forward" onclick="openForwardModal(\'ACCOUNTING\','+r._rowNum+')">Forward</button>':'')+
+      '</div></div></td>'+
+      '</tr>';
+    if (tab==='returned') return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'accounting\','+r._rowNum+')">👁 View</button>'+
+      (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'ACCOUNTING\','+r._rowNum+',\'page\',\'accounting\')">✔ Receive</button>':'')+
+      '</div></div></td></tr>';
+    var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'accounting\','+r._rowNum+')">👁 View</button>'+
+      '<button class="btn-sm edit" onclick="openEditModal(\'accounting\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">▶ Continue</button>':'')+
+      (active?'<button class="btn-sm forward" onclick="openForwardModal(\'ACCOUNTING\','+r._rowNum+')">Forward</button>':'')+
+      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'ACCOUNTING\','+r._rowNum+')">↩ Return</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      '</div></div>':'';
+    if (isNew) return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'accounting'))+'</td>'+
+      '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+    return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['DV No.']||'—')+'</td>'+
+      '<td>'+currency(r['Net Amount'])+'</td>'+
+      '<td>'+currency(r['TAX Amount'])+'</td>'+
+      '<td>'+statusBadge(r['STATUS'])+'</td>'+
+      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+  },
+  cash:function(r,tab){
+    var active=tab==='active',isNew=tab==='new';
+    var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
+    var show=(active||isNew)&&canEdit('CASH');
+    var showReturned=tab==='returned'&&canEdit('CASH')&&String(r['RETURN TO']||'').trim()==='Cashier';
+    var showCompletedAt=!(active||tab==='returned');
+    var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
+    if (tab==='returndone') return '<tr class="completed-row">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      (canContinueReturnDone(r,'cash')?'<button class="btn-sm forward" onclick="openForwardModal(\'CASH\','+r._rowNum+')">Forward</button>':'')+
+      '</div></div></td>'+
+      '</tr>';
+    if (tab==='returned') return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'cash\','+r._rowNum+')">👁 View</button>'+
+      (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'CASH\','+r._rowNum+',\'page\',\'cash\')">✔ Receive</button>':'')+
+      '</div></div></td></tr>';
+    var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'cash\','+r._rowNum+')">👁 View</button>'+
+      '<button class="btn-sm edit" onclick="openEditModal(\'cash\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'CASH\','+r._rowNum+',\'cash\',this)">▶ Continue</button>':'')+
+      (active?'<button class="btn-sm paid" onclick="doMarkPaid('+r._rowNum+')">✓ Mark Paid</button>':'')+
+      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'CASH\','+r._rowNum+')">↩ Return</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      '</div></div>':'';
+    if (isNew) return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'cash'))+'</td>'+
+      '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+    return '<tr class="'+cls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['CHEQUE NO. / LDDAP']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['DATE OF CHEQUE']||'—')+'</td>'+
+      '<td>'+statusBadge(r['STATUS'])+'</td>'+
+        (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SEARCH / FILTER
+// ═══════════════════════════════════════════════════════════════════════════════
+var _bacCatFilter = 'All';
+
+function filterRows(page){
+  if (page === 'bac') { applyBacFilters(); return; }
+  var searchIds={supply:'supply-search',budget:'budget-search',accounting:'acctg-search',cash:'cash-search'};
+  var tbIds={supply:'supply-tbody',budget:'budget-tbody',accounting:'acctg-tbody',cash:'cash-tbody'};
+  var qEl=document.getElementById(searchIds[page]);
+  var tb =document.getElementById(tbIds[page]);
+  if(!qEl||!tb) return;
+  var q=qEl.value.toLowerCase();
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+function filterBacCategory(cat) {
+  _bacCatFilter = cat;
+  document.querySelectorAll('.cat-chip').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.trim() === cat);
+  });
+
+  // Always reload current page data after category change.
+  if (typeof loadData === 'function') {
+    loadData();
+    return;
+  }
+
+  if (typeof ensureTransactionCategoryIndex === 'function') {
+    ensureTransactionCategoryIndex(function(){
+      if (typeof applyBacFilters === 'function') applyBacFilters();
+      if (typeof currentPage === 'string' && ['bac','supply','budget','accounting','cash'].indexOf(currentPage) !== -1 && typeof renderPageData === 'function') {
+        renderPageData(currentPage, cachedRows[currentPage] || []);
+        if (typeof filterRows === 'function') filterRows(currentPage);
+      }
+
+      if (typeof renderDashboardTable === 'function') {
+        renderDashboardTable();
+        if (typeof filterDashboard === 'function') filterDashboard();
+      }
+      if (typeof currentPage === 'string' && currentPage === 'myreqs' && typeof PAGE_LOADERS !== 'undefined' && PAGE_LOADERS && typeof PAGE_LOADERS.myreqs === 'function') {
+        PAGE_LOADERS.myreqs();
+      } else if (typeof renderMyReqsTable === 'function') {
+        renderMyReqsTable(cachedMyReqs || []);
+        if (typeof filterMyReqs === 'function') filterMyReqs();
+      }
+      if (typeof syncBacCategoryFilterVisibility === 'function') {
+        syncBacCategoryFilterVisibility();
+      }
+    });
+    return;
+  }
+
+  applyBacFilters();
+
+  if (typeof renderDashboardTable === 'function') {
+    renderDashboardTable();
+    if (typeof filterDashboard === 'function') filterDashboard();
+  }
+  if (typeof renderMyReqsTable === 'function') {
+    renderMyReqsTable(cachedMyReqs || []);
+    if (typeof filterMyReqs === 'function') filterMyReqs();
+  }
+  if (typeof syncBacCategoryFilterVisibility === 'function') {
+    syncBacCategoryFilterVisibility();
+  }
+}
+
+function applyBacFilters() {
+  var q = ((document.getElementById('bac-search')||{}).value||'').toLowerCase();
+  var tb = document.getElementById('bac-tbody');
+  if (!tb) return;
+  var catTabs = ['active','new','done','cancelled'];
+  var tab = (typeof tabState !== 'undefined' && tabState['bac']) || 'active';
+  var useCat = catTabs.indexOf(tab) !== -1;
+  tb.querySelectorAll('tr').forEach(function(row) {
+    var textMatch = !q || row.textContent.toLowerCase().includes(q);
+    var rowCat = (row.getAttribute('data-category') || '').trim();
+    var catMatch = !useCat || _bacCatFilter === 'All' || rowCat === _bacCatFilter;
+    row.style.display = (textMatch && catMatch) ? '' : 'none';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MODAL CONFIGS
+// ═══════════════════════════════════════════════════════════════════════════════
+var MODAL_CONFIGS={
+  bac:{
+    editTitle:'Update BAC Record',
+    fields:[
+      { key:'P.R #',                   label:'P.R #',                   type:'text',     required:false,
+        hint:'Updates P.R # across all department sheets.' },
+      { key:'END-USER / REQUESTED BY', label:'End User / Requested By', type:'enduser',  required:false },
+      { key:'CATEGORY',                label:'Category',                 type:'select',   required:false,
+        options:['Regular','SPLIT','Agri-Agra','IPARC'] },
+      { key:'PHIGEPS POSTED',          label:'PhilGEPS Posted',          type:'checkdate', required:false },
+      { key:'APPROVED ABC',            label:'Approved ABC (₱)',         type:'number',   required:false },
+      { key:'RFQ',                     label:'RFQ',                      type:'text',     required:false },
+      { key:'RFQ DATE OF COMPLETION',  label:'RFQ Date of Completion',   type:'date',     required:false },
+      { key:'ABSTRACT OF AWARD',       label:'Abstract of Award',        type:'text',     required:false },
+      { key:'AWARDED TO',              label:'Awarded To',               type:'supplier', required:false },
+      { key:'DATE OF AWARD',           label:'Date of Award',            type:'date',     required:false },
+      { key:'MODE OF PROCUREMENT',     label:'Mode of Procurement',      type:'select',   required:false,
+        options:['Shopping','Negotiated Procurement','Public Bidding','Direct Contracting','Small Value Procurement','Emergency'] },
+      { key:'BAC RESO',   label:'BAC Resolution No.', type:'text',   required:false },
+      { key:'NOA',        label:'NOA',                type:'select', required:false,
+        options:['FOR SIGN OF RD','FOR SIGN OF SUPPLIER','FORWARDED TO SUPPLY'] },
+      { key:'NTP',        label:'NTP',                type:'select', required:false,
+        options:['FOR SIGN OF RD','FOR SIGN OF SUPPLIER','FORWARDED TO SUPPLY'] },
+      { key:'STATUS',     label:'Status',             type:'select', required:false,
+        options:['PROCESSING','FOR CANVAS','FOR REVIEW','FOR SIGNATURE','RETURNED TO REQUESTING OFFICE','FORWARDED TO SUPPLY','RETURNED'] }
+    ]
+  },
+  supply:{
+    editTitle:'Update Supply Record',
+    fields:[
+      { key:'P.O. No.',                    label:'P.O. No.',                     type:'text',     required:false },
+      { key:'P.O. DATE',                   label:'P.O. Date',                    type:'date',     required:false },
+      { key:'DOCUMENT TYPE',               label:'Document Type',                type:'select',   required:false, options:['P.O','CONTRACT','JO','OTHERS'] },
+      { key:'SUPPLIER',                    label:'Supplier',                     type:'supplier', required:false },
+      { key:'PARTICULARS',                 label:'Particulars',                  type:'text',     required:false },
+      { key:'AMOUNT',                      label:'Amount (₱)',                   type:'number',   required:false },
+      { key:'DATE TRANSMITTED TO SUPPLIER',label:'Date Transmitted to Supplier', type:'date',     required:false },
+      { key:'DATE RECEIVED BY SUPPLIER',   label:'Date Received by Supplier',    type:'date',     required:false },
+      { key:'DATE RETURNED TO SUPPLY',     label:'Date Returned to Supply',      type:'date',     required:false },
+      { key:'COA DATE RECEIVED',           label:'COA Date Received',            type:'date',     required:false },
+      { key:'I.A.R #',                     label:'I.A.R #',                      type:'text',     required:false },
+      { key:'INVOICE #',                   label:'Invoice #',                    type:'text',     required:false }
+    ]
+  },
+  budget:{
+    editTitle:'Update Budget Record',
+    fields:[
+      { key:'ORS NO.',  label:'ORS No.',    type:'text',   required:false },
+      { key:'BUPR NO.', label:'BUPR No.',   type:'text',   required:false },
+      { key:'AMOUNT',   label:'Amount (₱)', type:'number', required:false }
+    ]
+  },
+  accounting:{
+    editTitle:'Update Accounting Record',
+    fields:[
+      { key:'DV No.',     label:'DV No.',         type:'text',   required:false },
+      { key:'Net Amount', label:'Net Amount (₱)', type:'number', required:false },
+      { key:'TAX Amount', label:'Tax Amount (₱)', type:'number', required:false }
+    ]
+  },
+  cash:{
+    editTitle:'Update Cash Record',
+    fields:[
+      { key:'CHEQUE NO. / LDDAP', label:'Cheque No. / LDDAP', type:'text',   required:false },
+      { key:'DATE OF CHEQUE',     label:'Date of Cheque',      type:'date',   required:false }
+    ]
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FORM BUILDER
+// ═══════════════════════════════════════════════════════════════════════════════
+function buildFormHTML(fields, prefix, existingData){
+  var html='<div class="form-grid">';
+  fields.forEach(function(f){
+    var id  = prefix+f.key.replace(/[^a-z0-9]/gi,'_');
+    var val = (existingData&&existingData[f.key]!==undefined)?existingData[f.key]:'';
+    var req = f.required?'<span class="req">*</span>':'';
+    var isParticulars = String(f.key||'').toUpperCase()==='PARTICULARS';
+    html+='<div class="form-group'+((f.full||isParticulars)?' full':'')+'">'+
+          '<label class="form-label">'+f.label+' '+req+'</label>';
+    if(f.type==='select'){
+      html+='<select class="form-select" id="'+id+'"><option value="">— Select —</option>'+
+            (f.options||[]).map(function(o){ return '<option'+(o===val?' selected':'')+' value="'+esc(o)+'">'+esc(o)+'</option>'; }).join('')+'</select>';
+    } else if(f.type==='date'){
+      html+='<input class="form-input" type="date" id="'+id+'" value="'+esc(toDateInput(val))+'"/>';
+    } else if(f.type==='office'){
+      html+='<input class="form-input" type="text" id="'+id+'" value="'+esc(val)+'" placeholder="Type or select office…" list="office-datalist" autocomplete="off"/>';
+    } else if(f.type==='supplier'){
+      html+='<input class="form-input" type="text" id="'+id+'" value="'+esc(val)+'" placeholder="Type or select supplier…" list="supplier-datalist" autocomplete="off"/>';
+    } else if(f.type==='enduser'){
+      var euOpts=endUsers.map(function(r){ return '<option'+(r===val?' selected':'')+' value="'+esc(r)+'">'+esc2(r)+'</option>'; }).join('');
+      html+='<select class="form-select" id="'+id+'"><option value="">— Select End User —</option>'+euOpts+'</select>';
+    } else if(f.type==='checkdate'){
+      var hasVal=!!(val&&String(val).trim());
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'+
+            '<input type="checkbox" id="'+id+'_has" onchange="(function(cb){var d=document.getElementById(\'' +id+ '\');d.style.display=cb.checked?\'block\':\'none\';})(this)"'+(hasVal?' checked':'')+' style="width:16px;height:16px;cursor:pointer;"/>'+
+            '<span style="font-size:13px;color:var(--text2);">Has PhilGEPS</span>'+
+            '</div>'+
+            '<input class="form-input" type="date" id="'+id+'" value="'+esc(toDateInput(val))+'" style="display:'+(hasVal?'block':'none')+'"/>';
+    } else if(f.type==='textarea' || isParticulars){
+      html+='<textarea class="form-textarea" id="'+id+'" placeholder="'+f.label+'">'+esc(val||'')+'</textarea>';
+    } else {
+      html+='<input class="form-input" type="'+f.type+'" id="'+id+'" value="'+esc(val)+'" placeholder="'+f.label+'"'+(f.readonly?' readonly':'')+'/>';
+    }
+    if(isParticulars) html+='<div class="form-hint">You can enter up to around 100 words.</div>';
+    if(f.hint) html+='<div class="form-hint">'+f.hint+'</div>';
+    html+='</div>';
+  });
+  return html+'</div>';
+}
+function readFormData(fields, prefix){
+  var data={};
+  fields.forEach(function(f){
+    var el=document.getElementById(prefix+f.key.replace(/[^a-z0-9]/gi,'_'));
+    if (!el) { data[f.key]=''; return; }
+    if(f.type==='checkdate'){
+      var cbEl=document.getElementById(prefix+f.key.replace(/[^a-z0-9]/gi,'_')+'_has');
+      data[f.key]=(cbEl&&cbEl.checked)?fromDateInput(el.value.trim()):'';
+    } else {
+      data[f.key]=f.type==='date'?fromDateInput(el.value.trim()):el.value.trim();
+    }
+  });
+  return data;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CREATE TRANSACTION MODAL (BAC/ADMIN only)
+// ═══════════════════════════════════════════════════════════════════════════════
+function openCreateModal(){
+  if (currentUser.isEndUser && currentUser.role !== 'ADMIN') {
+    showToast('Only BAC and ADMIN can create new transactions.', 'error');
+    return;
+  }
+  var createFields=BAC_CREATE_FIELDS.filter(function(f){ return f.key!=='STATUS'; });
+  modalState={mode:'create'};
+  document.getElementById('main-modal-title').textContent='New Procurement Transaction';
+  document.getElementById('main-modal-save').textContent='Create Transaction';
+  document.getElementById('main-modal-save').style.display='inline-flex';
+  document.getElementById('main-modal-cancel').textContent='Cancel';
+  document.getElementById('main-modal-body').innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
+  document.getElementById('main-modal').classList.add('open');
+  function renderCreate(){
+    document.getElementById('main-modal-body').innerHTML=
+      '<div style="background:var(--blue-light);border:1px solid var(--blue-mid);border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:var(--blue);font-weight:600;">'+
+      'ℹ Fill in the necessary details to create a new transaction. Please review all information before submission.</div>'+
+      buildFormHTML(createFields,'mf_',{});
+  }
+  google.script.run.withSuccessHandler(function(list){
+    endUsers=list||[]; injectDatalist('enduser-datalist',endUsers); renderCreate();
+  }).withFailureHandler(function(){ renderCreate(); }).getEndUsers();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  EDIT MODAL (dept staff)
+// ═══════════════════════════════════════════════════════════════════════════════
+function openEditModal(page, rowNum){
+  var row=getRowFromCache(page, rowNum);
+  var cfg=MODAL_CONFIGS[page];
+  if(!cfg||!row){ showToast('Row data unavailable. Please refresh.','error'); return; }
+  var idMeta=(row['P.R #']?'P.R #: '+row['P.R #']:'')+(row['TRACKING NO.']?((row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):'');
+  modalState={mode:'edit',page:page,rowNum:rowNum,isNew:String(row['IS NEW']||'').trim().toUpperCase()==='TRUE'};
+  document.getElementById('main-modal-title').textContent=cfg.editTitle||'Update Record';
+  document.getElementById('main-modal-meta').textContent=idMeta;
+  document.getElementById('main-modal-save').textContent='Save Updates';
+  document.getElementById('main-modal-save').style.display='inline-flex';
+  document.getElementById('main-modal-cancel').textContent='Cancel';
+  document.getElementById('main-modal-body').innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
+  document.getElementById('main-modal').classList.add('open');
+  var hasEndUserField = cfg.fields.some(function(f){ return f.type==='enduser'; });
+  function renderEdit(){ document.getElementById('main-modal-body').innerHTML=buildFormHTML(cfg.fields,'mf_',row); }
+  if(hasEndUserField){
+    google.script.run.withSuccessHandler(function(list){
+      endUsers=list||[]; injectDatalist('enduser-datalist',endUsers); renderEdit();
+    }).withFailureHandler(function(){ renderEdit(); }).getEndUsers();
+  } else {
+    renderEdit();
+  }
+}
+
+function openPRModal(trackingNo, currentPrNo) {
+  prState = { trackingNo: trackingNo, currentPrNo: currentPrNo };
+  modalState = { mode: 'pr-edit', trackingNo: trackingNo };
+  document.getElementById('main-modal-title').textContent = 'Update P.R #';
+  document.getElementById('main-modal-meta').textContent = 'Tracking: ' + esc2(trackingNo) + ' · Updates P.R # across all department sheets';
+  document.getElementById('main-modal-body').innerHTML =
+    '<div class="form-grid">' +
+    '<div class="form-group full"><label class="form-label">P.R # <span style="color:var(--muted);font-weight:400;">(leave blank to clear)</span></label>' +
+    '<input class="form-input" id="mf_prno" type="text" value="' + esc(currentPrNo || '') + '" placeholder="e.g. 2024-01-001" autocomplete="off"/></div>' +
+    '</div>';
+  document.getElementById('main-modal-save').textContent = 'Update P.R #';
+  document.getElementById('main-modal-save').style.display = 'inline-flex';
+  document.getElementById('main-modal-cancel').textContent = 'Cancel';
+  document.getElementById('main-modal').classList.add('open');
+}
+
+function closeMainModal(e){
+  if(e&&e.target!==document.getElementById('main-modal')) return;
+  document.getElementById('main-modal-save').style.display='inline-flex';
+  document.getElementById('main-modal-cancel').textContent='Cancel';
+  document.getElementById('main-modal').classList.remove('open'); modalState={}; prState={};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SAVE MAIN MODAL — handles create / dept edit / end-user edit
+// ═══════════════════════════════════════════════════════════════════════════════
+function saveMainModal(){
+  var btn=document.getElementById('main-modal-save');
+
+  // ── END USER EDIT mode — saves 3 Supply date fields ──
+  if (modalState.mode === 'enduser-edit') {
+    var data = readFormData(EU_EDIT_FIELDS, 'mf_');
+    btn.textContent='Saving…'; btn.disabled=true;
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.textContent='Save Updates'; btn.disabled=false;
+        document.getElementById('main-modal').classList.remove('open');
+        if(res&&res.success){
+          showToast('✅ Supply dates updated successfully.','success');
+          loadData();
+        } else {
+          showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        }
+        modalState={};
+      })
+      .withFailureHandler(function(e){ btn.textContent='Save Updates'; btn.disabled=false; showToast('Error: '+e.message,'error'); })
+      .updateEndUserSupplyFields(modalState.supRowNum, data, currentUser.username);
+    return;
+  }
+
+  if (modalState.mode === 'pr-edit') {
+    var newPrNo = (document.getElementById('mf_prno') || {value:''}).value.trim();
+    var tn = modalState.trackingNo;
+    btn.textContent = 'Updating…'; btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.textContent = 'Update P.R #'; btn.disabled = false;
+        document.getElementById('main-modal').classList.remove('open');
+        if (res && res.success) {
+          showToast('P.R # updated across ' + res.updatedCount + ' row' + (res.updatedCount !== 1 ? 's' : '') + '.', 'success');
+          loadData();
+        } else {
+          showToast('Error: ' + (res && res.message || 'Unknown'), 'error');
+        }
+        modalState = {}; prState = {};
+      })
+      .withFailureHandler(function(e) { btn.textContent = 'Update P.R #'; btn.disabled = false; showToast('Error: ' + e.message, 'error'); })
+      .updatePrNumber(tn, newPrNo, currentUser.username);
+    return;
+  }
+
+  if (modalState.mode === 'return-complete') {
+    var remarks = (document.getElementById('mf_return_complete_remarks') || {value:''}).value.trim();
+    var forwardTo = (document.getElementById('mf_return_complete_forward_to') || {value:''}).value.trim();
+    if (!remarks) {
+      showToast('Forward remarks are required before receiving this item.','error');
+      return;
+    }
+    if (!forwardTo) {
+      showToast('Forward To Department is required.','error');
+      return;
+    }
+    var returnStateSnapshot = {
+      sheetName: modalState.sheetName,
+      rowNum: modalState.rowNum,
+      returnContext: modalState.returnContext,
+      returnPage: modalState.returnPage,
+      forwardTo: forwardTo
+    };
+    btn.textContent='Receiving…'; btn.disabled=true;
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.textContent='Receive & Forward'; btn.disabled=false;
+        document.getElementById('main-modal').classList.remove('open');
+        if(res&&res.success){
+          showToast('Transaction received and forwarded.','success');
+          loadData();
+          setTimeout(function(){
+            var targetPage = getPageKeyFromSheet(returnStateSnapshot.forwardTo);
+            if (returnStateSnapshot.forwardTo !== 'END USER' && currentUser && currentUser.role === 'ADMIN' && typeof navigate === 'function') {
+              navigate(targetPage);
+              if (typeof switchTab === 'function') switchTab(targetPage, 'new');
+              if (typeof switchNewSubTab === 'function') switchNewSubTab(targetPage, 'incoming');
+            } else if (returnStateSnapshot.returnContext === 'dashboard') {
+              switchDashboardDeptTab(returnStateSnapshot.returnPage || getPageKeyFromSheet(returnStateSnapshot.sheetName));
+              switchDashboardTab('active');
+            } else if (returnStateSnapshot.returnContext === 'myreqs') {
+              switchMyReqsDeptTab(returnStateSnapshot.returnPage || getPageKeyFromSheet(returnStateSnapshot.sheetName));
+              switchMyReqsTab('active');
+            } else {
+              switchTab(returnStateSnapshot.returnPage || getPageKeyFromSheet(returnStateSnapshot.sheetName), 'active');
+            }
+          }, 150);
+        } else {
+          showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        }
+        modalState={};
+      })
+      .withFailureHandler(function(e){ btn.textContent='Receive & Forward'; btn.disabled=false; showToast('Error: '+e.message,'error'); })
+      .receiveAndForwardReturnedTransaction(returnStateSnapshot.sheetName, returnStateSnapshot.rowNum, returnStateSnapshot.forwardTo, remarks, currentUser.username);
+    return;
+  }
+
+  // ── CREATE mode ──
+  if (modalState.mode==='create') {
+    var data=readFormData(BAC_CREATE_FIELDS,'mf_');
+    data['STATUS']='PROCESSING';
+    var missingCreate=BAC_CREATE_FIELDS.filter(function(f){ return f.required&&!data[f.key]; });
+    if(missingCreate.length){
+      showToast('Please fill in: '+missingCreate.map(function(f){ return f.label; }).join(', '),'error');
+      return;
+    }
+    btn.textContent='Creating…'; btn.disabled=true;
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.textContent='Create Transaction'; btn.disabled=false;
+        document.getElementById('main-modal').classList.remove('open');
+        if(res&&res.success){
+          showToast('✅ Transaction created! Tracking No.: '+res.trackingNo,'success');
+          delete cachedRows['bac'];
+          loadData();
+        } else { showToast('Error: '+(res&&res.message||'Unknown'),'error'); }
+        modalState={};
+      })
+      .withFailureHandler(function(e){ btn.textContent='Create Transaction'; btn.disabled=false; showToast('Server error: '+e.message,'error'); modalState={}; })
+      .createTransaction(data, currentUser.username);
+    return;
+  }
+
+  // ── DEPT EDIT mode ──
+  var cfg=MODAL_CONFIGS[modalState.page]; if(!cfg) return;
+  var editData=readFormData(cfg.fields,'mf_');
+  var missing=cfg.fields.filter(function(f){ return f.required&&!editData[f.key]; });
+  if(missing.length){ showToast('Please fill in: '+missing.map(function(f){ return f.label; }).join(', '),'error'); return; }
+
+  if (modalState.page !== 'bac' && modalState.isNew) {
+    editData['STATUS'] = 'PROCESSING';
+  }
+
+  btn.textContent='Saving…'; btn.disabled=true;
+  var savedPage    = modalState.page;
+  var savedRowNum  = modalState.rowNum;
+  var savedIsNew   = modalState.isNew;
+  var savedPrNo    = (savedPage === 'bac') ? (editData['P.R #'] || '') : null;
+  var savedTracking= (savedPage === 'bac') ? ((getRowFromCache('bac', savedRowNum)||{})['TRACKING NO.'] || '') : '';
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.textContent='Save Updates'; btn.disabled=false;
+      document.getElementById('main-modal').classList.remove('open');
+      if(res&&res.success){
+        var msg = savedPage==='bac' ? '✅ BAC record saved.' : (savedIsNew ? '✅ Saved — Status set to PROCESSING.' : '✅ Record updated.');
+        showToast(msg,'success');
+        if (savedPage === 'bac' && savedTracking && savedPrNo !== null) {
+          google.script.run.updatePrNumber(savedTracking, savedPrNo, currentUser.username);
+        }
+        tabState[savedPage] = 'active';
+        loadData();
+        setTimeout(function(){ switchTab(savedPage, 'active'); }, 200);
+      } else {
+        showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      }
+      modalState={};
+    })
+    .withFailureHandler(function(e){
+      btn.textContent='Save Updates'; btn.disabled=false;
+      showToast('Server error: '+e.message,'error');
+    })
+    .updateTransaction(SHEET_NAMES[modalState.page], modalState.rowNum, editData, currentUser.username);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FORWARD MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+var FORWARD_LABELS={'BAC':'Supply & Property','SUPPLY AND PROPERTY':'Budget','BUDGET':'Accounting','ACCOUNTING':'Cashier'};
+var FORWARD_DEFAULT_TARGETS={'BAC':'SUPPLY AND PROPERTY','SUPPLY AND PROPERTY':'BUDGET','BUDGET':'ACCOUNTING','ACCOUNTING':'CASH'};
+var RETURN_TARGETS=[
+  {value:'END USER',label:'Requesting Office'},
+  {value:'BAC',label:'BAC'},
+  {value:'SUPPLY AND PROPERTY',label:'Supply'},
+  {value:'BUDGET',label:'Budget'},
+  {value:'ACCOUNTING',label:'Accounting'},
+  {value:'CASH',label:'Cashier'}
+];
+
+function getPageKeyFromSheet(sn){ var m={'BAC':'bac','SUPPLY AND PROPERTY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASH':'cash'}; return m[sn]||'bac'; }
+function returnTargetOptions(sheetName){
+  return RETURN_TARGETS.filter(function(opt){ return opt.value!==sheetName; });
+}
+function receiveForwardTargetOptions(){
+  return RETURN_TARGETS.slice();
+}
+function forwardTargetOptions(sheetName){
+  return RETURN_TARGETS.filter(function(opt){ return opt.value!=='END USER' && opt.value!==sheetName; });
+}
+function forwardTargetLabel(value){
+  var found = RETURN_TARGETS.find(function(opt){ return opt.value===value; });
+  return found ? found.label : value;
+}
+
+function openForwardModal(sheetName, rowNum){
+  var pageKey=getPageKeyFromSheet(sheetName);
+  var row=getRowFromCache(pageKey, rowNum);
+  var defaultTarget = FORWARD_DEFAULT_TARGETS[sheetName] || '';
+  var idMeta=(row&&row['P.R #']?'P.R #: '+row['P.R #']:'')+(row&&row['TRACKING NO.']?((row&&row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):'');
+  fwdState={sheetName:sheetName,rowNum:rowNum};
+  document.getElementById('fwd-modal-title').textContent='Forward Transaction';
+  document.getElementById('fwd-modal-meta').textContent=
+    (idMeta?idMeta:('Row #'+rowNum))+' · Cannot be undone.';
+  var opts=forwardTargetOptions(sheetName).map(function(opt){ return '<option value="'+esc(opt.value)+'"'+(opt.value===defaultTarget?' selected':'')+'>'+esc2(opt.label)+'</option>'; }).join('');
+  var body='<div class="form-grid">'+
+    '<div class="form-group full"><label class="form-label">Forward To</label><select class="form-select" id="fwd-target"><option value="">— Select —</option>'+opts+'</select></div>'+
+    '<div class="form-group full"><label class="form-label">Remarks</label><textarea class="form-textarea" id="fwd-remarks" placeholder="Add remarks for the target department (optional)" style="min-height:120px;"></textarea></div>'+ 
+    '</div>';
+  document.getElementById('fwd-modal-body').innerHTML=body;
+  document.getElementById('forward-modal').classList.add('open');
+}
+function closeForwardModal(e){
+  if(e&&e.target!==document.getElementById('forward-modal')) return;
+  document.getElementById('forward-modal').classList.remove('open'); fwdState={};
+}
+function confirmForward(){
+  var btn=document.getElementById('fwd-modal-save');
+  var target=(document.getElementById('fwd-target')||{value:''}).value.trim();
+  if(!target){ showToast('Please select a department to forward to.','error'); return; }
+  var remarks=(document.getElementById('fwd-remarks')||{value:''}).value.trim();
+  var extraD={'FORWARD REMARKS':remarks};
+  btn.textContent='Forwarding…'; btn.disabled=true;
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.textContent='Forward →'; btn.disabled=false;
+      document.getElementById('forward-modal').classList.remove('open');
+      if(res&&res.success){ showToast('Forwarded to '+forwardTargetLabel(target)+'.','success'); loadData(); }
+      else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      fwdState={};
+    })
+    .withFailureHandler(function(e){ btn.textContent='Forward →'; btn.disabled=false; showToast('Error: '+e.message,'error'); })
+    .forwardTransaction(fwdState.sheetName, fwdState.rowNum, target, extraD, currentUser.username);
+}
+
+function openReturnModal(sheetName, rowNum){
+  var pageKey=getPageKeyFromSheet(sheetName);
+  var row=getRowFromCache(pageKey, rowNum);
+  returnState={sheetName:sheetName,rowNum:rowNum};
+  document.getElementById('return-modal-title').textContent='Return Transaction';
+  document.getElementById('return-modal-meta').textContent=(row&&((row['P.R #']||'').trim()|| (row['TRACKING NO.']||'').trim()))
+    ? ((row['P.R #']?'P.R #: '+row['P.R #']:'') + (row['TRACKING NO.']?((row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):''))
+    : ('Row #'+rowNum);
+  var opts=returnTargetOptions(sheetName).map(function(opt){ return '<option value="'+esc(opt.value)+'">'+esc2(opt.label)+'</option>'; }).join('');
+  var body='<div class="form-grid">'+
+    '<div class="form-group full"><label class="form-label">Return To</label><select class="form-select" id="return-target"><option value="">— Select —</option>'+opts+'</select></div>'+
+    '<div class="form-group full"><label class="form-label">Return From Remarks</label><textarea class="form-textarea" id="return-remarks" placeholder="State why this transaction is being returned" style="min-height:140px;"></textarea></div>'+
+    '<div class="form-group full" style="margin-top:-4px;"><label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text2);cursor:pointer;"><input type="checkbox" id="return-mark-completed" style="width:16px;height:16px;"/> Return and mark as completed</label></div>'+
+    '</div>';
+  document.getElementById('return-modal-body').innerHTML=body;
+  document.getElementById('return-modal').classList.add('open');
+}
+function closeReturnModal(e){
+  if(e&&e.target!==document.getElementById('return-modal')) return;
+  document.getElementById('return-modal').classList.remove('open'); returnState={};
+}
+function confirmReturn(){
+  var btn=document.getElementById('return-modal-save');
+  var target=(document.getElementById('return-target')||{value:''}).value.trim();
+  var remarks=(document.getElementById('return-remarks')||{value:''}).value.trim();
+  var markCompleted=(document.getElementById('return-mark-completed')||{checked:false}).checked;
+  if(!target){ showToast('Please choose where to return this transaction.','error'); return; }
+  if(!remarks){ showToast('Remarks are required when returning a transaction.','error'); return; }
+  btn.textContent='Returning…'; btn.disabled=true;
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.textContent='Return'; btn.disabled=false;
+      document.getElementById('return-modal').classList.remove('open');
+      if(res&&res.success){ showToast('Transaction returned successfully.','success'); loadData(); }
+      else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      returnState={};
+    })
+    .withFailureHandler(function(e){ btn.textContent='Return'; btn.disabled=false; showToast('Error: '+e.message,'error'); })
+    .returnTransaction(returnState.sheetName, returnState.rowNum, target, remarks, currentUser.username, markCompleted);
+}
+function openCompleteReturnedModal(sheetName, rowNum, contextName, pageKey){
+  var resolvedPage = pageKey || getPageKeyFromSheet(sheetName);
+  var row = getRowFromCache(resolvedPage, rowNum);
+  modalState = {
+    mode:'return-complete',
+    sheetName:sheetName,
+    rowNum:rowNum,
+    returnContext:contextName || 'page',
+    returnPage:resolvedPage
+  };
+  document.getElementById('main-modal-title').textContent='Receive';
+  document.getElementById('main-modal-meta').textContent=(row&&((row['P.R #']||'').trim()|| (row['TRACKING NO.']||'').trim()))
+    ? ((row['P.R #']?'P.R #: '+row['P.R #']:'') + (row['TRACKING NO.']?((row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):''))
+    : ('Row #'+rowNum);
+  var forwardOpts = receiveForwardTargetOptions().map(function(opt){
+    var label = opt.value === 'END USER' ? 'End User' : opt.label;
+    return '<option value="'+esc(opt.value)+'">'+esc2(label)+'</option>';
+  }).join('');
+  document.getElementById('main-modal-body').innerHTML=
+    '<div class="form-grid">'+
+      (row&&row['RETURN REMARKS']?'<div class="form-group full"><label class="form-label">Returner Remarks</label><div class="view-value" style="min-height:72px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);">'+esc2(row['RETURN REMARKS'])+'</div></div>':'')+
+      '<div class="form-group full"><label class="form-label">Forward Remarks <span class="req">*</span></label><textarea class="form-textarea" id="mf_return_complete_remarks" placeholder="Add forward remarks" style="min-height:140px;"></textarea></div>'+
+      '<div class="form-group full"><label class="form-label">Forward To Department <span class="req">*</span></label><select class="form-select" id="mf_return_complete_forward_to"><option value="">— Select —</option>'+forwardOpts+'</select></div>'+
+    '</div>';
+  document.getElementById('main-modal-save').textContent='Receive & Forward';
+  document.getElementById('main-modal-save').style.display='inline-flex';
+  document.getElementById('main-modal-cancel').textContent='Cancel';
+  document.getElementById('main-modal').classList.add('open');
+}
+function completeReturnedItem(sheetName, rowNum){
+  openCompleteReturnedModal(sheetName, rowNum, 'page', getPageKeyFromSheet(sheetName));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MARK PAID / CANCEL
+// ═══════════════════════════════════════════════════════════════════════════════
+function doMarkPaid(rowNum){
+  if(!confirm('Mark this transaction as PAID? This cannot be undone.')) return;
+  google.script.run
+    .withSuccessHandler(function(res){ if(res&&res.success){ showToast('Marked as PAID!','success'); loadData(); } else showToast('Error: '+(res&&res.message||'Unknown'),'error'); })
+    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+    .markCompleted(rowNum, currentUser.username);
+}
+function doCancelTransaction(sheetName, rowNum){
+  if(!confirm('Cancel this transaction? This cannot be undone.')) return;
+  google.script.run
+    .withSuccessHandler(function(res){ if(res&&res.success){ showToast('Transaction cancelled.','info'); loadData(); } else showToast('Error: '+(res&&res.message||'Unknown'),'error'); })
+    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+    .cancelTransaction(sheetName, rowNum, currentUser.username);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  HELPERS
+</script>
+

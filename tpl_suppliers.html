@@ -1,0 +1,18 @@
+<template id="tpl-suppliers">
+  <div class="section-head">
+    <div><div class="section-title">Supplier Management</div><div class="section-sub">Manage supplier records and availability status</div></div>
+    <div class="section-actions">
+      <div class="search-wrap"><span class="search-icon">🔍</span><input id="suppliers-search" placeholder="Search suppliers…" oninput="filterSuppliersTable()"/></div>
+      <button class="tb-btn primary" onclick="openAddSupplierModal()">＋ Add Supplier</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <div><div class="panel-title">Suppliers</div><div class="panel-sub" id="suppliers-panel-sub"></div></div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Supplier Name</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="suppliers-tbody"><tr><td colspan="4"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
+    </table></div>
+  </div>
+</template>

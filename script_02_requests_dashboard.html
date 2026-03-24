@@ -1,0 +1,1473 @@
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MY REQUESTS — End User view
+// ═══════════════════════════════════════════════════════════════════════════════
+var cachedMyReqs = [];
+var cachedMyReqDeptRows = { bac:[], supply:[], budget:[], accounting:[], cash:[] };
+var myReqsTab = 'active';
+var myReqsDeptTab = 'bac';
+var transactionCategoryByTracking = {};
+var _txnCategoryIndexLoading = false;
+var _txnCategoryIndexCallbacks = [];
+
+var MYREQS_DEPT_META = {
+  bac: {
+    title:'BAC Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:17, otherCols:18, returnedCols:6, returnDoneCols:8
+  },
+  supply: {
+    title:'Supply & Property Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:17, otherCols:18, returnedCols:6, returnDoneCols:8
+  },
+  budget: {
+    title:'Budget Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:7, otherCols:8, returnedCols:6, returnDoneCols:8
+  },
+  accounting: {
+    title:'Accounting Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:7, otherCols:8, returnedCols:6, returnDoneCols:8
+  },
+  cash: {
+    title:'Cashier Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:6, otherCols:7, returnedCols:6, returnDoneCols:8
+  }
+};
+
+function getActiveBacCategoryFilter() {
+  return (typeof _bacCatFilter === 'string' && _bacCatFilter) ? _bacCatFilter : 'All';
+}
+
+function normalizeBacCategoryValue(v) {
+  return String(v || '').trim().toUpperCase();
+}
+
+function rememberTransactionCategoriesFromBacRows(rows) {
+  (rows || []).forEach(function(r) {
+    var tn = String((r && r['TRACKING NO.']) || '').trim();
+    var cat = String((r && r['CATEGORY']) || '').trim();
+    if (tn && cat) transactionCategoryByTracking[tn] = cat;
+  });
+}
+
+function getRowTransactionCategory(r) {
+  if (!r) return '';
+  var direct = String(r['CATEGORY'] || '').trim();
+  if (direct) return direct;
+  var tn = String(r['TRACKING NO.'] || '').trim();
+  return tn ? String(transactionCategoryByTracking[tn] || '').trim() : '';
+}
+
+function rowMatchesActiveBacCategory(r) {
+  var selected = getActiveBacCategoryFilter();
+  if (selected === 'All') return true;
+  return normalizeBacCategoryValue(getRowTransactionCategory(r)) === normalizeBacCategoryValue(selected);
+}
+
+function shouldShowMyReqsBacCategoryFilter() {
+  return true;
+}
+
+function shouldShowDashboardBacCategoryFilter() {
+  return true;
+}
+
+function syncBacCategoryFilterVisibility() {
+  var myReqsFilter = document.getElementById('myreqs-bac-cat-filter');
+  if (myReqsFilter) myReqsFilter.style.display = shouldShowMyReqsBacCategoryFilter() ? 'flex' : '';
+
+  var dashboardFilter = document.getElementById('dashboard-bac-cat-filter');
+  if (dashboardFilter) dashboardFilter.style.display = shouldShowDashboardBacCategoryFilter() ? 'flex' : '';
+}
+
+function ensureTransactionCategoryIndex(onReady) {
+  if (getActiveBacCategoryFilter() === 'All' || Object.keys(transactionCategoryByTracking).length) {
+    if (typeof onReady === 'function') onReady();
+    return;
+  }
+
+  if (typeof onReady === 'function') {
+    _txnCategoryIndexCallbacks.push(onReady);
+  }
+
+  if (_txnCategoryIndexLoading) return;
+
+  function flushCategoryIndexCallbacks() {
+    var pending = _txnCategoryIndexCallbacks.slice();
+    _txnCategoryIndexCallbacks = [];
+    pending.forEach(function(cb) {
+      try { cb(); } catch (e) {}
+    });
+  }
+
+  _txnCategoryIndexLoading = true;
+  google.script.run
+    .withSuccessHandler(function(bacRows) {
+      _txnCategoryIndexLoading = false;
+      rememberTransactionCategoriesFromBacRows(bacRows || []);
+      flushCategoryIndexCallbacks();
+    })
+    .withFailureHandler(function() {
+      _txnCategoryIndexLoading = false;
+      flushCategoryIndexCallbacks();
+    })
+    .getBACData();
+}
+
+function classifyMyReqDeptRow(r) {
+  var status = String(r['STATUS']||'').trim().toUpperCase();
+  var isNew = String(r['IS NEW']||'').trim().toUpperCase() === 'TRUE';
+  var hasReturn = String(r['RETURNED DATE']||'').trim() !== '';
+  var returnDone = String(r['RETURN RECEIVED DATE']||'').trim() !== '';
+  var toReqOffice = String(r['RETURN TO']||'').trim().toUpperCase() === 'REQUESTING OFFICE';
+  if (isNew && status !== 'CANCELLED') return 'active';
+  if (hasReturn && !returnDone && toReqOffice) return 'returned';
+  if (hasReturn && returnDone && toReqOffice) return 'returndone';
+  if (status === 'CANCELLED') return 'cancelled';
+  if (r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') return 'done';
+  return 'active';
+}
+
+function switchMyReqsDeptTab(tab) {
+  myReqsDeptTab = tab;
+  ['bac','supply','budget','accounting','cash'].forEach(function(t){
+    var el = document.getElementById('tab-myreqs-dept-'+t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  syncBacCategoryFilterVisibility();
+  renderMyReqsTable(cachedMyReqs);
+}
+
+function switchMyReqsTab(tab) {
+  myReqsTab = tab;
+  ['active','returned','returndone','done','cancelled'].forEach(function(t){
+    var el = document.getElementById('tab-myreqs-'+t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  syncBacCategoryFilterVisibility();
+  renderMyReqsTable(cachedMyReqs);
+}
+
+function completeReturnedMyRequest(page, rowNum) {
+  openCompleteReturnedModal(SHEET_NAMES[page], rowNum, 'myreqs', page);
+}
+
+function renderMyReqsBundle(bundle) {
+  if (!bundle || bundle.error) {
+    renderMyReqs({ error: bundle && bundle.error ? bundle.error : 'Unable to load requests.' });
+    return;
+  }
+  cachedMyReqs = Array.isArray(bundle.requests) ? bundle.requests : [];
+  cachedMyReqDeptRows = bundle.departmentRows || { bac:[], supply:[], budget:[], accounting:[], cash:[] };
+  cachedRows['bac'] = cachedMyReqDeptRows.bac || [];
+  rememberTransactionCategoriesFromBacRows(cachedRows['bac']);
+  cachedRows['supply'] = cachedMyReqDeptRows.supply || [];
+  cachedRows['budget'] = cachedMyReqDeptRows.budget || [];
+  cachedRows['accounting'] = cachedMyReqDeptRows.accounting || [];
+  cachedRows['cash'] = cachedMyReqDeptRows.cash || [];
+  syncBacCategoryFilterVisibility();
+  renderMyReqsTable(cachedMyReqs);
+}
+
+function renderMyReqs(reqs) {
+  cachedMyReqs = Array.isArray(reqs) ? reqs : [];
+  cachedMyReqDeptRows = { bac:[], supply:[], budget:[], accounting:[], cash:[] };
+  syncBacCategoryFilterVisibility();
+  renderMyReqsTable(cachedMyReqs);
+}
+
+function renderMyReqsTable(reqs) {
+  var tb    = document.getElementById('myreqs-tbody');
+  var sub   = document.getElementById('myreqs-sub');
+  var thead = document.getElementById('myreqs-thead');
+  if (!tb) return;
+
+  if (!reqs || reqs.error) {
+    if (thead) thead.innerHTML = '<tr><th>P.R # / Tracking No.</th><th>Status</th></tr>';
+    tb.innerHTML = '<tr><td colspan="8"><div style="color:var(--red);padding:20px;text-align:center;">Error loading requests.</div></td></tr>';
+    return;
+  }
+
+  // Build tracking set from all requests for this end user
+  var trackingSet = {};
+  (reqs || []).forEach(function(r){ if (r.trackingNo) trackingSet[r.trackingNo] = true; });
+
+  function matchingRows(key) {
+    return (cachedMyReqDeptRows[key] || []).filter(function(r){
+      return r['TRACKING NO.'] && trackingSet[r['TRACKING NO.']] && rowMatchesActiveBacCategory(r);
+    });
+  }
+
+  // Count badges per tab across ALL depts
+  var tabCounts = { active:0, returned:0, returndone:0, done:0, cancelled:0 };
+  ['bac','supply','budget','accounting','cash'].forEach(function(key){
+    matchingRows(key).forEach(function(r){
+      var cat = classifyMyReqDeptRow(r);
+      if (tabCounts[cat] !== undefined) tabCounts[cat]++;
+    });
+  });
+  Object.keys(tabCounts).forEach(function(t){
+    var el = document.getElementById('myreqs-count-'+t); if (el) el.textContent = tabCounts[t];
+  });
+
+  // Active tab highlight
+  ['active','returned','returndone','done','cancelled'].forEach(function(t){
+    var el = document.getElementById('tab-myreqs-'+t);
+    if (el) el.classList.toggle('active', t === myReqsTab);
+  });
+
+  // Dept tab counts for current status tab
+  ['bac','supply','budget','accounting','cash'].forEach(function(key){
+    var count = matchingRows(key).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; }).length;
+    var el = document.getElementById('myreqs-dept-count-'+key);
+    if (el) el.textContent = count;
+  });
+
+  var meta = MYREQS_DEPT_META[myReqsDeptTab] || MYREQS_DEPT_META.bac;
+  var deptRows = matchingRows(myReqsDeptTab).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; });
+
+  var isReturnTab     = myReqsTab === 'returned';
+  var isReturnDoneTab = myReqsTab === 'returndone';
+  var isActiveTab     = myReqsTab === 'active';
+  var cols = isReturnTab ? meta.returnedCols : (isReturnDoneTab ? meta.returnDoneCols : (isActiveTab ? meta.activeCols : meta.otherCols));
+
+  if (thead) thead.innerHTML = isReturnTab ? meta.returnedHeader : (isReturnDoneTab ? meta.returnDoneHeader : (isActiveTab ? meta.activeHeader : meta.otherHeader));
+
+  var titleMap = { active:'Active', returned:'Returned', returndone:'Returned History', done:'Done', cancelled:'Cancelled' };
+  var titleEl = document.getElementById('myreqs-panel-title');
+  if (titleEl) titleEl.textContent = (titleMap[myReqsTab]||'Active') + ' · ' + meta.title;
+  if (sub) sub.textContent = deptRows.length + ' record' + (deptRows.length !== 1 ? 's' : '');
+  syncBacCategoryFilterVisibility();
+
+  if (!deptRows.length) {
+    tb.innerHTML = '<tr><td colspan="'+cols+'"><div class="empty"><div class="empty-icon">📭</div>'+
+      '<div class="empty-title">No records here</div>'+
+      '<div class="empty-sub">No '+( titleMap[myReqsTab]||'' ).toLowerCase()+' transactions in '+meta.title+'.</div>'+
+      '</div></td></tr>';
+    return;
+  }
+
+  var showCompletedAt = !isActiveTab && !isReturnTab && !isReturnDoneTab;
+  var doneCls = (myReqsTab === 'done' || myReqsTab === 'cancelled') ? 'completed-row' : '';
+
+  tb.innerHTML = deptRows.map(function(r) {
+    var viewBtn = '<button class="btn-sm view" onclick="openViewModal(\''+myReqsDeptTab+'\','+r._rowNum+')">👁 View</button>';
+    var actionMenu = '<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">';
+
+    if (isReturnTab) {
+      return '<tr>'+
+        trackingPrCell(r)+
+        '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+        '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+        '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+        '<td>'+actionMenu+viewBtn+
+        '<button class="btn-sm success" onclick="completeReturnedMyRequest(\''+myReqsDeptTab+'\','+r._rowNum+')">✔ Receive</button>'+
+        '</div></div></td></tr>';
+    }
+
+    if (isReturnDoneTab) {
+      return '<tr class="completed-row">'+
+        trackingPrCell(r)+
+        '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+        '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+        '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+        '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+        '<td>'+actionMenu+viewBtn+'</div></div></td></tr>';
+    }
+
+    var actionBtns = actionMenu + viewBtn + '</div></div>';
+
+    if (myReqsDeptTab === 'bac') {
+      return '<tr class="'+doneCls+'">'+
+        trackingPrCell(r)+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
+        '<td>'+esc2(r['CATEGORY']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['PHIGEPS POSTED']||'—')+'</td>'+
+        '<td>'+currency(r['APPROVED ABC'])+'</td>'+
+        '<td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['RFQ']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['RFQ DATE OF COMPLETION']||'—')+'</td>'+
+        '<td>'+esc2(r['ABSTRACT OF AWARD']||'—')+'</td>'+
+        '<td>'+esc2(r['AWARDED TO']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['DATE OF AWARD']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['BAC RESO']||'—')+'</td>'+
+        '<td>'+esc2(r['NOA']||'—')+'</td>'+
+        '<td>'+esc2(r['NTP']||'—')+'</td>'+
+        '<td>'+statusBadge(r['STATUS'])+'</td>'+
+        (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+        '<td>'+actionBtns+'</td>'+
+      '</tr>';
+    }
+    if (myReqsDeptTab === 'supply') {
+      return '<tr class="'+doneCls+'">'+
+        trackingPrCell(r)+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['P.O. No.']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['P.O. DATE']||'—')+'</td>'+
+        '<td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td>'+
+        '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
+        '<td>'+esc2(r['PARTICULARS']||'—')+'</td>'+
+        '<td>'+currency(r['AMOUNT'])+'</td>'+
+        '<td class="td-mono">'+esc2(r['DATE TRANSMITTED TO SUPPLIER']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED BY SUPPLIER']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['COA DATE RECEIVED']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['I.A.R #']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['INVOICE #']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['DATE RETURNED TO SUPPLY']||'—')+'</td>'+
+        '<td>'+statusBadge(r['STATUS'])+'</td>'+
+        (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+        '<td>'+actionBtns+'</td>'+
+      '</tr>';
+    }
+    if (myReqsDeptTab === 'budget') {
+      return '<tr class="'+doneCls+'">'+
+        trackingPrCell(r)+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['ORS NO.']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['BUPR NO.']||'—')+'</td>'+
+        '<td>'+currency(r['AMOUNT'])+'</td>'+
+        '<td>'+statusBadge(r['STATUS'])+'</td>'+
+        (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+        '<td>'+actionBtns+'</td>'+
+      '</tr>';
+    }
+    if (myReqsDeptTab === 'accounting') {
+      return '<tr class="'+doneCls+'">'+
+        trackingPrCell(r)+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['DV No.']||'—')+'</td>'+
+        '<td>'+currency(r['Net Amount'])+'</td>'+
+        '<td>'+currency(r['TAX Amount'])+'</td>'+
+        '<td>'+statusBadge(r['STATUS'])+'</td>'+
+        (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+        '<td>'+actionBtns+'</td>'+
+      '</tr>';
+    }
+    return '<tr class="'+doneCls+'">'+
+      trackingPrCell(r)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['CHEQUE NO. / LDDAP']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['DATE OF CHEQUE']||'—')+'</td>'+
+      '<td>'+statusBadge(r['STATUS'])+'</td>'+
+      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      '<td>'+actionBtns+'</td>'+
+    '</tr>';
+  }).join('');
+}
+
+function filterMyReqs() {
+  var q  = (document.getElementById('myreqs-search').value||'').toLowerCase();
+  var tb = document.getElementById('myreqs-tbody');
+  if (!tb) return;
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+}
+
+// ── OPEN END-USER EDIT MODAL (Supply dates only) ──────────────────────────────
+function openEndUserEditModal(trackingNo) {
+  var req = cachedMyReqs.find(function(r){ return r.trackingNo === trackingNo; });
+  if (!req || !req.supRowNum) {
+    showToast('Cannot edit — Supply row not found. Please refresh.', 'error');
+    return;
+  }
+  modalState = { mode:'enduser-edit', supRowNum: req.supRowNum, trackingNo: trackingNo };
+  document.getElementById('main-modal-title').textContent = 'Update Supply Dates';
+  var pr = String(req.prNo || '').trim();
+  var tr = String(trackingNo || '').trim();
+  var idMeta = pr ? ('P.R #: '+pr + (tr ? (' · Tracking: '+tr) : '')) : (tr ? ('Tracking: '+tr) : ('Row #'+req.supRowNum));
+  document.getElementById('main-modal-meta').textContent  = idMeta + ' · Editing Supply & Property dates';
+  var existing = {
+    'DATE TRANSMITTED TO SUPPLIER': req.dateTransmittedToSupplier || '',
+    'DATE RECEIVED BY SUPPLIER':    req.dateReceivedBySupplier    || '',
+    'COA DATE RECEIVED':            req.coaDateReceived           || ''
+  };
+  document.getElementById('main-modal-body').innerHTML =
+    '<div class="eu-edit-banner">🖊 You are updating supply dates for this transaction.</div>'+
+    buildFormHTML(EU_EDIT_FIELDS, 'mf_', existing);
+  document.getElementById('main-modal-save').textContent = 'Save Updates';
+  document.getElementById('main-modal-save').style.display = 'inline-flex';
+  document.getElementById('main-modal-cancel').textContent = 'Cancel';
+  document.getElementById('main-modal').classList.add('open');
+}
+
+function openMyReqViewModal(trackingNo) {
+  var req = cachedMyReqs.find(function(r){ return r.trackingNo === trackingNo; });
+  if (!req) { showToast('Request data not found. Please refresh.','error'); return; }
+
+  var body =
+    '<div class="view-summary">'+
+      '<div class="view-card">'+
+        '<div class="view-label">P.R # / Tracking No.</div>'+
+        '<div class="view-value"><span class="td-pr">'+esc2(req.prNo||'—')+'</span><br><span class="td-tracking">'+esc2(req.trackingNo||'—')+'</span></div>'+
+      '</div>'+
+      '<div class="view-card">'+
+        '<div class="view-label">Status</div>'+
+        '<div class="view-value">'+statusBadge(req.currentStatus||'—')+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="view-grid">'+
+      '<div class="view-field"><div class="view-label">Current Department</div><div class="view-value">'+esc2(req.currentSection||'—')+'</div></div>'+
+      '<div class="view-field"><div class="view-label">Assigned Office</div><div class="view-value">'+esc2(req.office||'—')+'</div></div>'+
+      '<div class="view-field"><div class="view-label">Date Transmitted to Supplier</div><div class="view-value">'+esc2(req.dateTransmittedToSupplier||'—')+'</div></div>'+
+      '<div class="view-field"><div class="view-label">Date Received by Supplier</div><div class="view-value">'+esc2(req.dateReceivedBySupplier||'—')+'</div></div>'+
+      '<div class="view-field full"><div class="view-label">COA Date Received</div><div class="view-value">'+esc2(req.coaDateReceived||'—')+'</div></div>'+
+    '</div>';
+
+  modalState = { mode:'view' };
+  document.getElementById('main-modal-title').textContent = 'Request Details';
+  document.getElementById('main-modal-meta').textContent  = 'Read-only view';
+  document.getElementById('main-modal-body').innerHTML    = body;
+  document.getElementById('main-modal-save').style.display = 'none';
+  document.getElementById('main-modal-cancel').textContent = 'Close';
+  document.getElementById('main-modal').classList.add('open');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TRACK SEARCH
+// ═══════════════════════════════════════════════════════════════════════════════
+function doTrackSearch(){
+  var q   = (document.getElementById('track-input').value||'').trim();
+  var out = document.getElementById('track-result');
+  if (!q){ out.innerHTML=''; return; }
+  out.innerHTML='<div class="loading"><div class="spinner"></div> Searching…</div>';
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res){
+        out.innerHTML='<div style="padding:28px;text-align:center;color:var(--muted);font-size:13px;"><div style="font-size:36px;margin-bottom:10px;">🔎</div>No transaction found for <strong>"'+esc2(q)+'"</strong>.</div>';
+        return;
+      }
+      if (res.error){ out.innerHTML='<div style="color:var(--red);padding:12px;">⚠ '+esc2(res.error)+'</div>'; return; }
+      var icons ={'BAC':'📋','SUPPLY AND PROPERTY':'📦','BUDGET':'💰','ACCOUNTING':'🧾','CASH':'💳'};
+      var labels={'BAC':'BAC','SUPPLY AND PROPERTY':'Supply & Property','BUDGET':'Budget','ACCOUNTING':'Accounting','CASH':'Cashier'};
+      var tlHTML = res.timeline.map(function(t){
+        var cls = t.completed ? 'done' : (t.reached ? 'active' : 'pending');
+        return '<div class="tl-item"><div class="tl-icon '+cls+'">'+(t.completed?'✓':(t.reached?'●':'○'))+'</div>'+
+          '<div class="tl-content"><div class="tl-section">'+(icons[t.section]||'')+(labels[t.section]||t.section)+'</div>'+
+          '<div class="tl-status '+cls+'">'+(t.reached?(t.status||'—'):'Not yet reached')+'</div>'+
+          (t.returnedFrom?'<div class="tl-time">Returned From: '+esc2(t.returnedFrom)+'</div>':'')+
+          (t.returnRemarks?'<div class="tl-time">Return From Remarks: '+esc2(t.returnRemarks)+'</div>':'')+
+          (t.returnReceivedRemarks?'<div class="tl-time">Return To Remarks: '+esc2(t.returnReceivedRemarks)+'</div>':'')+
+          (t.completedAt?'<div class="tl-time">Completed: '+esc2(t.completedAt)+'</div>':'')+
+          (t.returnedDate?'<div class="tl-time">Returned: '+esc2(t.returnedDate)+'</div>':'')+
+          '</div></div>';
+      }).join('');
+      var histHTML = '';
+      if (res.history && res.history.length) {
+        var evtCls  = {'CREATED':'evt-create','FORWARDED':'evt-forward','RETURNED':'evt-return','RETURN DONE':'evt-returndone','RETURN CONTINUE':'evt-returncont','PAID':'evt-paid','CANCELLED':'evt-cancel'};
+        var evtIcon = {'CREATED':'＋','FORWARDED':'→','RETURNED':'↩','RETURN DONE':'✔','RETURN CONTINUE':'▶','PAID':'✓','CANCELLED':'✗'};
+        histHTML = '<div class="track-history">'+
+          '<div class="track-history-title">Activity Log</div>'+
+          res.history.map(function(h){
+            var act  = String(h['ACTION']||'');
+            var cls  = evtCls[act]  || 'evt-default';
+            var icon = evtIcon[act] || '●';
+            var flow = (h['FROM']&&h['TO'])
+              ? '<span class="evt-flow">'+esc2(h['FROM'])+'<span class="evt-arrow"> → </span>'+esc2(h['TO'])+'</span>'
+              : ((h['FROM']||h['TO']) ? '<span class="evt-flow">'+esc2(h['FROM']||h['TO'])+'</span>' : '');
+            return '<div class="track-evt '+cls+'">'+
+              '<div class="evt-dot">'+icon+'</div>'+
+              '<div class="evt-body">'+
+                '<div class="evt-header">'+
+                  '<span class="evt-action">'+esc2(act)+'</span>'+
+                  (flow ? ' '+flow : '')+
+                  (h['USER'] ? '<span class="evt-user">'+esc2(h['USER'])+'</span>' : '')+
+                '</div>'+
+                '<div class="evt-time">'+esc2(h['TIMESTAMP']||'')+'</div>'+
+                (h['REMARKS'] ? '<div class="evt-remarks">'+esc2(h['REMARKS'])+'</div>' : '')+
+              '</div>'+
+            '</div>';
+          }).join('')+
+        '</div>';
+      }
+      out.innerHTML='<div class="track-card">'+
+        '<div class="track-header"><div class="track-title">'+(res.trackingNo||'—')+'</div>'+
+        '<div class="track-meta">'+(res.prNo?'P.R #: '+esc2(res.prNo)+' &nbsp;·&nbsp; ':'')+esc2(res.office)+(res.item?' &nbsp;·&nbsp; '+esc2(res.item):'')+
+        '</div></div>'+
+        '<div class="track-body">'+
+          '<div class="track-current"><div><div class="track-current-label">Current Location</div>'+
+          '<div class="track-current-val">'+(icons[res.currentSection]||'📝')+' '+(labels[res.currentSection]||res.currentSection)+'</div>'+
+          (res.currentReturnRemarks?'<div class="track-current-label" style="margin-top:8px;">Return From Remarks</div><div class="track-meta">'+esc2(res.currentReturnRemarks)+'</div>':'')+
+          (res.currentReturnReceivedRemarks?'<div class="track-current-label" style="margin-top:8px;">Return To Remarks</div><div class="track-meta">'+esc2(res.currentReturnReceivedRemarks)+'</div>':'')+
+          '</div>'+
+          '<div class="track-current-status">'+statusBadge(res.currentStatus)+'</div></div>'+
+          '<div class="timeline">'+tlHTML+'</div>'+
+          histHTML+
+        '</div></div>';
+    })
+    .withFailureHandler(function(e){ out.innerHTML='<div style="color:var(--red);padding:12px;">Error: '+esc2(e.message)+'</div>'; })
+    .searchTransaction(q);
+}
+
+var dashboardTab = 'all';
+var dashboardDeptTab = 'bac';
+var cachedDashboardData = { bac:[], supply:[], budget:[], accounting:[], cash:[] };
+var dashboardAllReqs = [];
+var _dashToken = 0;
+var _dashCount = 0;
+
+var DASHBOARD_DEPT_META = {
+  bac: {
+    title:'BAC Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:17,
+    otherCols:18,
+    returnedCols:5
+  },
+  supply: {
+    title:'Supply & Property Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:17,
+    otherCols:18,
+    returnedCols:5
+  },
+  budget: {
+    title:'Budget Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:7,
+    otherCols:8,
+    returnedCols:5
+  },
+  accounting: {
+    title:'Accounting Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:7,
+    otherCols:8,
+    returnedCols:5
+  },
+  cash: {
+    title:'Cashier Records',
+    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:6,
+    otherCols:7,
+    returnedCols:5
+  }
+};
+
+var DASHBOARD_RETURN_TARGETS = { bac:'BAC', supply:'Supply', budget:'Budget', accounting:'Accounting', cash:'Cashier' };
+
+function dashboardIsReturnPending(r) {
+  if (String(r['IS NEW']||'').trim().toUpperCase()==='TRUE') return false;
+  return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()==='';
+}
+
+function dashboardRowCategory(page, r) {
+  var status = String(r['STATUS']||'').trim().toUpperCase();
+  var isPendingReturn = dashboardIsReturnPending(r);
+  var isReturnedToPage = isPendingReturn && String(r['RETURN TO']||'').trim() === (DASHBOARD_RETURN_TARGETS[page] || '');
+  if (isReturnedToPage) return 'returned';
+  if (status === 'CANCELLED') return 'cancelled';
+  if (isPendingReturn) return 'locked';
+  if ((r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') || status === 'PAID') return 'completed';
+  return 'active';
+}
+
+function dashboardRowsForTab(page, tab) {
+  var rows = cachedDashboardData[page] || [];
+  if (tab === 'all') return rows;
+  return rows.filter(function(r){ return dashboardRowCategory(page, r) === tab; });
+}
+
+function completeReturnedDashboardItem(page, rowNum) {
+  openCompleteReturnedModal(SHEET_NAMES[page], rowNum, 'dashboard', page);
+}
+
+function switchDashboardDeptTab(tab) {
+  dashboardDeptTab = tab;
+  ['bac','supply','budget','accounting','cash'].forEach(function(t){
+    var el = document.getElementById('tab-dashboard-dept-'+t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  syncBacCategoryFilterVisibility();
+  renderDashboardTable();
+}
+
+function switchDashboardTab(tab) {
+  dashboardTab = tab;
+  ['all','active','returned','completed','cancelled'].forEach(function(t){
+    var el = document.getElementById('tab-dashboard-'+t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  syncBacCategoryFilterVisibility();
+  renderDashboardTable();
+}
+
+function renderDashboardAnalytics() {
+  var bac = cachedDashboardData.bac  || [];
+  var sup = cachedDashboardData.supply || [];
+  var bud = cachedDashboardData.budget || [];
+  var acc = cachedDashboardData.accounting || [];
+  var csh = cachedDashboardData.cash || [];
+
+  function isRP(r){ return String(r['RETURNED DATE']||'').trim()!==''&&String(r['RETURN RECEIVED DATE']||'').trim()===''; }
+  function isComp(r){ return !!(r['COMPLETED AT']&&r['COMPLETED AT'].trim()!=='')||String(r['STATUS']||'').toUpperCase()==='PAID'; }
+
+  // ── Global cross-dept stats ──
+  var uniqueTN={}, cancelledTN={}, returnedTN={}, paidTN={};
+  bac.forEach(function(r){
+    var tn=r['TRACKING NO.']; if(!tn) return;
+    uniqueTN[tn]=true;
+    if(String(r['STATUS']||'').toUpperCase()==='CANCELLED') cancelledTN[tn]=true;
+    if(isRP(r)) returnedTN[tn]=true;
+  });
+  csh.forEach(function(r){
+    var tn=r['TRACKING NO.']; if(!tn) return;
+    if(String(r['STATUS']||'').toUpperCase()==='PAID') paidTN[tn]=true;
+    if(isRP(r)) returnedTN[tn]=true;
+  });
+  [sup,bud,acc].forEach(function(rows){
+    rows.forEach(function(r){
+      var tn=r['TRACKING NO.']; if(!tn) return;
+      if(isRP(r)) returnedTN[tn]=true;
+    });
+  });
+
+  var total     = Object.keys(uniqueTN).length;
+  var paid      = Object.keys(paidTN).length;
+  var cancelled = Object.keys(cancelledTN).length;
+  var returned  = Object.keys(returnedTN).length;
+  var inProg    = Math.max(0, total - paid - cancelled);
+
+  // ── Stat Grid ──
+  var sgEl = document.getElementById('dashboard-stat-grid');
+  if(sgEl){
+    var cards=[
+      {cls:'s-blue',  icon:'📁', label:'Total Transactions', val:total,     hint:'Unique tracking numbers',        tab:'all'},
+      {cls:'s-amber', icon:'⚙', label:'In Progress',        val:inProg,    hint:'Excluding paid &amp; cancelled', tab:'active'},
+      {cls:'s-orange',icon:'↩', label:'Returned',           val:returned,  hint:'Pending return — all depts',     tab:'returned'},
+      {cls:'s-green', icon:'✅', label:'Paid / Done',        val:paid,      hint:'Marked PAID by Cashier',         tab:'completed'},
+      {cls:'s-red',   icon:'✕', label:'Cancelled',          val:cancelled, hint:'Cancelled transactions',          tab:'cancelled'}
+    ];
+    sgEl.innerHTML=cards.map(function(c){
+      return '<div class="stat-card '+c.cls+'" onclick="switchDashboardTab(\''+c.tab+'\')">'+
+        '<div class="stat-stripe"></div><div class="stat-icon">'+c.icon+'</div>'+
+        '<div class="stat-label">'+c.label+'</div><div class="stat-value">'+c.val+'</div>'+
+        '<div class="stat-hint">'+c.hint+'</div></div>';
+    }).join('');
+  }
+
+  // ── Pipeline ──
+  var deptDef=[
+    {key:'bac',        label:'BAC',              color:'var(--amber)', rows:bac},
+    {key:'supply',     label:'Supply & Property',color:'var(--teal)',  rows:sup},
+    {key:'budget',     label:'Budget',            color:'var(--violet)',rows:bud},
+    {key:'accounting', label:'Accounting',        color:'var(--blue)',  rows:acc},
+    {key:'cash',       label:'Cashier',           color:'var(--green)', rows:csh}
+  ];
+  var maxAct = 1;
+  var dStats = deptDef.map(function(d){
+    var act  = d.rows.filter(function(r){ var s=String(r['STATUS']||'').toUpperCase(); return (!r['COMPLETED AT']||r['COMPLETED AT'].trim()==='')&&s!=='CANCELLED'&&!isRP(r); }).length;
+    var ret  = d.rows.filter(function(r){ return isRP(r); }).length;
+    var done = d.rows.filter(function(r){ return isComp(r)&&!isRP(r); }).length;
+    if(act > maxAct) maxAct = act;
+    return {key:d.key, label:d.label, color:d.color, total:d.rows.length, active:act, returned:ret, done:done};
+  });
+
+  var pipeEl = document.getElementById('dashboard-pipeline');
+  if(pipeEl){
+    pipeEl.innerHTML = '<div class="pipeline-list">'+dStats.map(function(ds){
+      var pct = Math.round(ds.active / maxAct * 100);
+      return '<div class="pipeline-dept" onclick="switchDashboardDeptTab(\''+ds.key+'\')">'+
+        '<div class="pipeline-dept-left">'+
+          '<div class="pipeline-dept-name">'+ds.label+'</div>'+
+          '<div class="pipeline-dept-sub">'+ds.total+' total row'+(ds.total!==1?'s':'')+'</div>'+
+        '</div>'+
+        '<div class="pipeline-dept-right">'+
+          '<div class="pipeline-bar-wrap"><div class="pipeline-bar-fill" style="width:'+pct+'%;background:'+ds.color+'"></div></div>'+
+          '<div class="pipeline-metrics">'+
+            '<span class="pm pm-active">'+ds.active+' active</span>'+
+            (ds.returned?'<span class="pm pm-returned">'+ds.returned+' returned</span>':'')+
+            '<span class="pm pm-done">'+ds.done+' done</span>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join('')+'</div>';
+  }
+
+  // ── Needs Attention ──
+  var allRet = [];
+  deptDef.forEach(function(d){
+    d.rows.forEach(function(r){
+      if(isRP(r)) allRet.push({deptKey:d.key, deptLabel:d.label, row:r});
+    });
+  });
+  var seenRet = {}, uRet = [];
+  allRet.forEach(function(item){
+    var tn = item.row['TRACKING NO.']||'';
+    if(!seenRet[tn]){ seenRet[tn]=true; uRet.push(item); }
+  });
+
+  var alertsSubEl = document.getElementById('dashboard-alerts-sub');
+  if(alertsSubEl) alertsSubEl.textContent = uRet.length+' returned item'+(uRet.length!==1?'s':'')+' awaiting action';
+
+  var alertsEl = document.getElementById('dashboard-alerts');
+  if(alertsEl){
+    if(!uRet.length){
+      alertsEl.innerHTML='<div style="padding:28px;text-align:center;color:var(--muted);">'+
+        '<div style="font-size:32px;margin-bottom:8px;">✅</div>'+
+        '<div style="font-weight:700;font-size:13px;">All clear!</div>'+
+        '<div style="font-size:12px;margin-top:4px;">No returned items pending action.</div></div>';
+    } else {
+      alertsEl.innerHTML = uRet.map(function(item){
+        var r = item.row;
+        return '<div class="db-alert-item" onclick="switchDashboardDeptTab(\''+item.deptKey+'\');switchDashboardTab(\'returned\');">'+
+          '<div class="db-alert-hdr">'+
+            '<span class="td-pr">'+esc2(r['TRACKING NO.']||'—')+'</span>'+
+            (r['P.R #']?'<span class="td-tracking"> · '+esc2(r['P.R #'])+'</span>':'')+
+            '<span class="db-alert-dept db-dept-'+item.deptKey+'">'+esc2(item.deptLabel)+'</span>'+
+          '</div>'+
+          '<div class="db-alert-meta">'+esc2(r['RETURNED FROM']||'—')+' → '+esc2(r['RETURN TO']||'—')+'</div>'+
+          (r['RETURN REMARKS']?'<div class="db-alert-remarks">'+esc2(r['RETURN REMARKS'])+'</div>':'')+
+        '</div>';
+      }).join('');
+    }
+  }
+}
+
+function renderDashboardTable() {
+  var tb  = document.getElementById('dashboard-tbody');
+  var sub = document.getElementById('dashboard-sub');
+  var thead = document.getElementById('dashboard-thead');
+  if (!tb) return;
+
+  function rowsFor(page, tab) {
+    return dashboardRowsForTab(page, tab).filter(rowMatchesActiveBacCategory);
+  }
+
+  var meta = DASHBOARD_DEPT_META[dashboardDeptTab] || DASHBOARD_DEPT_META.bac;
+  var counts = {
+    all:rowsFor(dashboardDeptTab, 'all').length,
+    active:rowsFor(dashboardDeptTab, 'active').length,
+    returned:rowsFor(dashboardDeptTab, 'returned').length,
+    completed:rowsFor(dashboardDeptTab, 'completed').length,
+    cancelled:rowsFor(dashboardDeptTab, 'cancelled').length
+  };
+  Object.keys(counts).forEach(function(t){
+    var el = document.getElementById('dashboard-count-'+t); if (el) el.textContent = counts[t];
+  });
+
+  ['bac','supply','budget','accounting','cash'].forEach(function(key){
+    var el = document.getElementById('dashboard-dept-count-'+key);
+    if (el) el.textContent = rowsFor(key, dashboardTab).length;
+  });
+
+  var display = rowsFor(dashboardDeptTab, dashboardTab);
+
+  var titleMap = { all:'All Transactions', active:'In Progress', returned:'Returned', completed:'Done', cancelled:'Cancelled' };
+  var titleEl = document.getElementById('dashboard-panel-title');
+  if (titleEl) titleEl.textContent = titleMap[dashboardTab] || 'All Transactions';
+  if (sub) sub.textContent = display.length + ' transaction' + (display.length !== 1 ? 's' : '');
+
+  if (thead) thead.innerHTML = dashboardTab === 'returned' ? meta.returnedHeader : (dashboardTab === 'active' ? meta.activeHeader : meta.otherHeader);
+  if (titleEl) titleEl.textContent = titleMap[dashboardTab] + ' · ' + meta.title;
+  if (sub) sub.textContent = display.length + ' row' + (display.length !== 1 ? 's' : '');
+  syncBacCategoryFilterVisibility();
+
+  var colSpan = dashboardTab === 'returned' ? meta.returnedCols : (dashboardTab === 'active' ? meta.activeCols : meta.otherCols);
+  if (!display.length) { tb.innerHTML='<tr><td colspan="'+colSpan+'">'+emptyRow(colSpan)+'</td></tr>'; return; }
+
+  tb.innerHTML = display.map(function(r) {
+    var category = dashboardRowCategory(dashboardDeptTab, r);
+    var status = String(r['STATUS']||'').trim().toUpperCase();
+    var isReturnedTarget = category === 'returned';
+    var isReturnLocked = category === 'locked';
+    var isCompleted = category === 'completed' || category === 'cancelled';
+    var isForwarded = status.indexOf('FORWARDED TO') === 0;
+    var actions = '<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\''+dashboardDeptTab+'\','+r._rowNum+')">View</button>';
+    if (isReturnedTarget) {
+      actions += '<button class="btn-sm success" onclick="completeReturnedDashboardItem(\''+dashboardDeptTab+'\','+r._rowNum+')">Receive</button>';
+    } else if (!isReturnLocked) {
+      actions += '<button class="btn-sm edit" onclick="openEditModal(\''+dashboardDeptTab+'\','+r._rowNum+')">✏ Update</button>';
+      if (dashboardDeptTab !== 'cash' && !isCompleted && !isForwarded) {
+        actions += '<button class="btn-sm forward" onclick="openForwardModal(\''+SHEET_NAMES[dashboardDeptTab]+'\','+r._rowNum+')">Forward</button>';
+      }
+      if (!isCompleted && !isForwarded) {
+        actions += '<button class="btn-sm warn" onclick="openReturnModal(\''+SHEET_NAMES[dashboardDeptTab]+'\','+r._rowNum+')">Return</button>';
+      }
+      if (dashboardDeptTab === 'cash' && status !== 'PAID' && status !== 'CANCELLED') {
+        actions += '<button class="btn-sm paid" onclick="doMarkPaid('+r._rowNum+')">Mark Paid</button>';
+      }
+      if (!isCompleted && ['bac','supply','budget'].indexOf(dashboardDeptTab) !== -1) {
+        actions += '<button class="btn-sm cancel" onclick="doCancelTransaction(\''+SHEET_NAMES[dashboardDeptTab]+'\','+r._rowNum+')">Cancel</button>';
+      }
+    }
+    actions += '</div></div>';
+    if (dashboardTab === 'returned') {
+      return '<tr class="completed-row">'+
+        trackingPrCell(r)+
+        '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+        '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+        '<td>'+actions+'</td>'+
+        '</tr>';
+    }
+
+    return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+
+      trackingPrCell(r)+
+      '<td>'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      (dashboardDeptTab==='bac'?('<td>'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td><td>'+esc2(r['CATEGORY']||'—')+'</td><td class="td-mono">'+esc2(r['PHIGEPS POSTED']||'—')+'</td><td>'+esc2(r['APPROVED ABC']||'—')+'</td><td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td><td>'+esc2(r['RFQ']||'—')+'</td><td>'+esc2(r['RFQ DATE OF COMPLETION']||'—')+'</td><td>'+esc2(r['ABSTRACT OF AWARD']||'—')+'</td><td>'+esc2(r['AWARDED TO']||'—')+'</td><td>'+esc2(r['DATE OF AWARD']||'—')+'</td><td>'+esc2(r['BAC RESO']||'—')+'</td><td>'+esc2(r['NOA']||'—')+'</td><td>'+esc2(r['NTP']||'—')+'</td>'):
+      dashboardDeptTab==='supply'?('<td>'+esc2(r['END USER']||'—')+'</td><td>'+esc2(r['P.O. No.']||'—')+'</td><td>'+esc2(r['P.O. DATE']||'—')+'</td><td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td><td>'+esc2(r['SUPPLIER']||'—')+'</td><td>'+esc2(r['PARTICULARS']||'—')+'</td><td>'+currency(r['AMOUNT'])+'</td><td>'+esc2(r['DATE TRANSMITTED TO SUPPLIER']||'—')+'</td><td>'+esc2(r['DATE RECEIVED BY SUPPLIER']||'—')+'</td><td>'+esc2(r['COA DATE RECEIVED']||'—')+'</td><td>'+esc2(r['I.A.R #']||'—')+'</td><td>'+esc2(r['INVOICE #']||'—')+'</td><td>'+esc2(r['DATE RETURNED TO SUPPLY']||'—')+'</td>'):
+      dashboardDeptTab==='budget'?('<td>'+esc2(r['ORS NO.']||'—')+'</td><td>'+esc2(r['BUPR NO.']||'—')+'</td><td>'+currency(r['AMOUNT'])+'</td>'):
+      dashboardDeptTab==='accounting'?('<td>'+esc2(r['DV No.']||'—')+'</td><td>'+currency(r['Net Amount'])+'</td><td>'+currency(r['TAX Amount'])+'</td>'):
+      dashboardDeptTab==='cash'?('<td>'+esc2(r['CHEQUE NO. / LDDAP']||'—')+'</td><td>'+esc2(r['DATE OF CHEQUE']||'—')+'</td>'):'')+
+      '<td>'+statusBadge(r['STATUS'])+'</td>'+
+      (dashboardTab === 'active' ? '' : '<td>'+esc2(r['COMPLETED AT']||'—')+'</td>')+
+      '<td>'+actions+'</td>'+
+      '</tr>';
+  }).join('');
+}
+
+function filterDashboard(){
+  var q  = (document.getElementById('dashboard-search').value||'').toLowerCase();
+  var tb = document.getElementById('dashboard-tbody');
+  if (!tb) return;
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TAB STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+var tabState={};
+var newSubTabState={bac:'incoming',supply:'incoming',budget:'incoming',accounting:'incoming',cash:'incoming'};
+
+function switchNewSubTab(page, sub){
+  newSubTabState[page] = (sub === 'returns') ? 'returns' : 'incoming';
+  tabState[page] = 'new';
+  switchTab(page, 'new');
+}
+
+function switchTab(page,tab){
+  tabState[page]=tab;
+  if (tab==='new' && !newSubTabState[page]) newSubTabState[page]='incoming';
+  ['new','active','returned','returndone','done','cancelled'].forEach(function(t){
+    var el=document.getElementById('tab-'+page+'-'+t); if(el) el.classList.toggle('active',t===tab);
+  });
+  var theadCfg = {
+    bac: {
+      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+    },
+    supply: {
+      newCols:        '<tr><th>P.R # / Tracking No.</th><th>End User</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>I.A.R #</th><th>Invoice #</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>I.A.R #</th><th>Invoice #</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+    },
+    budget: {
+      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+    },
+    accounting: {
+      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+    },
+    cash: {
+      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+    }
+  };
+  var cfg = theadCfg[page];
+  if (cfg) {
+    var theadId = page === 'accounting' ? 'accounting-thead' : page+'-thead';
+    var thead = document.getElementById(theadId);
+    var resolvedTab = tab;
+    if (tab === 'new' && (newSubTabState[page] || 'incoming') === 'returns') resolvedTab = 'returned';
+    if (thead) thead.innerHTML = (resolvedTab==='new') ? cfg.newCols : (resolvedTab==='returned' ? cfg.returnedCols : (resolvedTab==='returndone' ? cfg.returndoneCols : (resolvedTab==='active' ? cfg.activeCols : (cfg.otherCols || cfg.activeCols))));
+  }
+  renderPageData(page, cachedRows[page]||[]);
+  if (page === 'bac') applyBacFilters();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PAGE LOADERS
+// ═══════════════════════════════════════════════════════════════════════════════
+var PAGE_LOADERS={
+  dashboard: function(){
+    var tb = document.getElementById('dashboard-tbody');
+    if (tb) tb.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div> Loading transactions…</div></td></tr>';
+    var sgEl = document.getElementById('dashboard-stat-grid');
+    if (sgEl) sgEl.innerHTML='<div class="loading"><div class="spinner"></div> Computing analytics…</div>';
+    var pipeEl = document.getElementById('dashboard-pipeline');
+    if (pipeEl) pipeEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
+    var alertsEl = document.getElementById('dashboard-alerts');
+    if (alertsEl) alertsEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
+
+    var tok = ++_dashToken;
+    _dashCount = 0;
+    function onLoad(){
+      if (tok !== _dashToken) return;
+      _dashCount++;
+      renderDashboardTable();
+      if (_dashCount >= 5) renderDashboardAnalytics();
+    }
+
+    google.script.run
+      .withSuccessHandler(function(bac){ cachedDashboardData.bac = bac||[]; rememberTransactionCategoriesFromBacRows(cachedDashboardData.bac); onLoad(); })
+      .getBACData();
+    google.script.run
+      .withSuccessHandler(function(sup){ cachedDashboardData.supply = sup||[]; onLoad(); })
+      .getSupplyData();
+    google.script.run
+      .withSuccessHandler(function(bud){ cachedDashboardData.budget = bud||[]; onLoad(); })
+      .getBudgetData();
+    google.script.run
+      .withSuccessHandler(function(acc){ cachedDashboardData.accounting = acc||[]; onLoad(); })
+      .getAccountingData();
+    google.script.run
+      .withSuccessHandler(function(csh){ cachedDashboardData.cash = csh||[]; onLoad(); })
+      .getCashData();
+  },
+
+  myreqs: function(){
+    var tb = document.getElementById('myreqs-tbody');
+    var thead = document.getElementById('myreqs-thead');
+    if (thead) thead.innerHTML = MYREQS_DEPT_META[myReqsDeptTab].activeHeader;
+    if (tb) tb.innerHTML='<tr><td colspan="'+MYREQS_DEPT_META[myReqsDeptTab].activeCols+'"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr>';
+    google.script.run
+      .withSuccessHandler(function(bundle){ renderMyReqsBundle(bundle); })
+      .withFailureHandler(function(e){ var tb2=document.getElementById('myreqs-tbody'); if(tb2) tb2.innerHTML='<tr><td colspan="'+MYREQS_DEPT_META[myReqsDeptTab].activeCols+'"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
+      .getMyRequestDepartmentBundle(currentUser.role);
+  },
+
+  bac:        function(){ loadSheet('bac',        'bac-tbody',    18, 'getBACData');        },
+  supply:     function(){ loadSheet('supply',     'supply-tbody', 13, 'getSupplyData');     },
+  budget:     function(){ loadSheet('budget',     'budget-tbody',  8, 'getBudgetData');     },
+  accounting: function(){ loadSheet('accounting', 'acctg-tbody',   8, 'getAccountingData'); },
+  cash:       function(){ loadSheet('cash',       'cash-tbody',    7, 'getCashData');       },
+  track:      function(){ /* interactive */ },
+
+  users: function(){
+    var staffTb = document.getElementById('staff-tbody'); if(!staffTb) return;
+    google.script.run
+      .withSuccessHandler(function(rows){ cachedRows['users'] = rows; renderUsersTable(rows); })
+      .withFailureHandler(function(e){
+        var msg='<tr><td colspan="3"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>';
+        if(staffTb) staffTb.innerHTML=msg;
+        var euTb=document.getElementById('endusers-users-tbody'); if(euTb) euTb.innerHTML=msg;
+      })
+      .getUsers();
+  },
+
+  suppliers: function(){
+    var tb = document.getElementById('suppliers-tbody'); if(!tb) return;
+    google.script.run
+      .withSuccessHandler(function(rows){ cachedRows['suppliers'] = rows; renderSuppliersTable(rows); })
+      .withFailureHandler(function(e){ if(tb) tb.innerHTML='<tr><td colspan="4"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
+      .getAllSuppliers();
+  },
+
+  endusers: function(){
+    var tb = document.getElementById('endusers-tbody'); if(!tb) return;
+    google.script.run
+      .withSuccessHandler(function(rows){ cachedRows['endusers'] = rows; renderEndUsersTable(rows); })
+      .withFailureHandler(function(e){ if(tb) tb.innerHTML='<tr><td colspan="4"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
+      .getAllEndUsers();
+  },
+
+  audit: function(){
+    var tb = document.getElementById('audit-tbody'); if(!tb) return;
+    tb.innerHTML='<tr><td colspan="5"><div class="loading"><div class="spinner"></div> Loading audit logs…</div></td></tr>';
+    google.script.run
+      .withSuccessHandler(function(rows){ cachedRows['audit'] = rows; renderAuditTable(rows); })
+      .withFailureHandler(function(e){ if(tb) tb.innerHTML='<tr><td colspan="5"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
+      .getAuditLogs(500);
+  }
+};
+
+function loadSheet(page, tbId, errCols, fn){
+  var tb=document.getElementById(tbId); if(!tb) return;
+  tb.innerHTML='<tr><td colspan="'+errCols+'"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr>';
+  google.script.run
+    .withSuccessHandler(function(rows){
+      cachedRows[page]=rows;
+      if (page === 'bac') rememberTransactionCategoriesFromBacRows(rows);
+      ensureTransactionCategoryIndex(function(){
+        renderPageData(page,rows);
+        refreshDepartmentPageNavCounts();
+      });
+    })
+    .withFailureHandler(function(e){ if(tb) tb.innerHTML=errRow(errCols,e.message); })
+    [fn]();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  RENDER USERS TABLE
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderUsersTable(rows){
+  var staffTb   = document.getElementById('staff-tbody');
+  var euTb      = document.getElementById('endusers-users-tbody');
+  if (!staffTb && !euTb) return;
+
+  var staffRows = rows.filter(function(r){ return !r.isEndUser; });
+  var euRows    = rows.filter(function(r){ return !!r.isEndUser; });
+
+  var subStaff = document.getElementById('staff-panel-sub');
+  var subEu    = document.getElementById('endusers-users-panel-sub');
+  if (subStaff) subStaff.textContent = staffRows.length + ' user' + (staffRows.length!==1?'s':'');
+  if (subEu)    subEu.textContent    = euRows.length    + ' user' + (euRows.length!==1?'s':'');
+
+  function buildRows(list, colspan){
+    if (!list.length) return '<tr><td colspan="'+colspan+'">'+emptyRow(colspan)+'</td></tr>';
+    return list.map(function(r){
+      return '<tr>'+
+        '<td class="td-primary">'+esc2(r.username||'—')+'</td>'+
+        '<td>'+roleBadge(r.role)+'</td>'+
+        '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+          '<button class="btn-sm edit" onclick="openEditUserModal('+r._rowNum+')">✏ Update</button>'+
+          '<button class="btn-sm danger" onclick="doDeleteUser('+r._rowNum+',\''+esc(r.username)+'\')">🗑 Delete</button>'+
+        '</div></div></td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  if (staffTb) staffTb.innerHTML = buildRows(staffRows, 3);
+  if (euTb)    euTb.innerHTML    = buildRows(euRows, 3);
+}
+
+function filterStaffTable(){
+  var q  = (document.getElementById('staff-search').value||'').toLowerCase();
+  var tb = document.getElementById('staff-tbody');
+  if (!tb) return;
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+function filterEndUsersUsersTable(){
+  var q  = (document.getElementById('endusers-users-search').value||'').toLowerCase();
+  var tb = document.getElementById('endusers-users-tbody');
+  if (!tb) return;
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+function renderSuppliersTable(rows){
+  var tb  = document.getElementById('suppliers-tbody');
+  var sub = document.getElementById('suppliers-panel-sub');
+  if (!tb) return;
+  if (sub) sub.textContent = rows.length + ' supplier' + (rows.length!==1?'s':'');
+  if (!rows.length) { tb.innerHTML='<tr><td colspan="3">'+emptyRow(3)+'</td></tr>'; return; }
+  var sorted = rows.slice().sort(function(a,b){ return (a.supplierName||'').localeCompare(b.supplierName||''); });
+  tb.innerHTML = sorted.map(function(r){
+    return '<tr>'+
+      '<td class="td-primary">'+esc2(r.supplierName||'—')+'</td>'+
+      '<td>'+supplierStatusBadge(r.status)+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+        '<button class="btn-sm edit" onclick="openEditSupplierModal('+r._rowNum+')">✏ Update</button>'+
+        '<button class="btn-sm danger" onclick="doDeleteSupplier('+r._rowNum+',\''+esc(r.supplierName)+'\')">🗑 Delete</button>'+
+      '</div></div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function filterSuppliersTable(){
+  var q  = (document.getElementById('suppliers-search').value||'').toLowerCase();
+  var tb = document.getElementById('suppliers-tbody');
+  if (!tb) return;
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+function supplierStatusBadge(status){
+  var s = String(status||'ACTIVE').toUpperCase();
+  var cls = s==='BLOCKED' ? 'badge-down' : (s==='INACTIVE' ? 'badge-grey' : 'badge-op');
+  return '<span class="badge '+cls+'">'+s+'</span>';
+}
+
+function roleBadge(role){
+  var r = String(role||'').toUpperCase();
+  var cls = {'ADMIN':'role-admin','BAC':'role-bac','SUPPLY':'role-supply','BUDGET':'role-budget','ACCOUNTING':'role-accounting','CASHIER':'role-cash','CASH':'role-cash'}[r] || 'role-enduser';
+  return '<span class="role-badge '+cls+'">'+r+'</span>';
+}
+
+function openAddUserModal(){
+  userModalState = { mode:'add', tab:'staff' };
+  document.getElementById('user-modal-title').textContent = 'Add New User';
+  document.getElementById('user-modal-body').innerHTML    = buildAddUserTabs('staff');
+  document.getElementById('user-modal-save').textContent  = 'Add User';
+  document.getElementById('user-modal').classList.add('open');
+}
+
+function switchUserTab(tab){
+  var prevUsername = (document.getElementById('uf-username')||{}).value || '';
+  var prevPassword = (document.getElementById('uf-password')||{}).value || '';
+  userModalState.tab = tab;
+  var data = userModalState.mode === 'edit'
+    ? { username: prevUsername || userModalState.username, role: '', password: prevPassword }
+    : {};
+  document.getElementById('user-modal-body').innerHTML = buildAddUserTabs(tab, data);
+}
+
+function buildAddUserTabs(activeTab, data){
+  data = data || {};
+  var tabs = '<div class="tab-nav" style="margin-bottom:16px;">'+
+    '<button class="tab-btn'+(activeTab==='staff'?' active':'')+'" onclick="switchUserTab(\'staff\')">Department</button>'+
+    '<button class="tab-btn'+(activeTab==='enduser'?' active':'')+'" onclick="switchUserTab(\'enduser\')">End User</button>'+
+  '</div>';
+  return tabs + (activeTab === 'staff' ? buildStaffTabForm(data) : buildEndUserTabForm(data));
+}
+
+function buildStaffTabForm(data){
+  data = data || {};
+  var isEdit = !!data.username;
+  var staffRoles = ALL_ROLES_JS.filter(function(r){ return END_USER_ROLES_JS.indexOf(r) === -1; });
+  var rolesHtml = staffRoles.map(function(r){
+    return '<option'+(r===(data.role||'')?' selected':'')+' value="'+r+'">'+r+'</option>';
+  }).join('');
+  return '<div class="form-grid">'+
+    '<div class="form-group"><label class="form-label">Username <span class="req">*</span></label>'+
+    '<input class="form-input" id="uf-username" type="text" value="'+esc(data.username||'')+'" placeholder="e.g. jsmith"/></div>'+
+    '<div class="form-group"><label class="form-label">Password'+(isEdit?'':' <span class="req">*</span>')+'</label>'+
+    '<input class="form-input" id="uf-password" type="text" value="" placeholder="'+(isEdit?'Leave blank to keep current':'Initial password')+'"/></div>'+
+    '<div class="form-group full"><label class="form-label">Role <span class="req">*</span></label>'+
+    '<select class="form-select" id="uf-role"><option value="">— Select Role —</option>'+rolesHtml+'</select></div>'+
+  '</div>';
+}
+
+function buildEndUserTabForm(data){
+  data = data || {};
+  var isEdit = !!data.username;
+  var euRolesHtml = endUsers.map(function(r){
+    return '<option'+(r===(data.role||'')?' selected':'')+' value="'+r+'">'+r+'</option>';
+  }).join('');
+  if (!euRolesHtml) euRolesHtml = '<option disabled>No end user roles found — add them in End User Management</option>';
+  return '<div class="form-grid">'+
+    '<div class="form-group"><label class="form-label">Username <span class="req">*</span></label>'+
+    '<input class="form-input" id="uf-username" type="text" value="'+esc(data.username||'')+'" placeholder="e.g. hr_office"/></div>'+
+    '<div class="form-group"><label class="form-label">Password'+(isEdit?'':' <span class="req">*</span>')+'</label>'+
+    '<input class="form-input" id="uf-password" type="text" value="" placeholder="'+(isEdit?'Leave blank to keep current':'Initial password')+'"/></div>'+
+    '<div class="form-group full"><label class="form-label">Role <span class="req">*</span></label>'+
+    '<select class="form-select" id="uf-role"><option value="">— Select Role —</option>'+euRolesHtml+'</select></div>'+
+    '<div class="form-hint" style="margin-top:4px;">End User access will be granted automatically.</div>'+
+  '</div>';
+}
+
+function openEditUserModal(rowNum){
+  var rows = cachedRows['users']||[];
+  var row  = rows.find(function(r){ return r._rowNum === rowNum; });
+  if (!row) { showToast('User data not found. Please refresh.','error'); return; }
+  var tab = row.isEndUser ? 'enduser' : 'staff';
+  userModalState = { mode:'edit', rowNum:rowNum, username:row.username, tab:tab };
+  document.getElementById('user-modal-title').textContent = 'Update User';
+  document.getElementById('user-modal-meta').textContent  = 'Editing: '+row.username;
+  document.getElementById('user-modal-body').innerHTML    = buildAddUserTabs(tab, row);
+  document.getElementById('user-modal-save').textContent  = 'Save Updates';
+  document.getElementById('user-modal').classList.add('open');
+}
+
+function saveUserModal(){
+  var btn      = document.getElementById('user-modal-save');
+  var username = (document.getElementById('uf-username').value||'').trim();
+  var password = (document.getElementById('uf-password').value||'').trim();
+  var role     = (document.getElementById('uf-role').value||'').trim();
+  var isEndUser = userModalState.tab === 'enduser';
+
+  if (!username) { showToast('Username is required.','error'); return; }
+  if (!role)     { showToast('Role is required.','error'); return; }
+  if (userModalState.mode === 'add' && !password) { showToast('Password is required for new users.','error'); return; }
+
+  var userData = { username:username, role:role, isEndUser:isEndUser };
+  if (password) userData.password = password;
+  btn.disabled = true;
+
+  if (userModalState.mode === 'add') {
+    btn.textContent = 'Adding…';
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent='Add User';
+        document.getElementById('user-modal').classList.remove('open');
+        if (res&&res.success) { showToast('✅ User added: '+username+' ('+res.userId+')','success'); loadData(); }
+        else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        userModalState={};
+      })
+      .withFailureHandler(function(e){ btn.disabled=false; btn.textContent='Add User'; showToast('Error: '+e.message,'error'); })
+      .addUser(userData, currentUser.username);
+  } else {
+    btn.textContent = 'Saving…';
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent='Save Updates';
+        document.getElementById('user-modal').classList.remove('open');
+        if (res&&res.success) { showToast('User updated.','success'); loadData(); }
+        else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        userModalState={};
+      })
+      .withFailureHandler(function(e){ btn.disabled=false; btn.textContent='Save Updates'; showToast('Error: '+e.message,'error'); })
+      .updateUser(userModalState.rowNum, userData, currentUser.username);
+  }
+}
+
+function doDeleteUser(rowNum, username){
+  if (!confirm('Delete user "'+username+'"? This cannot be undone.')) return;
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (res&&res.success) { showToast('User "'+username+'" deleted.','info'); loadData(); }
+      else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+    })
+    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+    .deleteUser(rowNum, username, currentUser.username);
+}
+
+function closeUserModal(e){
+  if(e&&e.target!==document.getElementById('user-modal')) return;
+  document.getElementById('user-modal').classList.remove('open'); userModalState={};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  END USERS TABLE + MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderEndUsersTable(rows){
+  var tb  = document.getElementById('endusers-tbody');
+  var sub = document.getElementById('endusers-panel-sub');
+  if (!tb) return;
+  if (sub) sub.textContent = rows.length + ' end user' + (rows.length!==1?'s':'');
+  if (!rows.length) { tb.innerHTML='<tr><td colspan="3">'+emptyRow(3)+'</td></tr>'; return; }
+  var sorted = rows.slice().sort(function(a,b){ return (a.endUserRole||'').localeCompare(b.endUserRole||''); });
+  tb.innerHTML = sorted.map(function(r){
+    return '<tr>'+
+      '<td class="td-primary">'+esc2(r.endUserRole||'—')+'</td>'+
+      '<td>'+endUserStatusBadge(r.status)+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+        '<button class="btn-sm edit" onclick="openEditEndUserModal('+r._rowNum+')">✏ Update</button>'+
+        '<button class="btn-sm danger" onclick="doDeleteEndUser('+r._rowNum+',\''+esc(r.endUserRole)+'\')">🗑 Delete</button>'+
+      '</div></div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function filterEndUsersTable(){
+  var q  = (document.getElementById('endusers-search').value||'').toLowerCase();
+  var tb = document.getElementById('endusers-tbody');
+  if (!tb) return;
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+function endUserStatusBadge(status){
+  var s = String(status||'ACTIVE').toUpperCase();
+  return '<span class="badge '+(s==='INACTIVE'?'badge-grey':'badge-op')+'">'+s+'</span>';
+}
+
+function openAddEndUserModal(){
+  endUserModalState = { mode:'add' };
+  document.getElementById('enduser-modal-title').textContent = 'Add End User';
+  document.getElementById('enduser-modal-meta').textContent  = 'New end user will be assigned an ID automatically.';
+  document.getElementById('enduser-modal-body').innerHTML    = buildEndUserForm({});
+  document.getElementById('enduser-modal-save').textContent  = 'Add End User';
+  document.getElementById('enduser-modal').classList.add('open');
+}
+
+function openEditEndUserModal(rowNum){
+  var rows = cachedRows['endusers']||[];
+  var row  = rows.find(function(r){ return r._rowNum === rowNum; });
+  if (!row) { showToast('End user data not found. Please refresh.','error'); return; }
+  endUserModalState = { mode:'edit', rowNum:rowNum, endUserRole:row.endUserRole };
+  document.getElementById('enduser-modal-title').textContent = 'Update End User';
+  document.getElementById('enduser-modal-meta').textContent  = 'Editing: '+row.endUserRole;
+  document.getElementById('enduser-modal-body').innerHTML    = buildEndUserForm(row);
+  document.getElementById('enduser-modal-save').textContent  = 'Save Updates';
+  document.getElementById('enduser-modal').classList.add('open');
+}
+
+function buildEndUserForm(data){
+  var currentStatus = String(data.status||'ACTIVE').toUpperCase();
+  var statusOptions = ['ACTIVE','INACTIVE'].map(function(v){
+    return '<option'+(v===currentStatus?' selected':'')+' value="'+v+'">'+v+'</option>';
+  }).join('');
+  return '<div class="form-grid">'+
+    '<div class="form-group full"><label class="form-label">End User Role <span class="req">*</span></label>'+
+    '<input class="form-input" id="euf-euRole" type="text" value="'+esc(data.endUserRole||'')+'" placeholder="e.g. HR Division"/></div>'+
+    '<div class="form-group full"><label class="form-label">Status <span class="req">*</span></label>'+
+    '<select class="form-select" id="euf-status">'+statusOptions+'</select></div>'+
+  '</div>';
+}
+
+function saveEndUserModal(){
+  var btn       = document.getElementById('enduser-modal-save');
+  var endUserRole = (document.getElementById('euf-euRole').value||'').trim();
+  var status    = (document.getElementById('euf-status').value||'').trim();
+  if (!endUserRole) { showToast('End User Role is required.','error'); return; }
+
+  var endUserData = { endUserRole:endUserRole, status:status };
+  btn.disabled = true;
+
+  if (endUserModalState.mode === 'add') {
+    btn.textContent = 'Adding…';
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent='Add End User';
+        document.getElementById('enduser-modal').classList.remove('open');
+        if (res&&res.success) { showToast('✅ End User Role added: '+endUserRole+' ('+res.endUserId+')','success'); loadData(); refreshEndUserDatalist(); }
+        else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        endUserModalState={};
+      })
+      .withFailureHandler(function(e){ btn.disabled=false; btn.textContent='Add End User'; showToast('Error: '+e.message,'error'); })
+      .addEndUser(endUserData, currentUser.username);
+  } else {
+    btn.textContent = 'Saving…';
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent='Save Updates';
+        document.getElementById('enduser-modal').classList.remove('open');
+        if (res&&res.success) { showToast('End User Role updated.','success'); loadData(); refreshEndUserDatalist(); }
+        else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        endUserModalState={};
+      })
+      .withFailureHandler(function(e){ btn.disabled=false; btn.textContent='Save Updates'; showToast('Error: '+e.message,'error'); })
+      .updateEndUser(endUserModalState.rowNum, endUserData, currentUser.username);
+  }
+}
+
+function doDeleteEndUser(rowNum, endUserRole){
+  if (!confirm('Delete end user role "'+endUserRole+'"? This cannot be undone.')) return;
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (res&&res.success) { showToast('End User Role "'+endUserRole+'" deleted.','info'); loadData(); refreshEndUserDatalist(); }
+      else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+    })
+    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+    .deleteEndUser(rowNum, endUserRole, currentUser.username);
+}
+
+function closeEndUserModal(e){
+  if(e&&e.target!==document.getElementById('enduser-modal')) return;
+  document.getElementById('enduser-modal').classList.remove('open'); endUserModalState={};
+}
+
+function openAddSupplierModal(){
+  supplierModalState = { mode:'add' };
+  document.getElementById('supplier-modal-title').textContent = 'Add New Supplier';
+  document.getElementById('supplier-modal-meta').textContent  = 'New supplier will be assigned a Supplier ID automatically.';
+  document.getElementById('supplier-modal-body').innerHTML    = buildSupplierForm({status:'ACTIVE'});
+  document.getElementById('supplier-modal-save').textContent  = 'Add Supplier';
+  document.getElementById('supplier-modal').classList.add('open');
+}
+
+function openEditSupplierModal(rowNum){
+  var rows = cachedRows['suppliers']||[];
+  var row  = rows.find(function(r){ return r._rowNum === rowNum; });
+  if (!row) { showToast('Supplier data not found. Please refresh.','error'); return; }
+  supplierModalState = { mode:'edit', rowNum:rowNum, supplierName:row.supplierName };
+  document.getElementById('supplier-modal-title').textContent = 'Update Supplier';
+  document.getElementById('supplier-modal-meta').textContent  = 'Editing: '+row.supplierName;
+  document.getElementById('supplier-modal-body').innerHTML    = buildSupplierForm(row);
+  document.getElementById('supplier-modal-save').textContent  = 'Save Updates';
+  document.getElementById('supplier-modal').classList.add('open');
+}
+
+function buildSupplierForm(data){
+  var currentStatus = String(data.status||'ACTIVE').toUpperCase();
+  var statusOptions = ['ACTIVE','INACTIVE','BLOCKED'].map(function(v){
+    return '<option'+(v===currentStatus?' selected':'')+' value="'+v+'">'+v+'</option>';
+  }).join('');
+  return '<div class="form-grid">'+
+    '<div class="form-group full"><label class="form-label">Supplier Name <span class="req">*</span></label>'+
+    '<input class="form-input" id="sf-name" type="text" value="'+esc(data.supplierName||'')+'" placeholder="e.g. ABC Trading"/></div>'+
+    '<div class="form-group full"><label class="form-label">Status <span class="req">*</span></label>'+
+    '<select class="form-select" id="sf-status">'+statusOptions+'</select></div>'+
+  '</div>';
+}
+
+function saveSupplierModal(){
+  var btn = document.getElementById('supplier-modal-save');
+  var supplierName = (document.getElementById('sf-name').value||'').trim();
+  var status = (document.getElementById('sf-status').value||'').trim();
+  if (!supplierName) { showToast('Supplier name is required.','error'); return; }
+
+  var supplierData = { supplierName:supplierName, status:status };
+  btn.disabled = true;
+
+  if (supplierModalState.mode === 'add') {
+    btn.textContent = 'Adding…';
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent='Add Supplier';
+        document.getElementById('supplier-modal').classList.remove('open');
+        if (res&&res.success) {
+          showToast('Supplier added: '+supplierName+' ('+res.supplierId+')','success');
+          refreshSupplierDatalist();
+          loadData();
+        } else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        supplierModalState={};
+      })
+      .withFailureHandler(function(e){ btn.disabled=false; btn.textContent='Add Supplier'; showToast('Error: '+e.message,'error'); })
+      .addSupplier(supplierData, currentUser.username);
+  } else {
+    btn.textContent = 'Saving…';
+    google.script.run
+      .withSuccessHandler(function(res){
+        btn.disabled=false; btn.textContent='Save Updates';
+        document.getElementById('supplier-modal').classList.remove('open');
+        if (res&&res.success) {
+          showToast('Supplier updated.','success');
+          refreshSupplierDatalist();
+          loadData();
+        } else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+        supplierModalState={};
+      })
+      .withFailureHandler(function(e){ btn.disabled=false; btn.textContent='Save Updates'; showToast('Error: '+e.message,'error'); })
+      .updateSupplier(supplierModalState.rowNum, supplierData, currentUser.username);
+  }
+}
+
+function doDeleteSupplier(rowNum, supplierName){
+  if (!confirm('Delete supplier "'+supplierName+'"? This cannot be undone.')) return;
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (res&&res.success) {
+        showToast('Supplier "'+supplierName+'" deleted.','info');
+        refreshSupplierDatalist();
+        loadData();
+      } else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+    })
+    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+    .deleteSupplier(rowNum, supplierName, currentUser.username);
+}
+
+function closeSupplierModal(e){
+  if(e&&e.target!==document.getElementById('supplier-modal')) return;
+  document.getElementById('supplier-modal').classList.remove('open'); supplierModalState={};
+}
+</script>
+

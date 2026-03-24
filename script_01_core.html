@@ -1,0 +1,408 @@
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════════
+var END_USER_ROLES_JS = ['HR','GSS','LTID','LEGAL','FINANCE','IT','ADMIN DIVISION'];
+var DEPT_ROLES_JS     = ['BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER'];
+var ALL_ROLES_JS      = ['ADMIN','BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER'].concat(END_USER_ROLES_JS);
+
+// Fields that BAC fills when creating a transaction
+var BAC_CREATE_FIELDS = [
+  { key:'P.R #',                   label:'P.R #',                        type:'text',    required:true },
+  { key:'END-USER / REQUESTED BY', label:'End User / Requesting Office', type:'enduser', required:true },
+  { key:'CATEGORY',                label:'Category',                     type:'select',  required:true,
+    options:['Regular','SPLIT','Agri-Agra','IPARC'] },
+  { key:'PHIGEPS POSTED',          label:'PhilGEPS Posted',              type:'checkdate', required:false },
+  { key:'APPROVED ABC',            label:'Approved ABC (₱)',              type:'number',  required:false },
+  { key:'RFQ',                     label:'RFQ',                          type:'text',    required:false },
+  { key:'RFQ DATE OF COMPLETION',  label:'RFQ Date of Completion',       type:'date',    required:false },
+  { key:'ABSTRACT OF AWARD',       label:'Abstract of Award',            type:'text',    required:false },
+  { key:'AWARDED TO',              label:'Awarded To',                   type:'supplier',required:false },
+  { key:'DATE OF AWARD',           label:'Date of Award',                type:'date',    required:false },
+  { key:'MODE OF PROCUREMENT',     label:'Mode of Procurement',          type:'select',  required:false,
+    options:['Shopping','Negotiated Procurement','Public Bidding','Direct Contracting','Small Value Procurement','Emergency'] },
+  { key:'BAC RESO',                label:'BAC Resolution No.',           type:'text',    required:false },
+  { key:'NOA',                     label:'NOA',                          type:'select',  required:false,
+    options:['FOR SIGN OF RD','FOR SIGN OF SUPPLIER','FORWARDED TO SUPPLY'] },
+  { key:'NTP',                     label:'NTP',                          type:'select',  required:false,
+    options:['FOR SIGN OF RD','FOR SIGN OF SUPPLIER','FORWARDED TO SUPPLY'] },
+  { key:'STATUS',                  label:'Status',                       type:'select',  required:false,
+    options:['PROCESSING','FOR CANVAS','FOR REVIEW','FOR SIGNATURE','RETURNED TO REQUESTING OFFICE','FORWARDED TO SUPPLY'] }
+];
+
+// End-user editable fields on Supply row — only 3 date fields
+var EU_EDIT_FIELDS = [
+  { key:'DATE TRANSMITTED TO SUPPLIER', label:'Date Transmitted to Supplier', type:'date', required:false },
+  { key:'DATE RECEIVED BY SUPPLIER',    label:'Date Received by Supplier',    type:'date', required:false },
+  { key:'COA DATE RECEIVED',            label:'COA Date Received',            type:'date', required:false }
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+var currentUser   = null;
+var currentPage   = null;
+var autoRefreshId = null;
+var cachedRows    = {};
+var modalState    = {};
+var fwdState      = {};
+var returnState   = {};
+var prState       = {};
+var profileModalState = {};
+var userModalState= {};
+var supplierModalState = {};
+var endUserModalState  = {};
+var offices       = [];
+var suppliers     = [];
+var endUsers      = [];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DATE CONVERSION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function toDateInput(v) {
+  if (!v || String(v).trim() === '' || String(v).trim() === '—') return '';
+  try {
+    var d = new Date(String(v).trim());
+    if (isNaN(d.getTime())) return '';
+    var yyyy = d.getFullYear();
+    var mm   = String(d.getMonth() + 1).padStart(2,'0');
+    var dd   = String(d.getDate()).padStart(2,'0');
+    return yyyy + '-' + mm + '-' + dd;
+  } catch(e) { return ''; }
+}
+function fromDateInput(v) {
+  if (!v || String(v).trim() === '') return '';
+  try {
+    var parts = String(v).trim().split('-');
+    if (parts.length !== 3) return v;
+    var yr=parseInt(parts[0],10), mo=parseInt(parts[1],10)-1, dy=parseInt(parts[2],10);
+    var d = new Date(yr,mo,dy);
+    if (isNaN(d.getTime())) return v;
+    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var dayStr=String(d.getDate()); dayStr=dayStr.length<2?'0'+dayStr:dayStr;
+    return months[d.getMonth()]+' '+dayStr+', '+d.getFullYear();
+  } catch(e) { return v; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════════════════════════════
+function doLogin() {
+  var u   = (document.getElementById('login-username').value||'').trim();
+  var p   = (document.getElementById('login-password').value||'').trim();
+  var btn = document.getElementById('login-btn');
+  if (!u||!p) { showLoginErr('Please enter username and password.'); return; }
+  btn.textContent='Signing in…'; btn.disabled=true;
+  document.getElementById('login-err').classList.remove('show');
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.textContent='Sign In →'; btn.disabled=false;
+      if (res.success) {
+        currentUser = { username:res.username, role:res.role, isEndUser:res.isEndUser };
+        document.getElementById('login-screen').style.display='none';
+        initApp();
+      } else { showLoginErr(res.message||'Login failed.'); }
+    })
+    .withFailureHandler(function(e){ btn.textContent='Sign In →'; btn.disabled=false; showLoginErr('Server error: '+e.message); })
+    .loginUser(u, p);
+}
+function showLoginErr(m){ var el=document.getElementById('login-err'); el.textContent=m; el.classList.add('show'); }
+document.getElementById('login-password').addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
+document.getElementById('login-username').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('login-password').focus(); });
+
+function doLogout(){
+  currentUser=null; clearInterval(autoRefreshId); autoRefreshId=null; cachedRows={};
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-username').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-err').classList.remove('show');
+}
+
+function openProfileModal(){
+  if (!currentUser) return;
+  profileModalState = { originalUsername: currentUser.username };
+
+  document.getElementById('profile-modal-title').textContent = 'My Profile';
+  document.getElementById('profile-modal-meta').textContent  = 'Update your username and password';
+  document.getElementById('profile-modal-body').innerHTML =
+    '<div class="form-grid">'+
+      '<div class="form-group full"><label class="form-label">Current Role</label><input class="form-input" type="text" value="'+esc(currentUser.role||'')+'" readonly/></div>'+
+      '<div class="form-group full"><label class="form-label">Username <span class="req">*</span></label><input class="form-input" id="pf-username" type="text" value="'+esc(currentUser.username||'')+'" placeholder="Enter username" autocomplete="off"/></div>'+
+      '<div class="form-group full"><label class="checkbox-row"><input id="pf-change-password" type="checkbox" onchange="onProfileChangePasswordToggle()"/><label for="pf-change-password">Change password</label></label></div>'+
+      '<div class="form-group full" id="pf-current-password-wrap" style="display:none;"><label class="form-label">Current Password <span class="req">*</span></label><input class="form-input" id="pf-current-password" type="password" value="" placeholder="Enter current password" autocomplete="current-password" oninput="onProfileCurrentPasswordInput()"/></div>'+
+      '<div id="pf-password-fields" style="display:none;grid-column:1/-1;">'+
+        '<div class="form-grid">'+
+          '<div class="form-group"><label class="form-label">New Password</label><input class="form-input" id="pf-new-password" type="password" value="" placeholder="Enter new password" autocomplete="new-password" disabled/></div>'+
+          '<div class="form-group"><label class="form-label">Confirm New Password</label><input class="form-input" id="pf-confirm-password" type="password" value="" placeholder="Retype new password" autocomplete="new-password" disabled/></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="form-group full"><div class="form-hint">Enable "Change password" only if you want to update your password.</div></div>'+
+    '</div>';
+  document.getElementById('profile-modal-save').textContent='Save Profile';
+  document.getElementById('profile-modal-save').disabled=false;
+  document.getElementById('profile-modal').classList.add('open');
+}
+
+function onProfileChangePasswordToggle(){
+  var checked = !!((document.getElementById('pf-change-password')||{}).checked);
+  var curWrap = document.getElementById('pf-current-password-wrap');
+  var passWrap = document.getElementById('pf-password-fields');
+  var curEl = document.getElementById('pf-current-password');
+  var newEl = document.getElementById('pf-new-password');
+  var confirmEl = document.getElementById('pf-confirm-password');
+
+  if (curWrap) curWrap.style.display = checked ? '' : 'none';
+  if (passWrap) passWrap.style.display = checked ? '' : 'none';
+
+  if (!checked) {
+    if (curEl) curEl.value = '';
+    if (newEl) { newEl.value = ''; newEl.disabled = true; }
+    if (confirmEl) { confirmEl.value = ''; confirmEl.disabled = true; }
+    return;
+  }
+
+  onProfileCurrentPasswordInput();
+}
+
+function onProfileCurrentPasswordInput(){
+  var curVal = (document.getElementById('pf-current-password')||{}).value || '';
+  var canEditNew = curVal.trim() !== '';
+  var newEl = document.getElementById('pf-new-password');
+  var confirmEl = document.getElementById('pf-confirm-password');
+  if (newEl) {
+    newEl.disabled = !canEditNew;
+    if (!canEditNew) newEl.value = '';
+  }
+  if (confirmEl) {
+    confirmEl.disabled = !canEditNew;
+    if (!canEditNew) confirmEl.value = '';
+  }
+}
+
+function closeProfileModal(e){
+  if(e&&e.target!==document.getElementById('profile-modal')) return;
+  document.getElementById('profile-modal').classList.remove('open');
+  profileModalState={};
+}
+
+function saveProfileModal(){
+  if (!currentUser) return;
+  var btn = document.getElementById('profile-modal-save');
+  var username = (document.getElementById('pf-username').value||'').trim();
+  var wantsPasswordChange = !!((document.getElementById('pf-change-password')||{}).checked);
+  var currentPassword = wantsPasswordChange ? (document.getElementById('pf-current-password').value||'').trim() : '';
+  var newPassword = wantsPasswordChange ? (document.getElementById('pf-new-password').value||'').trim() : '';
+  var confirmPassword = wantsPasswordChange ? (document.getElementById('pf-confirm-password').value||'').trim() : '';
+
+  if (!username) { showToast('Username is required.','error'); return; }
+  if (wantsPasswordChange && !currentPassword) { showToast('Current password is required to change password.','error'); return; }
+  if (wantsPasswordChange && !newPassword) { showToast('New password is required.','error'); return; }
+  if (wantsPasswordChange && newPassword !== confirmPassword) { showToast('New password and confirmation do not match.','error'); return; }
+
+  btn.disabled=true;
+  btn.textContent='Saving…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled=false;
+      btn.textContent='Save Profile';
+      if (!res || !res.success) {
+        showToast('Error: '+((res&&res.message)||'Unable to update profile.'),'error');
+        return;
+      }
+
+      currentUser.username = res.username || username;
+      currentUser.role = res.role || currentUser.role;
+      currentUser.isEndUser = res.isEndUser!==undefined ? !!res.isEndUser : currentUser.isEndUser;
+
+      document.getElementById('user-avatar').textContent = currentUser.username.charAt(0).toUpperCase();
+      document.getElementById('user-name').textContent   = currentUser.username;
+      document.getElementById('user-role').textContent   = currentUser.role;
+
+      closeProfileModal();
+      showToast('Profile updated successfully.','success');
+    })
+    .withFailureHandler(function(e){
+      btn.disabled=false;
+      btn.textContent='Save Profile';
+      showToast('Error: '+e.message,'error');
+    })
+    .updateMyCredentials(currentUser.username, currentPassword, {
+      username: username,
+      newPassword: newPassword
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  APP INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+function initApp(){
+  var role      = currentUser.role;
+  var isEndUser = currentUser.isEndUser || END_USER_ROLES_JS.indexOf(role) !== -1;
+  currentUser.isEndUser = isEndUser;
+
+  document.getElementById('user-avatar').textContent = currentUser.username.charAt(0).toUpperCase();
+  document.getElementById('user-name').textContent   = currentUser.username;
+  document.getElementById('user-role').textContent   = role;
+
+  document.querySelectorAll('.nav-dashboard,.nav-myreqs,.nav-bac,.nav-supply,.nav-budget,.nav-accounting,.nav-cash,.nav-track,.nav-users,.nav-suppliers,.nav-endusers,.nav-audit')
+    .forEach(function(el){ el.classList.add('hidden'); });
+
+  var navMap = {
+    'BAC':        ['.nav-bac','.nav-track'],
+    'SUPPLY':     ['.nav-supply','.nav-track'],
+    'BUDGET':     ['.nav-budget','.nav-track'],
+    'ACCOUNTING': ['.nav-accounting','.nav-track'],
+    'CASHIER':    ['.nav-cash','.nav-track'],
+    'CASH':       ['.nav-cash','.nav-track'],
+    'ADMIN':      ['.nav-dashboard','.nav-track','.nav-users','.nav-suppliers','.nav-endusers','.nav-audit']
+  };
+
+  if (isEndUser && role !== 'ADMIN') {
+    ['.nav-myreqs','.nav-track'].forEach(function(sel){
+      document.querySelectorAll(sel).forEach(function(el){ el.classList.remove('hidden'); });
+    });
+  } else {
+    (navMap[role]||['.nav-track']).forEach(function(sel){
+      document.querySelectorAll(sel).forEach(function(el){ el.classList.remove('hidden'); });
+    });
+  }
+
+  document.getElementById('app-screen').style.display='block';
+
+  google.script.run.withSuccessHandler(function(list){ offices=list||[]; injectDatalist('office-datalist',offices); }).getRequestingOffices();
+  refreshSupplierDatalist();
+  refreshEndUserDatalist();
+
+  var staffDefaults = { 'BAC':'bac','SUPPLY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASHIER':'cash','CASH':'cash' };
+  var startPage = role === 'ADMIN'    ? 'dashboard'
+                : isEndUser           ? 'myreqs'
+                : (staffDefaults[role]||'track');
+  navigate(startPage);
+
+  autoRefreshId = setInterval(function(){ loadData(); }, 600000);
+  document.getElementById('live-indicator').style.display='inline';
+}
+
+function injectDatalist(id, vals){
+  var old=document.getElementById(id); if(old) old.parentNode.removeChild(old);
+  var dl=document.createElement('datalist'); dl.id=id;
+  vals.forEach(function(v){ var o=document.createElement('option'); o.value=v; dl.appendChild(o); });
+  document.body.appendChild(dl);
+}
+
+function refreshSupplierDatalist(){
+  google.script.run.withSuccessHandler(function(list){ suppliers=list||[]; injectDatalist('supplier-datalist',suppliers); }).getSuppliers();
+}
+
+function refreshEndUserDatalist(){
+  google.script.run.withSuccessHandler(function(list){ endUsers=list||[]; injectDatalist('enduser-datalist',endUsers); }).getEndUsers();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ROUTING
+// ═══════════════════════════════════════════════════════════════════════════════
+var PAGE_META={
+  dashboard:  {title:'Dashboard',          sub:'Overview of all departments'},
+  myreqs:     {title:'My Requests',        sub:'View and update your assigned procurement requests'},
+  bac:        {title:'BAC',               sub:'Bids and Awards Committee'},
+  supply:     {title:'Supply & Property', sub:'Purchase Orders and Contracts'},
+  budget:     {title:'Budget',            sub:'Obligation Request & Status'},
+  accounting: {title:'Accounting',        sub:'Disbursement Vouchers & Tax'},
+  cash:       {title:'Cashier',          sub:'Cheque / LDDAP Payment Processing'},
+  track:      {title:'Track Transaction', sub:'Search by Tracking No. or P.R #'},
+  users:      {title:'User Management',   sub:'Add, edit, and manage system users'},
+  suppliers:  {title:'Supplier Management',  sub:'Add, edit, and manage suppliers'},
+  endusers:   {title:'End User Management', sub:'Add, edit, and manage end users for form dropdowns'},
+  audit:      {title:'Audit Log',           sub:'All system activity — read only'}
+};
+
+function navigate(page){
+  currentPage=page;
+  var meta=PAGE_META[page]||{title:page,sub:''};
+  document.getElementById('topbar-title').textContent=meta.title;
+  document.getElementById('topbar-sub').textContent=meta.sub;
+  document.querySelectorAll('.nav-item').forEach(function(el){ el.classList.toggle('active',el.getAttribute('data-page')===page); });
+  var pc=document.getElementById('page-content');
+  pc.innerHTML=''; pc.className='page'; void pc.offsetWidth;
+  if (PAGE_TEMPLATES[page]){ pc.innerHTML=PAGE_TEMPLATES[page](); loadData(); }
+}
+function loadData(){ if(currentPage&&PAGE_LOADERS[currentPage]) PAGE_LOADERS[currentPage](); }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FLOW BAR
+// ═══════════════════════════════════════════════════════════════════════════════
+function flowBar(active){
+  var steps=[{k:'bac',l:'BAC'},{k:'supply',l:'Supply'},{k:'budget',l:'Budget'},{k:'accounting',l:'Accounting'},{k:'cash',l:'Cashier'}];
+  var idx=steps.findIndex(function(s){ return s.k===active; });
+  return '<div class="flow-bar">'+steps.map(function(s,i){
+    var cls=i<idx?'done':(i===idx?'active':'');
+    return (i>0?'<span class="flow-arrow">›</span>':'')+
+           '<div class="flow-step '+cls+'"><div class="flow-dot"></div>'+s.l+'</div>';
+  }).join('')+'</div>';
+}
+
+function departmentPageNav(active){
+  var steps=[
+    {k:'bac',l:'BAC',badge:'badge-amber'},
+    {k:'supply',l:'Supply',badge:'badge-teal'},
+    {k:'budget',l:'Budget',badge:'badge-violet'},
+    {k:'accounting',l:'Accounting',badge:'badge-blue'},
+    {k:'cash',l:'Cashier',badge:'badge-op'}
+  ];
+  return '<div class="tab-nav" style="margin-top:12px;">'+steps.map(function(s){
+    var cls=s.k===active?'tab-btn active':'tab-btn';
+    return '<button class="'+cls+'" id="tab-deptnav-'+s.k+'" onclick="navigate(\''+s.k+'\')">'+
+      s.l+' <span id="deptnav-count-'+s.k+'" class="badge '+s.badge+'" style="margin-left:4px;"></span></button>';
+  }).join('')+'</div>';
+}
+
+function refreshDepartmentPageNavCounts(){
+  google.script.run
+    .withSuccessHandler(function(counts){
+      counts=counts||{};
+      ['bac','supply','budget','accounting','cash'].forEach(function(key){
+        var el=document.getElementById('deptnav-count-'+key);
+        if(el) el.textContent=counts[key]||0;
+      });
+    })
+    .getDepartmentPageCounts();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PAGE TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderIncludedTemplate(templateId, replacements) {
+  var el = document.getElementById(templateId);
+  if (!el) return '';
+  var html = el.innerHTML;
+  var map = replacements || {};
+  Object.keys(map).forEach(function(key) {
+    html = html.split(key).join(map[key]);
+  });
+  return html;
+}
+
+var PAGE_TEMPLATES={
+  dashboard:function(){ return renderIncludedTemplate('tpl-dashboard'); },
+  myreqs:function(){
+    ['bac','supply','budget','accounting','cash'].forEach(function(page){
+      document.querySelectorAll('.nav-'+page).forEach(function(el){ el.classList.add('hidden'); });
+    });
+    return renderIncludedTemplate('tpl-myreqs', {
+      '{{CURRENT_ROLE}}': esc2(currentUser && currentUser.role ? currentUser.role : '—')
+    });
+  },
+  bac:function(){ return renderIncludedTemplate('tpl-bac', {'{{FLOW_BAR}}': flowBar('bac'),'{{DEPT_SWITCHER}}': departmentPageNav('bac')}); },
+  supply:function(){ return renderIncludedTemplate('tpl-supply', {'{{FLOW_BAR}}': flowBar('supply'),'{{DEPT_SWITCHER}}': departmentPageNav('supply')}); },
+  budget:function(){ return renderIncludedTemplate('tpl-budget', {'{{FLOW_BAR}}': flowBar('budget'),'{{DEPT_SWITCHER}}': departmentPageNav('budget')}); },
+  accounting:function(){ return renderIncludedTemplate('tpl-accounting', {'{{FLOW_BAR}}': flowBar('accounting'),'{{DEPT_SWITCHER}}': departmentPageNav('accounting')}); },
+  cash:function(){ return renderIncludedTemplate('tpl-cash', {'{{FLOW_BAR}}': flowBar('cash'),'{{DEPT_SWITCHER}}': departmentPageNav('cash')}); },
+  track:function(){ return renderIncludedTemplate('tpl-track'); },
+  users:function(){ return renderIncludedTemplate('tpl-users'); },
+  suppliers:function(){ return renderIncludedTemplate('tpl-suppliers'); },
+  endusers:function(){ return renderIncludedTemplate('tpl-endusers'); },
+  audit:function(){ return renderIncludedTemplate('tpl-audit'); }
+};
+</script>
+

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/Users/User1/Downloads/appscrpt/*.html)",
+      "Bash(ls -la /c/Users/User1/Downloads/appscrpt/*.html)",
+      "Read(//c/Users/User1/Downloads/appscrpt/**)",
+      "Bash(/tmp/count_cols.txt:*)",
+      "Read(//tmp/**)"
+    ]
+  }
+}
