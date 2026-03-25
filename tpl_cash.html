@@ -1,26 +1,27 @@
 <template id="tpl-cash">
-  {{FLOW_BAR}}
   {{DEPT_SWITCHER}}
   <div class="section-head">
-    <div><div class="section-title">Cashier</div><div class="section-sub">Cheque / LDDAP Payment Processing</div></div>
+    <div>
+        <div class="bac-cat-filter">
+          <span class="bac-cat-filter-label">Category:</span>
+          <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
+          <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
+          <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
+          <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
+          <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
+        </div>
+    </div>
     <div class="section-actions">
       <div class="search-wrap"><span class="search-icon">🔍</span><input id="cash-search" placeholder="Search…" oninput="filterRows('cash')"/></div>
       <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
     </div>
   </div>
-  <div class="bac-cat-filter">
-    <span class="bac-cat-filter-label">Transaction Category:</span>
-    <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
-    <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
-    <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
-    <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
-    <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
-  </div>
+
   <div class="tab-nav">
     <button class="tab-btn" id="tab-cash-new" onclick="switchNewSubTab('cash','incoming')">🔔 New <span id="cash-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-cash-active" onclick="switchTab('cash','active')">Active <span id="cash-active-count" class="badge badge-green" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-cash-returned" onclick="switchTab('cash','returned')">Returned History <span id="cash-returned-count" class="badge badge-op" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-cash-done" onclick="switchTab('cash','done')">Done <span id="cash-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-cash-done" onclick="switchTab('cash','done')">Completed <span id="cash-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
   </div>
   <div class="tab-subnav" id="cash-new-subtabs" style="display:none;margin-top:8px;">
     <button class="tab-btn active" id="tab-cash-new-sub-incoming" onclick="switchNewSubTab('cash','incoming')">New Transactions <span id="cash-new-incoming-count" class="badge badge-warn" style="margin-left:4px;"></span></button>

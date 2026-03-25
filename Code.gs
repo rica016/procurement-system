@@ -11,7 +11,7 @@
 //  ACCOUNTING: ACCOUNTING ID | TRACKING NO. | DATE RECEIVED | P.R # | DV No. | Net Amount | TAX Amount | STATUS | COMPLETED AT | IS NEW | FORWARD REMARKS | RETURN TO | RETURNED FROM | RETURN REMARKS | RETURNED DATE | RETURN RECEIVED DATE | RETURN RECEIVED REMARKS
 //  CASH      : CASH ID | TRACKING NO. | DATE RECEIVED | P.R # | CHEQUE NO. / LDDAP | DATE OF CHEQUE | STATUS | COMPLETED AT | IS NEW | FORWARD REMARKS | RETURN TO | RETURNED FROM | RETURN REMARKS | RETURNED DATE | RETURN RECEIVED DATE | RETURN RECEIVED REMARKS
 //  SUPPLIERS : SUPPLIER ID | SUPPLIER NAME | STATUS
-//  USERS     : USER ID | USERNAME | PASSWORD | ROLE | END USER
+//  USERS     : USER ID | USERNAME | PASSWORD | ROLE | END USER | ACTIVE
 //  AUDIT_LOGS: TIMESTAMP | USER | ACTION | DEPARTMENT | RECORD ID
 //
 //  FLOW (v8):
@@ -516,6 +516,7 @@ function getSupplyData()     { return sheetToObjects('SUPPLY AND PROPERTY'); }
 function getBudgetData()     { return sheetToObjects('BUDGET'); }
 function getAccountingData() { return sheetToObjects('ACCOUNTING'); }
 function getCashData()       { return sheetToObjects('CASH'); }
+function getEndUserData()    { return sheetToObjects('END USER'); }
 
 function getDepartmentPageCounts() {
   function openCount(rows) {
@@ -889,7 +890,7 @@ function returnTransaction(sheetName, rowNum, returnTo, remarks, username, markC
       var idCfg = ID_CONFIG[targetName];
       var nextId = generateNextId(targetSheet, targetName);
       var office = row['END-USER / REQUESTED BY'] || row['END USER'] || '';
-      var amount = row['AMOUNT'] || row['APPROVED ABC'] || '';
+      var amount = (targetName === 'SUPPLY AND PROPERTY') ? '' : (row['AMOUNT'] || row['APPROVED ABC'] || '');
       targetSheet.appendRow(targetHdrs.map(function(h){
         if (idCfg && h === idCfg.col) return nextId;
         if (h === 'TRACKING NO.') return trackingNo;
@@ -1094,6 +1095,7 @@ function updateTransaction(sheetName, rowNum, data, username) {
     for(var c=0;c<hdrs.length;c++){
       var h=String(hdrs[c]).trim();
       if(!h) continue;
+      if(h==='COMPLETED AT' && data.hasOwnProperty(h)) { newVals[c]=data[h]; continue; }
       if(PROTECTED_COLS.indexOf(h)!==-1) continue;
       if(h==='P.R #') continue;
       if(h==='IS NEW')  { newVals[c]=''; continue; }
@@ -1149,7 +1151,7 @@ var FORWARD_CONFIG = {
   'BAC': {
     forwardStatus: 'FORWARDED TO SUPPLY',
     nextSheet:     'SUPPLY AND PROPERTY',
-    colMap: { 'END USER':'END-USER / REQUESTED BY', 'AMOUNT':'APPROVED ABC', 'P.R #':'P.R #' }
+    colMap: { 'END USER':'END-USER / REQUESTED BY', 'P.R #':'P.R #' }
   },
   'SUPPLY AND PROPERTY': {
     forwardStatus: 'FORWARDED TO BUDGET',
@@ -1430,7 +1432,7 @@ function getUsers() {
     if(data.length<2) return [];
     var hdrs=data[0].map(function(h){return String(h||'').trim().toUpperCase();});
     var uCol=hdrs.indexOf('USERNAME'),rCol=hdrs.indexOf('ROLE'),
-        eCol=hdrs.indexOf('END USER'),idCol=hdrs.indexOf('USER ID');
+        eCol=hdrs.indexOf('END USER'),idCol=hdrs.indexOf('USER ID'),aCol=hdrs.indexOf('ACTIVE');
     var rows=[];
     for(var i=1;i<data.length;i++){
       var row=data[i];
@@ -1440,7 +1442,8 @@ function getUsers() {
         userId:  idCol!==-1?String(row[idCol]||''):'',
         username:String(row[uCol]||''),
         role:    String(row[rCol]||'').toUpperCase(),
-        isEndUser:eCol!==-1?String(row[eCol]||'').trim().toUpperCase()==='TRUE':false
+        isEndUser:eCol!==-1?String(row[eCol]||'').trim().toUpperCase()==='TRUE':false,
+        isActive:aCol!==-1?(String(row[aCol]||'').trim().toUpperCase()!=='FALSE'&&String(row[aCol]||'').trim()!==''):true
       });
     }
     return rows;
@@ -1510,6 +1513,7 @@ function addUser(userData, adminUsername) {
       if(h==='PASSWORD') return userData.password||'1234';
       if(h==='ROLE')     return roleUpper;
       if(h==='END USER') return isEU?'TRUE':'';
+      if(h==='ACTIVE')   return userData.isActive!==false?'TRUE':'';
       return '';
     }));
     logAudit(adminUsername||'ADMIN','ADD USER','USERS',newId+' · '+userData.username+' · '+roleUpper);
@@ -1534,6 +1538,7 @@ function updateUser(rowNum, userData, adminUsername) {
       if(h==='PASSWORD'  &&userData.password&&userData.password!=='')    sheet.getRange(rowNum,c+1).setValue(userData.password);
       if(h==='ROLE'      &&userData.role!==undefined)                    sheet.getRange(rowNum,c+1).setValue(roleUpper);
       if(h==='END USER')                                                  sheet.getRange(rowNum,c+1).setValue(isEU?'TRUE':'');
+      if(h==='ACTIVE'    &&userData.isActive!==undefined)                sheet.getRange(rowNum,c+1).setValue(userData.isActive?'TRUE':'');
     }
     logAudit(adminUsername||'ADMIN','UPDATE USER','USERS','Row '+rowNum+' · '+userData.username);
     return {success:true};
@@ -1888,6 +1893,33 @@ function getAuditLogs(limitRows) {
     }
     return rows;
   } catch(e){return [];}
+}
+
+function getLatestActivityByTracking(limitRows) {
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName('AUDIT_LOGS');
+    if (!sheet || sheet.getLastRow() < 2) return {};
+
+    var limit = Math.max(1, parseInt(limitRows, 10) || 5000);
+    var data = sheet.getDataRange().getValues();
+    var out = {};
+    var tnPattern = /DAR-\d{4}-\d{2}-\d{4}/i;
+
+    // Walk newest to oldest so first hit per tracking no. is its latest activity.
+    for (var i = data.length - 1, seen = 0; i >= 1 && seen < limit; i--, seen++) {
+      var ts = data[i][0];
+      var recordId = String(data[i][4] || '');
+      var m = recordId.match(tnPattern);
+      if (!m) continue;
+      var trackingNo = String(m[0] || '').toUpperCase();
+      if (!trackingNo || out[trackingNo]) continue;
+      out[trackingNo] = formatCellForClient('TIMESTAMP', ts);
+    }
+    return out;
+  } catch (e) {
+    return {};
+  }
 }
 
 // ── SETUP (run once) ──────────────────────────────────────────────────────────

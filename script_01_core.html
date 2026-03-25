@@ -329,19 +329,6 @@ function navigate(page){
 }
 function loadData(){ if(currentPage&&PAGE_LOADERS[currentPage]) PAGE_LOADERS[currentPage](); }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  FLOW BAR
-// ═══════════════════════════════════════════════════════════════════════════════
-function flowBar(active){
-  var steps=[{k:'bac',l:'BAC'},{k:'supply',l:'Supply'},{k:'budget',l:'Budget'},{k:'accounting',l:'Accounting'},{k:'cash',l:'Cashier'}];
-  var idx=steps.findIndex(function(s){ return s.k===active; });
-  return '<div class="flow-bar">'+steps.map(function(s,i){
-    var cls=i<idx?'done':(i===idx?'active':'');
-    return (i>0?'<span class="flow-arrow">›</span>':'')+
-           '<div class="flow-step '+cls+'"><div class="flow-dot"></div>'+s.l+'</div>';
-  }).join('')+'</div>';
-}
-
 function departmentPageNav(active){
   var steps=[
     {k:'bac',l:'BAC',badge:'badge-amber'},
@@ -393,11 +380,11 @@ var PAGE_TEMPLATES={
       '{{CURRENT_ROLE}}': esc2(currentUser && currentUser.role ? currentUser.role : '—')
     });
   },
-  bac:function(){ return renderIncludedTemplate('tpl-bac', {'{{FLOW_BAR}}': flowBar('bac'),'{{DEPT_SWITCHER}}': departmentPageNav('bac')}); },
-  supply:function(){ return renderIncludedTemplate('tpl-supply', {'{{FLOW_BAR}}': flowBar('supply'),'{{DEPT_SWITCHER}}': departmentPageNav('supply')}); },
-  budget:function(){ return renderIncludedTemplate('tpl-budget', {'{{FLOW_BAR}}': flowBar('budget'),'{{DEPT_SWITCHER}}': departmentPageNav('budget')}); },
-  accounting:function(){ return renderIncludedTemplate('tpl-accounting', {'{{FLOW_BAR}}': flowBar('accounting'),'{{DEPT_SWITCHER}}': departmentPageNav('accounting')}); },
-  cash:function(){ return renderIncludedTemplate('tpl-cash', {'{{FLOW_BAR}}': flowBar('cash'),'{{DEPT_SWITCHER}}': departmentPageNav('cash')}); },
+  bac:function(){ return renderIncludedTemplate('tpl-bac', {'{{DEPT_SWITCHER}}': departmentPageNav('bac')}); },
+  supply:function(){ return renderIncludedTemplate('tpl-supply', {'{{DEPT_SWITCHER}}': departmentPageNav('supply')}); },
+  budget:function(){ return renderIncludedTemplate('tpl-budget', {'{{DEPT_SWITCHER}}': departmentPageNav('budget')}); },
+  accounting:function(){ return renderIncludedTemplate('tpl-accounting', {'{{DEPT_SWITCHER}}': departmentPageNav('accounting')}); },
+  cash:function(){ return renderIncludedTemplate('tpl-cash', {'{{DEPT_SWITCHER}}': departmentPageNav('cash')}); },
   track:function(){ return renderIncludedTemplate('tpl-track'); },
   users:function(){ return renderIncludedTemplate('tpl-users'); },
   suppliers:function(){ return renderIncludedTemplate('tpl-suppliers'); },

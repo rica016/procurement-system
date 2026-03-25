@@ -246,6 +246,30 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .view-field{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
 .view-field.full{grid-column:1/-1;}
 .view-empty{color:var(--muted2);font-weight:600;}
+
+/* Returned record view */
+.returned-view{display:flex;flex-direction:column;gap:12px;}
+.returned-view-top{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:stretch;}
+.returned-view-head{padding:12px 14px;border:1px solid var(--blue-mid);background:linear-gradient(180deg,var(--blue-light),#f8fbff);border-radius:12px;}
+.returned-view-main{display:flex;flex-direction:column;gap:6px;}
+.returned-view-tag{font-size:10.5px;font-weight:800;color:var(--blue);text-transform:uppercase;letter-spacing:.08em;font-family:'DM Mono',monospace;}
+.returned-view-id{font-size:22px;font-weight:800;color:var(--text);line-height:1.25;display:flex;flex-wrap:wrap;gap:7px;align-items:baseline;}
+.returned-view-sep{color:var(--muted2);font-weight:700;}
+.returned-view-inline-date{display:flex;flex-direction:column;gap:5px;align-items:flex-start;justify-content:flex-start;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+.returned-view-head,.returned-view-inline-date{height:100%;}
+.returned-view-inline-date .view-label{margin-bottom:0;}
+.returned-view-inline-date .view-value{font-family:inherit;font-size:13.5px;font-weight:700;line-height:1.3;}
+.returned-view-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.returned-view-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+.returned-view-card.full{grid-column:1/-1;}
+
+@media (max-width:700px){
+  .returned-view-top{grid-template-columns:1fr;}
+  .returned-view-inline-date{min-width:0;}
+  .returned-view-grid{grid-template-columns:1fr;}
+  .returned-view-id{font-size:17px;}
+}
+
 /* ── New Incoming Item View ── */
 .new-view-banner{display:flex;align-items:flex-start;gap:12px;background:var(--blue-light);border:1px solid var(--blue-mid);border-radius:10px;padding:12px 16px;margin-bottom:16px;}
 .nvb-icon{font-size:20px;flex-shrink:0;line-height:1.3;}
@@ -300,6 +324,9 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .tab-nav{display:flex;gap:3px;background:var(--surface2);padding:4px;border-radius:10px;margin-bottom:20px;width:fit-content;border:1px solid var(--border);}
 .tab-btn{padding:6px 16px;border-radius:7px;border:none;background:none;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .18s;}
 .tab-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm);font-weight:700;}
+#dashboard-enduser-subtabs{gap:3px;background:var(--surface2);padding:4px;border-radius:10px;border:1px solid var(--border);width:fit-content;margin-bottom:10px;}
+#tab-dashboard-enduser-sub-nottaken.active{background:var(--amber-light);color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber-mid);}
+#tab-dashboard-enduser-sub-done.active{background:var(--green-light);color:var(--green);box-shadow:inset 0 0 0 1px var(--green-mid);}
 
 /* ── BREAKDOWN ── */
 .breakdown{display:flex;flex-direction:column;gap:12px;}
@@ -314,14 +341,6 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .toast-item{padding:13px 18px;border-radius:12px;font-size:13px;font-weight:700;color:#fff;box-shadow:var(--shadow-lg);animation:slideIn .3s ease;max-width:360px;}
 .toast-success{background:var(--green);}.toast-error{background:var(--red);}.toast-info{background:var(--blue);}
 @keyframes slideIn{from{opacity:0;transform:translateX(40px);}to{opacity:1;transform:translateX(0);}}
-
-/* ── FLOW INDICATOR ── */
-.flow-bar{display:flex;align-items:center;gap:0;background:var(--surface3);border:1px solid var(--border);border-radius:9px;padding:10px 16px;margin-bottom:20px;overflow-x:auto;}
-.flow-step{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:11px;font-weight:600;color:var(--muted);}
-.flow-step.active{color:var(--blue);}.flow-step.done{color:var(--green);}
-.flow-dot{width:8px;height:8px;border-radius:50%;background:var(--border2);}
-.flow-step.active .flow-dot{background:var(--blue);}.flow-step.done .flow-dot{background:var(--green);}
-.flow-arrow{color:var(--muted2);margin:0 8px;font-size:12px;}
 
 /* ── TRACK PAGE ── */
 .track-card{border:1px solid var(--border);border-radius:12px;overflow:hidden;}
@@ -429,6 +448,8 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .db-alert-item{padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;}
 .db-alert-item:last-child{border-bottom:none;}
 .db-alert-item:hover{background:var(--surface3);}
+.db-alert-item.stale-flash{border-left:3px solid var(--red);animation:stalePulse 1.2s ease-in-out infinite;}
+.db-alert-item.stale-flash:hover{animation-play-state:paused;}
 .db-alert-hdr{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;}
 .db-alert-dept{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:auto;white-space:nowrap;flex-shrink:0;}
 .db-dept-bac{color:var(--amber);background:var(--amber-light);}
@@ -438,6 +459,7 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .db-dept-cash{color:var(--green);background:var(--green-light);}
 .db-alert-meta{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;}
 .db-alert-remarks{font-size:11.5px;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+@keyframes stalePulse{0%,100%{background:var(--surface);}50%{background:#fff1f1;}}
 </style>
 <script>
 // ── Global singleton popup — lives at <body> level so overflow:auto never clips it ──
@@ -588,7 +610,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
 </div>
 
 <!-- ═══════ MODALS ═══════ -->
-<div class="modal-overlay" id="main-modal" onclick="closeMainModal(event)">
+<div class="modal-overlay" id="main-modal">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-header">
       <div><div class="modal-title" id="main-modal-title">Transaction</div><div class="modal-meta" id="main-modal-meta"></div></div>
@@ -602,7 +624,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
   </div>
 </div>
 
-<div class="modal-overlay" id="forward-modal" onclick="closeForwardModal(event)">
+<div class="modal-overlay" id="forward-modal">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-header">
       <div><div class="modal-title" id="fwd-modal-title">Forward Transaction</div><div class="modal-meta" id="fwd-modal-meta"></div></div>
@@ -616,7 +638,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
   </div>
 </div>
 
-<div class="modal-overlay" id="return-modal" onclick="closeReturnModal(event)">
+<div class="modal-overlay" id="return-modal">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-header">
       <div><div class="modal-title" id="return-modal-title">Return Transaction</div><div class="modal-meta" id="return-modal-meta"></div></div>
@@ -631,7 +653,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
 </div>
 
 
-<div class="modal-overlay" id="user-modal" onclick="closeUserModal(event)">
+<div class="modal-overlay" id="user-modal">
   <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
     <div class="modal-header">
       <div><div class="modal-title" id="user-modal-title">Add User</div><div class="modal-meta" id="user-modal-meta"></div></div>
@@ -645,7 +667,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
   </div>
 </div>
 
-<div class="modal-overlay" id="supplier-modal" onclick="closeSupplierModal(event)">
+<div class="modal-overlay" id="supplier-modal">
   <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
     <div class="modal-header">
       <div><div class="modal-title" id="supplier-modal-title">Add Supplier</div><div class="modal-meta" id="supplier-modal-meta"></div></div>
@@ -659,7 +681,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
   </div>
 </div>
 
-<div class="modal-overlay" id="enduser-modal" onclick="closeEndUserModal(event)">
+<div class="modal-overlay" id="enduser-modal">
   <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
     <div class="modal-header">
       <div><div class="modal-title" id="enduser-modal-title">Add End User</div><div class="modal-meta" id="enduser-modal-meta"></div></div>
@@ -673,7 +695,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
   </div>
 </div>
 
-<div class="modal-overlay" id="profile-modal" onclick="closeProfileModal(event)">
+<div class="modal-overlay" id="profile-modal">
   <div class="modal" onclick="event.stopPropagation()" style="max-width:500px;">
     <div class="modal-header">
       <div><div class="modal-title" id="profile-modal-title">My Profile</div><div class="modal-meta" id="profile-modal-meta"></div></div>

@@ -45,7 +45,6 @@ function renderPageData(page, rows){
   var returnTargetLabel = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page] || '';
 
   function isReturnPending(r){
-    if (String(r['IS NEW']||'').trim().toUpperCase()==='TRUE') return false;
     return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()==='';
   }
   function isReturnResolved(r){
@@ -88,7 +87,7 @@ function renderPageData(page, rows){
   if (tab === 'new' && newSub === 'returns') renderTab = 'returned';
 
   var displayRows = renderTab==='new'?newRows:(renderTab==='returned'?(tab==='new'?returnRows:returnHistoryRows):(renderTab==='returndone'?returnDoneRows:(renderTab==='done'?doneRows:(renderTab==='cancelled'?cancelledRows:activeRows))));
-  var showActions = renderTab==='new'||renderTab==='active'||renderTab==='returned'||renderTab==='returndone';
+  var showActions = renderTab==='new'||renderTab==='active'||renderTab==='returned'||renderTab==='returndone'||renderTab==='done';
   var cols = (renderTab==='new'&&PAGE_COLS_NEW[page]) || (renderTab==='returned'&&PAGE_COLS_RETURNED[page]) || (renderTab==='returndone'&&8) || (renderTab==='active'&&PAGE_COLS_ACTIVE[page]) || PAGE_COLS[page] || 8;
 
   var cm={new:newRows.length+returnRows.length,active:activeRows.length,returned:returnHistoryRows.length,returndone:returnDoneRows.length,done:doneRows.length,cancelled:cancelledRows.length};
@@ -111,7 +110,7 @@ function renderPageData(page, rows){
   var newReturnsTab=document.getElementById('tab-'+page+'-new-sub-returns');
   if(newReturnsTab) newReturnsTab.classList.toggle('active', newSub==='returns');
 
-  var titleMap={new:(newSub==='returns'?'↩ Return Transactions':'🔔 New'),active:'Active',returned:'Returned History',returndone:'Return Done',done:'Done',cancelled:'Cancelled'};
+  var titleMap={new:(newSub==='returns'?'↩ Return Transactions':'🔔 New'),active:'Active',returned:'Returned History',returndone:'Return Done',done:'Completed',cancelled:'Cancelled'};
   var panelEl=document.querySelector('#'+page+'-table-panel .panel-title');
   if(panelEl) panelEl.textContent=(titleMap[tab]||'Active')+' Transactions';
 
@@ -210,18 +209,45 @@ function buildRowViewHTML(page,row){
   var isReturnedRecord = String(row['RETURNED DATE'] || '').trim() !== '';
 
   if (isReturnedRecord) {
+    var returnedFrom = esc2(row['RETURNED FROM'] || '—');
+    var returnedToLabel = (typeof returnedToDisplay === 'function') ? returnedToDisplay(row) : String(row['RETURN TO'] || '—');
+    var returnedTo = esc2(returnedToLabel || '—');
+    var returnRemarks = esc2(row['RETURN REMARKS'] || '—');
+    var returnedDate = esc2(row['RETURNED DATE'] || '—');
     return ''+
-      '<div class="view-summary">'+
-        '<div class="view-card">'+
-          '<div class="view-label">P.R # / Tracking No.</div>'+
-          '<div class="view-value"><span class="td-pr">'+esc2(row['P.R #']||'—')+'</span><br><span class="td-tracking">'+esc2(row['TRACKING NO.']||'—')+'</span></div>'+
+      '<div class="returned-view">'+
+        '<div class="returned-view-top">'+
+          '<div class="returned-view-head">'+
+            '<div class="returned-view-main">'+
+              '<div class="returned-view-tag">Returned Transaction</div>'+
+              '<div class="returned-view-id">'+
+                '<span class="td-pr">'+esc2(row['P.R #']||'—')+'</span>'+
+                '<span class="returned-view-sep">/</span>'+
+                '<span class="td-tracking">'+esc2(row['TRACKING NO.']||'—')+'</span>'+
+              '</div>'+
+            '</div>'+
+          '</div>'+
+          '<div class="returned-view-inline-date">'+
+            '<div class="view-label">Returned Date &amp; Time</div>'+
+            '<div class="view-value">'+returnedDate+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="returned-view-grid">'+
+          '<div class="returned-view-card">'+
+            '<div class="view-label">Returned From</div>'+
+            '<div class="view-value">'+returnedFrom+'</div>'+
+          '</div>'+
+          '<div class="returned-view-card">'+
+            '<div class="view-label">Returned To</div>'+
+            '<div class="view-value">'+returnedTo+'</div>'+
+          '</div>'+
+          '<div class="returned-view-card full">'+
+            '<div class="view-label">Return From Remarks</div>'+
+            '<div class="view-value">'+returnRemarks+'</div>'+
+          '</div>'+
         '</div>'+
       '</div>'+
-      '<div class="view-grid">'+
-        '<div class="view-field"><div class="view-label">Returned From</div><div class="view-value">'+esc2(row['RETURNED FROM']||'—')+'</div></div>'+
-        '<div class="view-field full"><div class="view-label">Return From Remarks</div><div class="view-value">'+esc2(row['RETURN REMARKS']||'—')+'</div></div>'+
-        '<div class="view-field"><div class="view-label">Returned Date &amp; Time</div><div class="view-value">'+esc2(row['RETURNED DATE']||'—')+'</div></div>'+
-      '</div>';
+    '';
   }
 
   var summary=''+

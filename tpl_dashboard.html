@@ -36,15 +36,21 @@
     <button class="tab-btn active" id="tab-dashboard-all" onclick="switchDashboardTab('all')">All <span id="dashboard-count-all" class="badge badge-grey" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-active" onclick="switchDashboardTab('active')">In Progress <span id="dashboard-count-active" class="badge badge-blue" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-returned" onclick="switchDashboardTab('returned')">Returned <span id="dashboard-count-returned" class="badge badge-warn" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-dashboard-completed" onclick="switchDashboardTab('completed')">Done <span id="dashboard-count-completed" class="badge badge-op" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-dashboard-completed" onclick="switchDashboardTab('completed')">Completed <span id="dashboard-count-completed" class="badge badge-op" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-cancelled" onclick="switchDashboardTab('cancelled')">Cancelled <span id="dashboard-count-cancelled" class="badge badge-down" style="margin-left:4px;"></span></button>
   </div>
   <div class="tab-nav" style="margin-top:-8px;">
+    <button class="tab-btn" id="tab-dashboard-dept-all" onclick="switchDashboardDeptTab('all')">All Departments <span id="dashboard-dept-count-all" class="badge badge-grey" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-dashboard-dept-bac" onclick="switchDashboardDeptTab('bac')">BAC <span id="dashboard-dept-count-bac" class="badge badge-amber" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-dept-supply" onclick="switchDashboardDeptTab('supply')">Supply <span id="dashboard-dept-count-supply" class="badge badge-teal" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-dept-budget" onclick="switchDashboardDeptTab('budget')">Budget <span id="dashboard-dept-count-budget" class="badge badge-violet" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-dept-accounting" onclick="switchDashboardDeptTab('accounting')">Accounting <span id="dashboard-dept-count-accounting" class="badge badge-blue" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-dept-cash" onclick="switchDashboardDeptTab('cash')">Cashier <span id="dashboard-dept-count-cash" class="badge badge-op" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-dashboard-dept-enduser" onclick="switchDashboardDeptTab('enduser')">REQUESTING OFFICES <span id="dashboard-dept-count-enduser" class="badge badge-grey" style="margin-left:4px;"></span></button>
+  </div>
+  <div class="tab-subnav" id="dashboard-enduser-subtabs" style="display:none;margin-top:8px;">
+    <button class="tab-btn active" id="tab-dashboard-enduser-sub-nottaken" onclick="switchDashboardEnduserSubTab('nottaken')">Not Taken</button>
+    <button class="tab-btn" id="tab-dashboard-enduser-sub-done" onclick="switchDashboardEnduserSubTab('done')">Completed</button>
   </div>
   <div class="bac-cat-filter" id="dashboard-bac-cat-filter">
     <span class="bac-cat-filter-label">Category:</span>

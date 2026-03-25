@@ -89,11 +89,45 @@ function continueReturnedNew(sheetName, rowNum, page, btn){
     .continueReturnedNew(sheetName, rowNum, currentUser.username);
 }
 
+function getReprocessStatusForPage(page){
+  return page==='cash' ? 'UNPAID' : 'PROCESSING';
+}
+
+function reopenCompletedRecord(sheetName, rowNum, page, btn){
+  if(!btn) btn=event.target;
+  var originalText=btn.textContent;
+  var targetStatus=getReprocessStatusForPage(page);
+  btn.textContent='Reopening…'; btn.disabled=true;
+
+  var data = {
+    'STATUS':targetStatus,
+    'COMPLETED AT':'',
+    'IS NEW':''
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(res&&res.success){
+        showToast('Transaction moved back to '+targetStatus+'.','success');
+        loadData();
+        setTimeout(function(){ switchTab(page,'active'); }, 150);
+      } else {
+        btn.textContent=originalText; btn.disabled=false;
+        showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      }
+    })
+    .withFailureHandler(function(e){
+      btn.textContent=originalText; btn.disabled=false;
+      showToast('Error: '+e.message,'error');
+    })
+    .updateTransaction(sheetName, rowNum, data, currentUser.username);
+}
+
 var ROW_BUILDERS={
   bac:function(r,tab){
       var active=tab==='active',isNew=tab==='new';
       var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-      var show=(active||isNew)&&canEdit('BAC');
+      var show=(active||isNew||tab==='done')&&canEdit('BAC');
     var showReturned=tab==='returned'&&canEdit('BAC')&&String(r['RETURN TO']||'').trim()==='BAC';
     var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active)?'completed-row':'');
@@ -121,7 +155,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'bac\','+r._rowNum+')">👁 View</button>'+
-      (active?'<button class="btn-sm edit" onclick="openEditModal(\'bac\','+r._rowNum+')">✏ Update</button>':'')+
+      ((active||tab==='done')?'<button class="btn-sm edit" onclick="openEditModal(\'bac\','+r._rowNum+')">✏ Update</button>':'')+
+      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BAC\','+r._rowNum+',\'bac\',this)">↺ Return to Processing</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BAC\','+r._rowNum+',\'bac\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BAC\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BAC\','+r._rowNum+')">↩ Return</button>':'')+
@@ -158,7 +193,7 @@ var ROW_BUILDERS={
   supply:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew)&&canEdit('SUPPLY');
+    var show=(active||isNew||tab==='done')&&canEdit('SUPPLY');
     var showReturned=tab==='returned'&&canEdit('SUPPLY')&&String(r['RETURN TO']||'').trim()==='Supply';
     var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
@@ -187,6 +222,7 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'supply\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'supply\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">↺ Return to Processing</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">↩ Return</button>':'')+
@@ -220,7 +256,7 @@ var ROW_BUILDERS={
   budget:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew)&&canEdit('BUDGET');
+    var show=(active||isNew||tab==='done')&&canEdit('BUDGET');
     var showReturned=tab==='returned'&&canEdit('BUDGET')&&String(r['RETURN TO']||'').trim()==='Budget';
     var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
@@ -249,6 +285,7 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'budget\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'budget\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BUDGET\','+r._rowNum+',\'budget\',this)">↺ Return to Processing</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BUDGET\','+r._rowNum+',\'budget\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BUDGET\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BUDGET\','+r._rowNum+')">↩ Return</button>':'')+
@@ -276,7 +313,7 @@ var ROW_BUILDERS={
   accounting:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew)&&canEdit('ACCOUNTING');
+    var show=(active||isNew||tab==='done')&&canEdit('ACCOUNTING');
     var showReturned=tab==='returned'&&canEdit('ACCOUNTING')&&String(r['RETURN TO']||'').trim()==='Accounting';
     var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
@@ -305,6 +342,7 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'accounting\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'accounting\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">↺ Return to Processing</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'ACCOUNTING\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'ACCOUNTING\','+r._rowNum+')">↩ Return</button>':'')+
@@ -331,7 +369,7 @@ var ROW_BUILDERS={
   cash:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew)&&canEdit('CASH');
+    var show=(active||isNew||tab==='done')&&canEdit('CASH');
     var showReturned=tab==='returned'&&canEdit('CASH')&&String(r['RETURN TO']||'').trim()==='Cashier';
     var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
@@ -360,6 +398,7 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'cash\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'cash\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'CASH\','+r._rowNum+',\'cash\',this)">↺ Return to Processing</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'CASH\','+r._rowNum+',\'cash\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm paid" onclick="doMarkPaid('+r._rowNum+')">✓ Mark Paid</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'CASH\','+r._rowNum+')">↩ Return</button>':'')+
@@ -575,7 +614,6 @@ function buildFormHTML(fields, prefix, existingData){
     } else {
       html+='<input class="form-input" type="'+f.type+'" id="'+id+'" value="'+esc(val)+'" placeholder="'+f.label+'"'+(f.readonly?' readonly':'')+'/>';
     }
-    if(isParticulars) html+='<div class="form-hint">You can enter up to around 100 words.</div>';
     if(f.hint) html+='<div class="form-hint">'+f.hint+'</div>';
     html+='</div>';
   });

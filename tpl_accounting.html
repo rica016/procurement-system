@@ -1,26 +1,27 @@
 <template id="tpl-accounting">
-  {{FLOW_BAR}}
   {{DEPT_SWITCHER}}
   <div class="section-head">
-    <div><div class="section-title">Accounting</div><div class="section-sub">Disbursement Vouchers &amp; Tax</div></div>
+    <div>
+      <div class="bac-cat-filter">
+        <span class="bac-cat-filter-label">Category:</span>
+        <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
+        <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
+        <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
+        <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
+        <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
+      </div>
+    </div>
     <div class="section-actions">
       <div class="search-wrap"><span class="search-icon">🔍</span><input id="acctg-search" placeholder="Search…" oninput="filterRows('accounting')"/></div>
       <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
     </div>
   </div>
-  <div class="bac-cat-filter">
-    <span class="bac-cat-filter-label">Transaction Category:</span>
-    <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
-    <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
-    <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
-    <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
-    <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
-  </div>
+  
   <div class="tab-nav">
     <button class="tab-btn" id="tab-accounting-new" onclick="switchNewSubTab('accounting','incoming')">🔔 New <span id="accounting-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-accounting-active" onclick="switchTab('accounting','active')">Active <span id="accounting-active-count" class="badge badge-amber" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-accounting-returned" onclick="switchTab('accounting','returned')">Returned History <span id="accounting-returned-count" class="badge badge-op" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-accounting-done" onclick="switchTab('accounting','done')">Done <span id="accounting-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-accounting-done" onclick="switchTab('accounting','done')">Completed <span id="accounting-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
   </div>
   <div class="tab-subnav" id="accounting-new-subtabs" style="display:none;margin-top:8px;">
     <button class="tab-btn active" id="tab-accounting-new-sub-incoming" onclick="switchNewSubTab('accounting','incoming')">New Transactions <span id="accounting-new-incoming-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
