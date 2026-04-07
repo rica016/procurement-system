@@ -167,6 +167,68 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 #supply-thead th:nth-child(2),
 #supply-tbody td:nth-child(2){display:none;}
 
+/* ── STICKY ACTIONS COLUMN ── */
+.tbl-wrap table thead th:last-child,
+.tbl-wrap table tbody td:last-child{
+  position:sticky;
+  right:0;
+  z-index:2;
+  /* Simulate left border lost by border-collapse when scrolling */
+  box-shadow:-2px 0 0 0 var(--border),-4px 0 8px rgba(0,0,0,.06);
+}
+.tbl-wrap table thead th:last-child{background:var(--surface2);z-index:3;}
+.tbl-wrap table tbody td:last-child{background:var(--surface);}
+.tbl-wrap table tbody tr:hover td:last-child{background:#F8FAFF;}
+.tbl-wrap table tbody tr.completed-row td:last-child{background:#FAFBFE;}
+.tbl-wrap table tbody tr.new-row td:last-child{background:var(--amber-light);}
+.tbl-wrap table tbody tr.new-row:hover td:last-child{background:#fde68a55;}
+
+/* ── STICKY TRACKING NO. COLUMN (LEFT) ── */
+#bac-thead th:first-child,#bac-tbody td:first-child,
+#supply-thead th:first-child,#supply-tbody td:first-child,
+#budget-thead th:first-child,#budget-tbody td:first-child,
+#accounting-thead th:first-child,#acctg-tbody td:first-child,
+#cash-thead th:first-child,#cash-tbody td:first-child,
+#rcao-thead th:first-child,#rcao-tbody td:first-child,
+#arda-thead th:first-child,#arda-tbody td:first-child,
+#dashboard-thead th:first-child,#dashboard-tbody td:first-child,
+#myreqs-thead th:first-child,#myreqs-tbody td:first-child{
+  position:sticky;
+  left:0;
+  z-index:2;
+  box-shadow:2px 0 0 0 var(--border),4px 0 8px rgba(0,0,0,.06);
+}
+#bac-thead th:first-child,#supply-thead th:first-child,
+#budget-thead th:first-child,#accounting-thead th:first-child,
+#cash-thead th:first-child,#rcao-thead th:first-child,
+#arda-thead th:first-child,#dashboard-thead th:first-child,
+#myreqs-thead th:first-child{background:var(--surface2);z-index:3;}
+#bac-tbody td:first-child,#supply-tbody td:first-child,
+#budget-tbody td:first-child,#acctg-tbody td:first-child,
+#cash-tbody td:first-child,#rcao-tbody td:first-child,
+#arda-tbody td:first-child,#dashboard-tbody td:first-child,
+#myreqs-tbody td:first-child{background:var(--surface);}
+#bac-tbody tr:hover td:first-child,#supply-tbody tr:hover td:first-child,
+#budget-tbody tr:hover td:first-child,#acctg-tbody tr:hover td:first-child,
+#cash-tbody tr:hover td:first-child,#rcao-tbody tr:hover td:first-child,
+#arda-tbody tr:hover td:first-child,#dashboard-tbody tr:hover td:first-child,
+#myreqs-tbody tr:hover td:first-child{background:#F8FAFF;}
+#bac-tbody tr.completed-row td:first-child,#supply-tbody tr.completed-row td:first-child,
+#budget-tbody tr.completed-row td:first-child,#acctg-tbody tr.completed-row td:first-child,
+#cash-tbody tr.completed-row td:first-child,#rcao-tbody tr.completed-row td:first-child,
+#arda-tbody tr.completed-row td:first-child,#dashboard-tbody tr.completed-row td:first-child,
+#myreqs-tbody tr.completed-row td:first-child{background:#FAFBFE;}
+#bac-tbody tr.new-row td:first-child,#supply-tbody tr.new-row td:first-child,
+#budget-tbody tr.new-row td:first-child,#acctg-tbody tr.new-row td:first-child,
+#cash-tbody tr.new-row td:first-child,#rcao-tbody tr.new-row td:first-child,
+#arda-tbody tr.new-row td:first-child,#dashboard-tbody tr.new-row td:first-child,
+#myreqs-tbody tr.new-row td:first-child{background:var(--amber-light);}
+#bac-tbody tr.new-row:hover td:first-child,#supply-tbody tr.new-row:hover td:first-child,
+#budget-tbody tr.new-row:hover td:first-child,#acctg-tbody tr.new-row:hover td:first-child,
+#cash-tbody tr.new-row:hover td:first-child,#rcao-tbody tr.new-row:hover td:first-child,
+#arda-tbody tr.new-row:hover td:first-child,#dashboard-tbody tr.new-row:hover td:first-child,
+#myreqs-tbody tr.new-row:hover td:first-child{background:#fde68a55;}
+
 /* ── BADGES ── */
 .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;white-space:nowrap;}
 .badge::before{content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0;}

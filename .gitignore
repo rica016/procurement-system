@@ -6,6 +6,9 @@ node_modules/
 
 # Env files
 .env
+package.json
+package-lock.json
+REVISED.xlsx
 
 # Logs
 npm-debug.log*
