@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Claude config
+.claude/
+
+# Env files
+.env
+
+# Logs
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
