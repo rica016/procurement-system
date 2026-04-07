@@ -10,9 +10,12 @@
     <button class="tab-btn" id="tab-myreqs-cancelled" onclick="switchMyReqsTab('cancelled')">Cancelled <span id="myreqs-count-cancelled" class="badge badge-down" style="margin-left:4px;"></span></button>
   </div>
   <div class="tab-nav" style="margin-top:-8px;">
+    <button class="tab-btn" id="tab-myreqs-dept-all" onclick="switchMyReqsDeptTab('all')">All <span id="myreqs-dept-count-all" class="badge badge-grey" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-myreqs-dept-bac" onclick="switchMyReqsDeptTab('bac')">BAC <span id="myreqs-dept-count-bac" class="badge badge-amber" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-myreqs-dept-supply" onclick="switchMyReqsDeptTab('supply')">Supply <span id="myreqs-dept-count-supply" class="badge badge-teal" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-myreqs-dept-budget" onclick="switchMyReqsDeptTab('budget')">Budget <span id="myreqs-dept-count-budget" class="badge badge-violet" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-myreqs-dept-rcao" onclick="switchMyReqsDeptTab('rcao')">RCAO <span id="myreqs-dept-count-rcao" class="badge badge-op" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-myreqs-dept-arda" onclick="switchMyReqsDeptTab('arda')">ARDA <span id="myreqs-dept-count-arda" class="badge badge-op" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-myreqs-dept-accounting" onclick="switchMyReqsDeptTab('accounting')">Accounting <span id="myreqs-dept-count-accounting" class="badge badge-blue" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-myreqs-dept-cash" onclick="switchMyReqsDeptTab('cash')">Cashier <span id="myreqs-dept-count-cash" class="badge badge-op" style="margin-left:4px;"></span></button>
   </div>
@@ -33,8 +36,8 @@
       </div>
     </div>
     <div class="tbl-wrap"><table>
-      <thead id="myreqs-thead"><tr><th>P.R # / Tracking No.</th><th>Loading…</th></tr></thead>
-      <tbody id="myreqs-tbody"><tr><td colspan="8"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr></tbody>
+      <thead id="myreqs-thead"><tr><th>Tracking No.</th><th>P.R No.</th><th>Loading…</th></tr></thead>
+      <tbody id="myreqs-tbody"><tr><td colspan="9"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr></tbody>
     </table></div>
   </div>
 </template>

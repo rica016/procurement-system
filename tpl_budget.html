@@ -1,5 +1,4 @@
 <template id="tpl-budget">
-  {{DEPT_SWITCHER}}
   <div class="section-head">
     <div>
       <div class="bac-cat-filter">
@@ -20,7 +19,6 @@
   <div class="tab-nav">
     <button class="tab-btn" id="tab-budget-new" onclick="switchNewSubTab('budget','incoming')">🔔 New <span id="budget-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-budget-active" onclick="switchTab('budget','active')">Active <span id="budget-active-count" class="badge badge-violet" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-budget-returned" onclick="switchTab('budget','returned')">Returned History <span id="budget-returned-count" class="badge badge-op" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-budget-done" onclick="switchTab('budget','done')">Completed <span id="budget-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-budget-cancelled" onclick="switchTab('budget','cancelled')">Cancelled <span id="budget-cancelled-count" class="badge badge-down" style="margin-left:4px;"></span></button>
   </div>
@@ -34,10 +32,10 @@
     </div>
     <div class="tbl-wrap"><table>
       <thead id="budget-thead"><tr>
-        <th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th>
+        <th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th> 
         <th>Amount</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th>
       </tr></thead>
-      <tbody id="budget-tbody"><tr><td colspan="9"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
+      <tbody id="budget-tbody"><tr><td colspan="10"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
     </table></div>
   </div>
 </template>

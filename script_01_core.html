@@ -3,8 +3,8 @@
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 var END_USER_ROLES_JS = ['HR','GSS','LTID','LEGAL','FINANCE','IT','ADMIN DIVISION'];
-var DEPT_ROLES_JS     = ['BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER'];
-var ALL_ROLES_JS      = ['ADMIN','BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER'].concat(END_USER_ROLES_JS);
+var DEPT_ROLES_JS     = ['BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER','RCAO','ARDA'];
+var ALL_ROLES_JS      = ['ADMIN','BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER','RCAO','ARDA'].concat(END_USER_ROLES_JS);
 
 // Fields that BAC fills when creating a transaction
 var BAC_CREATE_FIELDS = [
@@ -15,6 +15,7 @@ var BAC_CREATE_FIELDS = [
   { key:'PHIGEPS POSTED',          label:'PhilGEPS Posted',              type:'checkdate', required:false },
   { key:'APPROVED ABC',            label:'Approved ABC (₱)',              type:'number',  required:false },
   { key:'RFQ',                     label:'RFQ',                          type:'text',    required:false },
+  { key:'COMPLETE RFQ RETURNED',   label:'Complete RFQ Returned',        type:'date',    required:false },
   { key:'RFQ DATE OF COMPLETION',  label:'RFQ Date of Completion',       type:'date',    required:false },
   { key:'ABSTRACT OF AWARD',       label:'Abstract of Award',            type:'text',    required:false },
   { key:'AWARDED TO',              label:'Awarded To',                   type:'supplier',required:false },
@@ -124,9 +125,11 @@ function openProfileModal(){
   profileModalState = { originalUsername: currentUser.username };
 
   document.getElementById('profile-modal-title').textContent = 'My Profile';
-  document.getElementById('profile-modal-meta').textContent  = 'Update your username and password';
+  document.getElementById('profile-modal-meta').textContent  = 'Update your name, username and password';
   document.getElementById('profile-modal-body').innerHTML =
     '<div class="form-grid">'+
+      '<div class="form-group"><label class="form-label">First Name</label><input class="form-input" id="pf-first-name" type="text" value="'+esc(currentUser.firstName||'')+'" placeholder="Enter first name"/></div>'+
+      '<div class="form-group"><label class="form-label">Last Name</label><input class="form-input" id="pf-last-name" type="text" value="'+esc(currentUser.lastName||'')+'" placeholder="Enter last name"/></div>'+
       '<div class="form-group full"><label class="form-label">Current Role</label><input class="form-input" type="text" value="'+esc(currentUser.role||'')+'" readonly/></div>'+
       '<div class="form-group full"><label class="form-label">Username <span class="req">*</span></label><input class="form-input" id="pf-username" type="text" value="'+esc(currentUser.username||'')+'" placeholder="Enter username" autocomplete="off"/></div>'+
       '<div class="form-group full"><label class="checkbox-row"><input id="pf-change-password" type="checkbox" onchange="onProfileChangePasswordToggle()"/><label for="pf-change-password">Change password</label></label></div>'+
@@ -189,6 +192,8 @@ function closeProfileModal(e){
 function saveProfileModal(){
   if (!currentUser) return;
   var btn = document.getElementById('profile-modal-save');
+  var firstName = (document.getElementById('pf-first-name').value||'').trim();
+  var lastName = (document.getElementById('pf-last-name').value||'').trim();
   var username = (document.getElementById('pf-username').value||'').trim();
   var wantsPasswordChange = !!((document.getElementById('pf-change-password')||{}).checked);
   var currentPassword = wantsPasswordChange ? (document.getElementById('pf-current-password').value||'').trim() : '';
@@ -211,6 +216,8 @@ function saveProfileModal(){
         return;
       }
 
+      currentUser.firstName = res.firstName || firstName;
+      currentUser.lastName = res.lastName || lastName;
       currentUser.username = res.username || username;
       currentUser.role = res.role || currentUser.role;
       currentUser.isEndUser = res.isEndUser!==undefined ? !!res.isEndUser : currentUser.isEndUser;
@@ -228,6 +235,8 @@ function saveProfileModal(){
       showToast('Error: '+e.message,'error');
     })
     .updateMyCredentials(currentUser.username, currentPassword, {
+      firstName: firstName,
+      lastName: lastName,
       username: username,
       newPassword: newPassword
     });
@@ -245,7 +254,7 @@ function initApp(){
   document.getElementById('user-name').textContent   = currentUser.username;
   document.getElementById('user-role').textContent   = role;
 
-  document.querySelectorAll('.nav-dashboard,.nav-myreqs,.nav-bac,.nav-supply,.nav-budget,.nav-accounting,.nav-cash,.nav-track,.nav-users,.nav-suppliers,.nav-endusers,.nav-audit')
+  document.querySelectorAll('.nav-dashboard,.nav-myreqs,.nav-bac,.nav-supply,.nav-budget,.nav-accounting,.nav-cash,.nav-rcao,.nav-arda,.nav-track,.nav-users,.nav-suppliers,.nav-endusers,.nav-audit')
     .forEach(function(el){ el.classList.add('hidden'); });
 
   var navMap = {
@@ -255,6 +264,8 @@ function initApp(){
     'ACCOUNTING': ['.nav-accounting','.nav-track'],
     'CASHIER':    ['.nav-cash','.nav-track'],
     'CASH':       ['.nav-cash','.nav-track'],
+    'RCAO':       ['.nav-rcao','.nav-track'],
+    'ARDA':       ['.nav-arda','.nav-track'],
     'ADMIN':      ['.nav-dashboard','.nav-track','.nav-users','.nav-suppliers','.nav-endusers','.nav-audit']
   };
 
@@ -274,7 +285,7 @@ function initApp(){
   refreshSupplierDatalist();
   refreshEndUserDatalist();
 
-  var staffDefaults = { 'BAC':'bac','SUPPLY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASHIER':'cash','CASH':'cash' };
+  var staffDefaults = { 'BAC':'bac','SUPPLY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASHIER':'cash','CASH':'cash','RCAO':'rcao','ARDA':'arda' };
   var startPage = role === 'ADMIN'    ? 'dashboard'
                 : isEndUser           ? 'myreqs'
                 : (staffDefaults[role]||'track');
@@ -310,10 +321,12 @@ var PAGE_META={
   budget:     {title:'Budget',            sub:'Obligation Request & Status'},
   accounting: {title:'Accounting',        sub:'Disbursement Vouchers & Tax'},
   cash:       {title:'Cashier',          sub:'Cheque / LDDAP Payment Processing'},
-  track:      {title:'Track Transaction', sub:'Search by Tracking No. or P.R #'},
+  track:      {title:'Track Transaction', sub:'Search by Tracking No.'},
   users:      {title:'User Management',   sub:'Add, edit, and manage system users'},
   suppliers:  {title:'Supplier Management',  sub:'Add, edit, and manage suppliers'},
   endusers:   {title:'End User Management', sub:'Add, edit, and manage end users for form dropdowns'},
+  arda:       { title: 'ARDA',              sub: 'Final signatory for approval of documents' },
+  rcao:       { title: 'RCAO',              sub: 'Pre-approval review and endorsement of documents' },
   audit:      {title:'Audit Log',           sub:'All system activity — read only'}
 };
 
@@ -334,6 +347,8 @@ function departmentPageNav(active){
     {k:'bac',l:'BAC',badge:'badge-amber'},
     {k:'supply',l:'Supply',badge:'badge-teal'},
     {k:'budget',l:'Budget',badge:'badge-violet'},
+    {k:'rcao',l:'RCAO',badge:'badge-op'},
+    {k:'arda',l:'ARDA',badge:'badge-op'},
     {k:'accounting',l:'Accounting',badge:'badge-blue'},
     {k:'cash',l:'Cashier',badge:'badge-op'}
   ];
@@ -348,7 +363,7 @@ function refreshDepartmentPageNavCounts(){
   google.script.run
     .withSuccessHandler(function(counts){
       counts=counts||{};
-      ['bac','supply','budget','accounting','cash'].forEach(function(key){
+      ['bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(key){
         var el=document.getElementById('deptnav-count-'+key);
         if(el) el.textContent=counts[key]||0;
       });
@@ -373,7 +388,7 @@ function renderIncludedTemplate(templateId, replacements) {
 var PAGE_TEMPLATES={
   dashboard:function(){ return renderIncludedTemplate('tpl-dashboard'); },
   myreqs:function(){
-    ['bac','supply','budget','accounting','cash'].forEach(function(page){
+    ['bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(page){
       document.querySelectorAll('.nav-'+page).forEach(function(el){ el.classList.add('hidden'); });
     });
     return renderIncludedTemplate('tpl-myreqs', {
@@ -385,11 +400,32 @@ var PAGE_TEMPLATES={
   budget:function(){ return renderIncludedTemplate('tpl-budget', {'{{DEPT_SWITCHER}}': departmentPageNav('budget')}); },
   accounting:function(){ return renderIncludedTemplate('tpl-accounting', {'{{DEPT_SWITCHER}}': departmentPageNav('accounting')}); },
   cash:function(){ return renderIncludedTemplate('tpl-cash', {'{{DEPT_SWITCHER}}': departmentPageNav('cash')}); },
+  rcao:function(){ return renderIncludedTemplate('tpl-rcao', {'{{DEPT_SWITCHER}}': departmentPageNav('rcao')}); },
+  arda:function(){ return renderIncludedTemplate('tpl-arda', {'{{DEPT_SWITCHER}}': departmentPageNav('arda')}); },
   track:function(){ return renderIncludedTemplate('tpl-track'); },
   users:function(){ return renderIncludedTemplate('tpl-users'); },
   suppliers:function(){ return renderIncludedTemplate('tpl-suppliers'); },
   endusers:function(){ return renderIncludedTemplate('tpl-endusers'); },
   audit:function(){ return renderIncludedTemplate('tpl-audit'); }
 };
+
+var _trackingCopyBound = false;
+function bindTrackingCopyBehavior() {
+  if (_trackingCopyBound) return;
+  _trackingCopyBound = true;
+  document.addEventListener('click', function(e) {
+    var el = e.target && e.target.closest ? e.target.closest('.td-tracking') : null;
+    if (!el) return;
+    var text = String(el.textContent || '').trim();
+    if (!text || text === '—') return;
+    if (window.getSelection && String(window.getSelection()).trim() !== '') return;
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') return;
+    navigator.clipboard.writeText(text).then(function() {
+      if (typeof showToast === 'function') showToast('Tracking No. copied.', 'info');
+    }).catch(function(){});
+  });
+}
+
+bindTrackingCopyBehavior();
 </script>
 

@@ -10,46 +10,76 @@ var transactionCategoryByTracking = {};
 var _txnCategoryIndexLoading = false;
 var _txnCategoryIndexCallbacks = [];
 
+var DASHBOARD_ALL_TX_COLUMNS = [
+  'TRACKING NO.','P.R NO.','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED',
+  'RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','NOA','NTP',
+  'P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER',
+  'DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','ORS NO.','BUPR NO.','ORS AMOUNT','DV NO.',
+  'NET AMOUNT','TAX AMOUNT','CHEQUE NO. / LDDAP','DATE OF CHEQUE','RCAO','ARDA','CURRENT DEPT','CURRENT STATUS'
+];
+var DASHBOARD_ALL_TX_CURRENCY = {'APPROVED ABC':1,'P.O. AMOUNT':1,'ORS AMOUNT':1,'NET AMOUNT':1,'TAX AMOUNT':1};
+
 var MYREQS_DEPT_META = {
+  all: {
+    title:'All Departments',
+    allHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'</tr>',
+    allCols:DASHBOARD_ALL_TX_COLUMNS.length
+  },
   bac: {
     title:'BAC Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
-    activeCols:17, otherCols:18, returnedCols:6, returnDoneCols:8
+    activeHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:19, otherCols:20, returnedCols:7, returnDoneCols:9
   },
   supply: {
     title:'Supply & Property Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Date Returned to Supply</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Date Returned to Supply</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
     activeCols:17, otherCols:18, returnedCols:6, returnDoneCols:8
   },
   budget: {
     title:'Budget Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>ORS Amount</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>ORS Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
     activeCols:7, otherCols:8, returnedCols:6, returnDoneCols:8
   },
   accounting: {
     title:'Accounting Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>DV NO.</th><th>NET AMOUNT</th><th>TAX AMOUNT</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>DV NO.</th><th>NET AMOUNT</th><th>TAX AMOUNT</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
     activeCols:7, otherCols:8, returnedCols:6, returnDoneCols:8
   },
   cash: {
     title:'Cashier Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    returnDoneHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
     activeCols:6, otherCols:7, returnedCols:6, returnDoneCols:8
+  },
+  rcao: {
+    title:'RCAO Records',
+    activeHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:4, otherCols:5, returnedCols:6, returnDoneCols:8
+  },
+  arda: {
+    title:'ARDA Records',
+    activeHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>Date Received</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+    activeCols:4, otherCols:5, returnedCols:6, returnDoneCols:8
   }
 };
 
@@ -135,13 +165,19 @@ function ensureTransactionCategoryIndex(onReady) {
 
 function classifyMyReqDeptRow(r) {
   var status = String(r['STATUS']||'').trim().toUpperCase();
-  var isNew = String(r['IS NEW']||'').trim().toUpperCase() === 'TRUE';
+  var isNew = String(r['IS NOTIFIED']||r['IS NEW']||'').trim().toUpperCase() === 'TRUE';
   var hasReturn = String(r['RETURNED DATE']||'').trim() !== '';
   var returnDone = String(r['RETURN RECEIVED DATE']||'').trim() !== '';
-  var toReqOffice = String(r['RETURN TO']||'').trim().toUpperCase() === 'REQUESTING OFFICE';
+  var returnTo = String(r['RETURN TO']||'').trim().toUpperCase();
+  var myRole = String((typeof currentUser !== 'undefined' && currentUser && currentUser.role) || '').trim().toUpperCase();
+  var toReqOffice = returnTo === 'REQUESTING OFFICE' || returnTo === 'END USER' || (myRole && returnTo === myRole);
+  var isReturnedStatus = status === 'RETURNED';
+
+  // Returned rows must stay in returned/done tabs even if legacy flags still mark them as new.
+  if ((hasReturn || isReturnedStatus) && !returnDone && toReqOffice) return 'returned';
+  if ((hasReturn || isReturnedStatus) && returnDone && toReqOffice) return 'done';
+
   if (isNew && status !== 'CANCELLED') return 'active';
-  if (hasReturn && !returnDone && toReqOffice) return 'returned';
-  if (hasReturn && returnDone && toReqOffice) return 'done';
   if (status === 'CANCELLED') return 'cancelled';
   if (r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') return 'done';
   return 'active';
@@ -149,7 +185,7 @@ function classifyMyReqDeptRow(r) {
 
 function switchMyReqsDeptTab(tab) {
   myReqsDeptTab = tab;
-  ['bac','supply','budget','accounting','cash'].forEach(function(t){
+  ['all','bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(t){
     var el = document.getElementById('tab-myreqs-dept-'+t);
     if (el) el.classList.toggle('active', t === tab);
   });
@@ -178,7 +214,7 @@ function renderMyReqsBundle(bundle) {
     return;
   }
   cachedMyReqs = Array.isArray(bundle.requests) ? bundle.requests : [];
-  cachedMyReqDeptRows = bundle.departmentRows || { bac:[], supply:[], budget:[], accounting:[], cash:[] };
+  cachedMyReqDeptRows = bundle.departmentRows || { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[] };
   cachedRows['bac'] = cachedMyReqDeptRows.bac || [];
   rememberTransactionCategoriesFromBacRows(cachedRows['bac']);
   cachedRows['supply'] = cachedMyReqDeptRows.supply || [];
@@ -191,7 +227,7 @@ function renderMyReqsBundle(bundle) {
 
 function renderMyReqs(reqs) {
   cachedMyReqs = Array.isArray(reqs) ? reqs : [];
-  cachedMyReqDeptRows = { bac:[], supply:[], budget:[], accounting:[], cash:[] };
+  cachedMyReqDeptRows = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[] };
   syncBacCategoryFilterVisibility();
   renderMyReqsTable(cachedMyReqs);
 }
@@ -202,9 +238,11 @@ function renderMyReqsTable(reqs) {
   var thead = document.getElementById('myreqs-thead');
   if (!tb) return;
 
+  var meta = MYREQS_DEPT_META[myReqsDeptTab] || MYREQS_DEPT_META.bac;
+
   if (!reqs || reqs.error) {
-    if (thead) thead.innerHTML = '<tr><th>P.R # / Tracking No.</th><th>Status</th></tr>';
-    tb.innerHTML = '<tr><td colspan="8"><div style="color:var(--red);padding:20px;text-align:center;">Error loading requests.</div></td></tr>';
+    if (thead) thead.innerHTML = (myReqsDeptTab === 'all') ? meta.allHeader : '<tr><th>Tracking No.</th><th>P.R No.</th><th>Status</th></tr>';
+    tb.innerHTML = '<tr><td colspan="'+((myReqsDeptTab === 'all') ? meta.allCols : 9)+'"><div style="color:var(--red);padding:20px;text-align:center;">Error loading requests.</div></td></tr>';
     return;
   }
 
@@ -220,7 +258,7 @@ function renderMyReqsTable(reqs) {
 
   // Count badges per tab across ALL depts
   var tabCounts = { active:0, returned:0, done:0, cancelled:0 };
-  ['bac','supply','budget','accounting','cash'].forEach(function(key){
+  ['bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(key){
     matchingRows(key).forEach(function(r){
       var cat = classifyMyReqDeptRow(r);
       if (tabCounts[cat] !== undefined) tabCounts[cat]++;
@@ -237,20 +275,33 @@ function renderMyReqsTable(reqs) {
   });
 
   // Dept tab counts for current status tab
-  ['bac','supply','budget','accounting','cash'].forEach(function(key){
+  var allDeptRows = [];
+  ['bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(key){
     var count = matchingRows(key).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; }).length;
     var el = document.getElementById('myreqs-dept-count-'+key);
     if (el) el.textContent = count;
+    allDeptRows = allDeptRows.concat((matchingRows(key) || []).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; }));
   });
+  var allDeptCountEl = document.getElementById('myreqs-dept-count-all');
+  if (allDeptCountEl) allDeptCountEl.textContent = allDeptRows.length;
 
-  var meta = MYREQS_DEPT_META[myReqsDeptTab] || MYREQS_DEPT_META.bac;
-  var deptRows = matchingRows(myReqsDeptTab).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; });
+  var deptRows = (myReqsDeptTab === 'all')
+    ? allDeptRows
+    : matchingRows(myReqsDeptTab).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; });
 
   var isReturnTab     = myReqsTab === 'returned';
   var isActiveTab     = myReqsTab === 'active';
-  var cols = isReturnTab ? meta.returnedCols : (isActiveTab ? meta.activeCols : meta.otherCols);
+  var cols = (myReqsDeptTab === 'all')
+    ? meta.allCols
+    : (isReturnTab ? meta.returnedCols : (isActiveTab ? meta.activeCols : meta.otherCols));
 
-  if (thead) thead.innerHTML = isReturnTab ? meta.returnedHeader : (isActiveTab ? meta.activeHeader : meta.otherHeader);
+  if (thead) {
+    if (myReqsDeptTab === 'all') {
+      thead.innerHTML = meta.allHeader;
+    } else {
+      thead.innerHTML = isReturnTab ? meta.returnedHeader : (isActiveTab ? meta.activeHeader : meta.otherHeader);
+    }
+  }
 
   var titleMap = { active:'Active', returned:'Returned', done:'Completed', cancelled:'Cancelled' };
   var titleEl = document.getElementById('myreqs-panel-title');
@@ -269,13 +320,33 @@ function renderMyReqsTable(reqs) {
   var showCompletedAt = !isActiveTab && !isReturnTab;
   var doneCls = (myReqsTab === 'done' || myReqsTab === 'cancelled') ? 'completed-row' : '';
 
+  function myReqsIdCell(r) {
+    if (myReqsDeptTab === 'bac' || myReqsDeptTab === 'all') return trackingPrCell(r);
+    return '<td><span class="td-tracking" tabindex="0">'+esc2(r['TRACKING NO.'] || '—')+'</span></td>';
+  }
+
   tb.innerHTML = deptRows.map(function(r) {
+    if (myReqsDeptTab === 'all') {
+      return '<tr class="'+doneCls+'">'+
+        trackingPrCell(r)+
+        DASHBOARD_ALL_TX_COLUMNS.slice(2).map(function(col) {
+          if (col === 'CURRENT DEPT') return '<td>'+esc2(String(r[col] || '').toUpperCase() || '—')+'</td>';
+          if (col === 'CURRENT STATUS') return '<td>'+statusBadge(r[col] || r['STATUS'] || '—')+'</td>';
+          if (col === 'PARTICULARS') return '<td class="td-wrap">'+esc2(r[col] || '—')+'</td>';
+          if (col === 'APPROVED ABC' || col === 'P.O. AMOUNT' || col === 'ORS AMOUNT' || col === 'NET AMOUNT' || col === 'TAX AMOUNT') {
+            return '<td>'+currency(r[col])+'</td>';
+          }
+          return '<td>'+esc2(r[col] || '—')+'</td>';
+        }).join('')+
+      '</tr>';
+    }
+
     var viewBtn = '<button class="btn-sm view" onclick="openViewModal(\''+myReqsDeptTab+'\','+r._rowNum+')">👁 View</button>';
     var actionMenu = '<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">';
 
     if (isReturnTab) {
       return '<tr>'+
-        trackingPrCell(r)+
+        myReqsIdCell(r)+
         '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
         '<td>'+esc2(returnedToDisplay(r))+'</td>'+
         '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
@@ -289,18 +360,19 @@ function renderMyReqsTable(reqs) {
 
     if (myReqsDeptTab === 'bac') {
       return '<tr class="'+doneCls+'">'+
-        trackingPrCell(r)+
+        myReqsIdCell(r)+
         '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
         '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
         '<td>'+esc2(r['CATEGORY']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['PHIGEPS POSTED']||'—')+'</td>'+
         '<td>'+currency(r['APPROVED ABC'])+'</td>'+
-        '<td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['RFQ']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['COMPLETE RFQ RETURNED']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['RFQ DATE OF COMPLETION']||'—')+'</td>'+
         '<td>'+esc2(r['ABSTRACT OF AWARD']||'—')+'</td>'+
         '<td>'+esc2(r['AWARDED TO']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['DATE OF AWARD']||'—')+'</td>'+
+        '<td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td>'+ 
         '<td class="td-mono">'+esc2(r['BAC RESO']||'—')+'</td>'+
         '<td>'+esc2(r['NOA']||'—')+'</td>'+
         '<td>'+esc2(r['NTP']||'—')+'</td>'+
@@ -311,14 +383,14 @@ function renderMyReqsTable(reqs) {
     }
     if (myReqsDeptTab === 'supply') {
       return '<tr class="'+doneCls+'">'+
-        trackingPrCell(r)+
+        myReqsIdCell(r)+
         '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
         '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['P.O. No.']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['P.O. DATE']||'—')+'</td>'+
         '<td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td>'+
         '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
-        '<td>'+esc2(r['PARTICULARS']||'—')+'</td>'+
+        '<td class="td-wrap">'+esc2(r['PARTICULARS']||'—')+'</td>'+
         '<td>'+currency(r['AMOUNT'])+'</td>'+
         '<td class="td-mono">'+esc2(r['DATE TRANSMITTED TO SUPPLIER']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['DATE RECEIVED BY SUPPLIER']||'—')+'</td>'+
@@ -333,7 +405,7 @@ function renderMyReqsTable(reqs) {
     }
     if (myReqsDeptTab === 'budget') {
       return '<tr class="'+doneCls+'">'+
-        trackingPrCell(r)+
+        myReqsIdCell(r)+
         '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['ORS NO.']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['BUPR NO.']||'—')+'</td>'+
@@ -345,7 +417,7 @@ function renderMyReqsTable(reqs) {
     }
     if (myReqsDeptTab === 'accounting') {
       return '<tr class="'+doneCls+'">'+
-        trackingPrCell(r)+
+        myReqsIdCell(r)+
         '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['DV No.']||'—')+'</td>'+
         '<td>'+currency(r['Net Amount'])+'</td>'+
@@ -355,8 +427,26 @@ function renderMyReqsTable(reqs) {
         '<td>'+actionBtns+'</td>'+
       '</tr>';
     }
+    if (myReqsDeptTab === 'rcao') {
+      return '<tr class="'+doneCls+'">'+
+        myReqsIdCell(r)+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td>'+statusBadge(r['RCAO'])+'</td>'+
+        (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+        '<td>'+actionBtns+'</td>'+
+      '</tr>';
+    }
+    if (myReqsDeptTab === 'arda') {
+      return '<tr class="'+doneCls+'">'+
+        myReqsIdCell(r)+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td>'+statusBadge(r['ARDA'])+'</td>'+
+        (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+        '<td>'+actionBtns+'</td>'+
+      '</tr>';
+    }
     return '<tr class="'+doneCls+'">'+
-      trackingPrCell(r)+
+      myReqsIdCell(r)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['CHEQUE NO. / LDDAP']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE OF CHEQUE']||'—')+'</td>'+
@@ -377,15 +467,16 @@ function filterMyReqs() {
 // ── OPEN END-USER EDIT MODAL (Supply dates only) ──────────────────────────────
 function openEndUserEditModal(trackingNo) {
   var req = cachedMyReqs.find(function(r){ return r.trackingNo === trackingNo; });
-  if (!req || !req.supRowNum) {
+    if (!req || !req.supRowNum) {
     showToast('Cannot edit — Supply row not found. Please refresh.', 'error');
     return;
   }
-  modalState = { mode:'enduser-edit', supRowNum: req.supRowNum, trackingNo: trackingNo };
+    modalState = { mode:'enduser-edit', supRowNum: req.supRowNum, trackingNo: trackingNo };
   document.getElementById('main-modal-title').textContent = 'Update Supply Dates';
   var pr = String(req.prNo || '').trim();
   var tr = String(trackingNo || '').trim();
-  var idMeta = pr ? ('P.R #: '+pr + (tr ? (' · Tracking: '+tr) : '')) : (tr ? ('Tracking: '+tr) : ('Row #'+req.supRowNum));
+  var showPr = String(req.currentSection || '').trim().toUpperCase() === 'BAC';
+  var idMeta = showPr && pr ? ('Tracking: '+tr + ' · P.R #: '+pr) : (tr ? ('Tracking: '+tr) : ('Row #'+req.supRowNum));
   document.getElementById('main-modal-meta').textContent  = idMeta + ' · Editing Supply & Property dates';
   var existing = {
     'DATE TRANSMITTED TO SUPPLIER': req.dateTransmittedToSupplier || '',
@@ -408,8 +499,8 @@ function openMyReqViewModal(trackingNo) {
   var body =
     '<div class="view-summary">'+
       '<div class="view-card">'+
-        '<div class="view-label">P.R # / Tracking No.</div>'+
-        '<div class="view-value"><span class="td-pr">'+esc2(req.prNo||'—')+'</span><br><span class="td-tracking">'+esc2(req.trackingNo||'—')+'</span></div>'+
+        '<div class="view-label">Tracking No.'+(String(req.currentSection || '').trim().toUpperCase() === 'BAC' ? ' / P.R NO.' : '')+'</div>'+
+        '<div class="view-value"><span class="td-tracking">'+esc2(req.trackingNo||'—')+'</span>'+(String(req.currentSection || '').trim().toUpperCase() === 'BAC' && req.prNo ? '<br><span class="td-pr">'+esc2(req.prNo)+'</span>' : '')+'</div>'+
       '</div>'+
       '<div class="view-card">'+
         '<div class="view-label">Status</div>'+
@@ -491,8 +582,8 @@ function doTrackSearch(){
         '</div>';
       }
       out.innerHTML='<div class="track-card">'+
-        '<div class="track-header"><div class="track-title">'+(res.trackingNo||'—')+'</div>'+
-        '<div class="track-meta">'+(res.prNo?'P.R #: '+esc2(res.prNo)+' &nbsp;·&nbsp; ':'')+esc2(res.office)+(res.item?' &nbsp;·&nbsp; '+esc2(res.item):'')+
+        '<div class="track-header"><div class="track-title">'+(res.trackingNo||'—')+'</div>'+ 
+        '<div class="track-meta">'+esc2(res.office)+(res.item?' &nbsp;·&nbsp; '+esc2(res.item):'')+
         '</div></div>'+
         '<div class="track-body">'+
           '<div class="track-current"><div><div class="track-current-label">Current Location</div>'+
@@ -512,7 +603,7 @@ function doTrackSearch(){
 var dashboardTab = 'all';
 var dashboardDeptTab = 'bac';
 var dashboardEnduserSubTab = 'nottaken';
-var cachedDashboardData = { bac:[], supply:[], budget:[], accounting:[], cash:[], enduser:[] };
+var cachedDashboardData = { bac:[], supply:[], budget:[], accounting:[], rcao:[], arda:[], cash:[], enduser:[] };
 var dashboardLastActivityByTracking = {};
 var dashboardAllReqs = [];
 var _dashToken = 0;
@@ -521,70 +612,88 @@ var _dashCount = 0;
 var DASHBOARD_DEPT_META = {
   bac: {
     title:'BAC Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    activeCols:17,
-    otherCols:18,
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
     returnedCols:5
   },
   supply: {
     title:'Supply & Property Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R #</th><th>Invoice #</th><th>Date Returned to Supply</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    activeCols:17,
-    otherCols:18,
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
     returnedCols:5
   },
   budget: {
     title:'Budget Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    activeCols:7,
-    otherCols:8,
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
     returnedCols:5
   },
   accounting: {
     title:'Accounting Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    activeCols:7,
-    otherCols:8,
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
     returnedCols:5
   },
   cash: {
     title:'Cashier Records',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Completed At</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-    activeCols:6,
-    otherCols:7,
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    returnedCols:5
+  },
+  rcao: {
+    title:'RCAO Records',
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    returnedCols:5
+  },
+  arda: {
+    title:'ARDA Records',
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
     returnedCols:5
   },
   enduser: {
     title:'Requesting Office Transactions',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Requesting Office</th><th>Date Created</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Requesting Office</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return Received Remarks</th><th>Return Received Date</th><th>Status</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Requesting Office</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+    activeHeader:'<tr><th>Tracking No.</th><th>Requesting Office</th><th>Date Created</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>Requesting Office</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return Received Remarks</th><th>Return Received Date</th><th>Status</th><th>Actions</th></tr>',
+    returnedHeader:'<tr><th>Tracking No.</th><th>Requesting Office</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:5,
     otherCols:9,
     returnedCols:6
   },
   all: {
     title:'All Departments',
-    activeHeader:'<tr><th>P.R # / Tracking No.</th><th>Department</th><th>Date Received</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>P.R # / Tracking No.</th><th>Department</th><th>Date Received</th><th>Status</th><th>Actions</th></tr>',
-    returnedHeader:'<tr><th>P.R # / Tracking No.</th><th>Department</th><th>Date Received</th><th>Status</th><th>Actions</th></tr>',
-    activeCols:5,
-    otherCols:5,
-    returnedCols:5
+    activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    returnedHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    returnedCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1)
   }
 };
 
-var DASHBOARD_RETURN_TARGETS = { bac:'BAC', supply:'Supply', budget:'Budget', accounting:'Accounting', cash:'Cashier', enduser:'END USER' };
+var DASHBOARD_RETURN_TARGETS = { bac:'BAC', supply:'Supply', budget:'Budget', accounting:'Accounting', cash:'Cashier', rcao:'RCAO', arda:'ARDA', enduser:'END USER' };
 
 function isRequestingOfficeTarget(value) {
   var v = String(value || '').trim().toUpperCase();
@@ -592,7 +701,7 @@ function isRequestingOfficeTarget(value) {
 }
 
 function rebuildDashboardRequestingOfficeRows() {
-  var sourceDepts = ['bac','supply','budget','accounting','cash'];
+  var sourceDepts = ['bac','supply','budget','accounting','cash','rcao','arda'];
   var out = [];
   sourceDepts.forEach(function(dept){
     (cachedDashboardData[dept] || []).forEach(function(r){
@@ -611,6 +720,7 @@ function dashboardIsReturnPending(r) {
 
 function dashboardRowCategory(page, r) {
   var status = String(r['STATUS']||'').trim().toUpperCase();
+  var isNotified = String(r['IS NOTIFIED']||r['IS NEW']||'').trim().toUpperCase() === 'TRUE';
   var isPendingReturn = dashboardIsReturnPending(r);
   var hasResolvedReturn = String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()!=='';
   var returnToValue = String(r['RETURN TO']||'').trim();
@@ -622,6 +732,7 @@ function dashboardRowCategory(page, r) {
   if (status === 'CANCELLED') return 'cancelled';
   if (isPendingReturn) return 'locked';
   if ((r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') || status === 'PAID') return 'completed';
+  if (isNotified) return 'active';
   return 'active';
 }
 
@@ -629,6 +740,148 @@ function dashboardRowsForTab(page, tab) {
   var rows = cachedDashboardData[page] || [];
   if (tab === 'all') return rows;
   return rows.filter(function(r){ return dashboardRowCategory(page, r) === tab; });
+}
+
+var DASHBOARD_DEPT_FIELD_LAYOUT = {
+  bac: {
+    active: ['DATE RECEIVED','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','NOA','NTP','STATUS'],
+    other:  ['DATE RECEIVED','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','NOA','NTP','STATUS','COMPLETED AT']
+  },
+  supply: {
+    active: ['DATE RECEIVED','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','STATUS'],
+    other:  ['DATE RECEIVED','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','STATUS','COMPLETED AT']
+  },
+  budget: {
+    active: ['DATE RECEIVED','ORS NO.','BUPR NO.','ORS AMOUNT','STATUS'],
+    other:  ['DATE RECEIVED','ORS NO.','BUPR NO.','ORS AMOUNT','STATUS','COMPLETED AT']
+  },
+  accounting: {
+    active: ['DATE RECEIVED','DV NO.','NET AMOUNT','TAX AMOUNT','STATUS'],
+    other:  ['DATE RECEIVED','DV NO.','NET AMOUNT','TAX AMOUNT','STATUS','COMPLETED AT']
+  },
+  cash: {
+    active: ['DATE RECEIVED','CHEQUE NO. / LDDAP','DATE OF CHEQUE','STATUS'],
+    other:  ['DATE RECEIVED','CHEQUE NO. / LDDAP','DATE OF CHEQUE','STATUS','COMPLETED AT']
+  },
+  rcao: {
+    active: ['DATE RECEIVED','RCAO'],
+    other:  ['DATE RECEIVED','RCAO','COMPLETED AT']
+  },
+  arda: {
+    active: ['DATE RECEIVED','ARDA'],
+    other:  ['DATE RECEIVED','ARDA','COMPLETED AT']
+  }
+};
+
+function dashboardDeptColumnLabel(key) {
+  var labels = {
+    'DATE RECEIVED':'Date Received',
+    'END-USER / REQUESTED BY':'End User',
+    'END USER':'End User',
+    'CATEGORY':'Category',
+    'PHIGEPS POSTED':'PHIGEPS Posted',
+    'APPROVED ABC':'Approved ABC',
+    'RFQ':'RFQ',
+    'COMPLETE RFQ RETURNED':'Complete RFQ Returned',
+    'RFQ DATE OF COMPLETION':'RFQ Date of Completion',
+    'ABSTRACT OF AWARD':'Abstract of Award',
+    'AWARDED TO':'Awarded To',
+    'DATE OF AWARD':'Date of Award',
+    'MODE OF PROCUREMENT':'Mode of Procurement',
+    'BAC RESO':'BAC Reso',
+    'NOA':'NOA',
+    'NTP':'NTP',
+    'P.O. NO.':'P.O. NO.',
+    'P.O. DATE':'P.O. DATE',
+    'DOCUMENT TYPE':'Doc Type',
+    'SUPPLIER':'Supplier',
+    'PARTICULARS':'Particulars',
+    'P.O. AMOUNT':'P.O. Amount',
+    'DATE TRANSMITTED TO SUPPLIER':'Date Transmitted',
+    'DATE RECEIVED BY SUPPLIER':'Date Received Supplier',
+    'COA DATE RECEIVED':'COA Date Received',
+    'I.A.R  NO.':'I.A.R NO.',
+    'INVOICE  NO.':'Invoice NO.',
+    'ORS NO.':'ORS No.',
+    'BUPR NO.':'BUPR No.',
+    'ORS AMOUNT':'ORS Amount',
+    'DV NO.':'DV NO.',
+    'NET AMOUNT':'NET AMOUNT',
+    'TAX AMOUNT':'TAX AMOUNT',
+    'CHEQUE NO. / LDDAP':'Cheque No. / LDDAP',
+    'DATE OF CHEQUE':'Date of Cheque',
+    'STATUS':'Status',
+    'COMPLETED AT':'Completed At',
+    'RCAO':'Status',
+    'ARDA':'Status'
+  };
+  return labels[key] || key;
+}
+
+function dashboardDeptColumnValue(page, row, key) {
+  if (key === 'STATUS') return statusBadge(row['STATUS'] || '—');
+  if (key === 'RCAO') return statusBadge(row['RCAO'] || '—');
+  if (key === 'ARDA') return statusBadge(row['ARDA'] || '—');
+  if (key === 'APPROVED ABC' || key === 'P.O. AMOUNT' || key === 'ORS AMOUNT' || key === 'NET AMOUNT' || key === 'TAX AMOUNT') {
+    return currency(row[key] || row['AMOUNT'] || '—');
+  }
+  return esc2(row[key] || '—');
+}
+
+function dashboardPrimaryIdCell(col, value, deptForRow) {
+  var text = esc2(value || '—');
+  if (col === 'TRACKING NO.') {
+    return '<td><span class="td-mono" style="font-size:13px;font-weight:800;color:var(--blue);">'+text+'</span></td>';
+  }
+  if (col === 'P.R NO.') {
+    var dept = String(deptForRow || '').trim().toUpperCase();
+    return '<td><span style="font-weight:800;color:var(--text);">'+text+'</span></td>';
+  }
+  return '<td>'+dashboardDeptColumnValue(deptForRow, { [col]: value }, col)+'</td>';
+}
+
+function dashboardDeptHeader(page, tab) {
+  var layout = DASHBOARD_DEPT_FIELD_LAYOUT[page] || DASHBOARD_DEPT_FIELD_LAYOUT.bac;
+  var fields = tab === 'active' ? layout.active : layout.other;
+  if (tab === 'cancelled') {
+    fields = fields.filter(function(field){ return field !== 'COMPLETED AT'; });
+  }
+  var isBAC = page === 'bac';
+  var idHeaders = '<th>Tracking No.</th>'+(isBAC ? '<th>P.R No.</th>' : '');
+  return '<tr>'+idHeaders+fields.map(function(field){ return '<th>'+dashboardDeptColumnLabel(field)+'</th>'; }).join('')+'<th>Actions</th></tr>';
+}
+
+function dashboardDeptColSpan(page, tab) {
+  var layout = DASHBOARD_DEPT_FIELD_LAYOUT[page] || DASHBOARD_DEPT_FIELD_LAYOUT.bac;
+  var fields = tab === 'active' ? layout.active : layout.other;
+  if (tab === 'cancelled') {
+    fields = fields.filter(function(field){ return field !== 'COMPLETED AT'; });
+  }
+  var isBAC = page === 'bac';
+  return fields.length + (isBAC ? 3 : 2);
+}
+
+function dashboardDeptRow(page, row, tab, actions) {
+  var layout = DASHBOARD_DEPT_FIELD_LAYOUT[page] || DASHBOARD_DEPT_FIELD_LAYOUT.bac;
+  var fields = tab === 'active' ? layout.active : layout.other;
+  var completedCls = String(row['STATUS']||'').trim().toUpperCase() === 'CANCELLED' || dashboardIsReturnPending(row) || (row['COMPLETED AT'] && row['COMPLETED AT'].trim() !== '');
+  var canUndo = String(row['STATUS']||'').trim().toUpperCase() === 'CANCELLED';
+  if (tab === 'cancelled' && canUndo) {
+    actions = actions.replace('</div></div>', '<button class="btn-sm warn" onclick="reopenCompletedRecord(\''+SHEET_NAMES[page]+'\','+row._rowNum+',\''+page+'\',this)">↺ Undo</button></div></div>');
+  }
+  if (tab === 'cancelled') {
+    fields = fields.filter(function(field){ return field !== 'COMPLETED AT'; });
+  }
+  return '<tr class="'+(completedCls ? 'completed-row' : '')+'">'+
+    trackingPrCell(row, undefined, page !== 'bac')+
+    fields.map(function(field){
+      var tdClass = '';
+      if (field === 'COMPLETED AT') tdClass = 'td-mono';
+      else if (field === 'PARTICULARS') tdClass = 'td-wrap';
+      return '<td'+(tdClass ? ' class="'+tdClass+'"' : '')+'>'+dashboardDeptColumnValue(page, row, field)+'</td>';
+    }).join('')+
+    '<td>'+actions+'</td>'+
+  '</tr>';
 }
 
 function completeReturnedDashboardItem(page, rowNum) {
@@ -652,7 +905,7 @@ function switchDashboardEnduserSubTab(tab) {
 
 function switchDashboardDeptTab(tab) {
   dashboardDeptTab = tab;
-  ['bac','supply','budget','accounting','cash','enduser','all'].forEach(function(t){
+  ['bac','supply','budget','accounting','rcao','arda','cash','enduser','all'].forEach(function(t){
     var el = document.getElementById('tab-dashboard-dept-'+t);
     if (el) el.classList.toggle('active', t === tab);
   });
@@ -677,6 +930,8 @@ function renderDashboardAnalytics() {
   var sup = cachedDashboardData.supply || [];
   var bud = cachedDashboardData.budget || [];
   var acc = cachedDashboardData.accounting || [];
+  var rco = cachedDashboardData.rcao || [];
+  var ard = cachedDashboardData.arda || [];
   var csh = cachedDashboardData.cash || [];
 
   function isRP(r){ return String(r['RETURNED DATE']||'').trim()!==''&&String(r['RETURN RECEIVED DATE']||'').trim()===''; }
@@ -684,20 +939,12 @@ function renderDashboardAnalytics() {
 
   // ── Global cross-dept stats ──
   var uniqueTN={}, cancelledTN={}, returnedTN={}, paidTN={};
-  bac.forEach(function(r){
-    var tn=r['TRACKING NO.']; if(!tn) return;
-    uniqueTN[tn]=true;
-    if(String(r['STATUS']||'').toUpperCase()==='CANCELLED') cancelledTN[tn]=true;
-    if(isRP(r)) returnedTN[tn]=true;
-  });
-  csh.forEach(function(r){
-    var tn=r['TRACKING NO.']; if(!tn) return;
-    if(String(r['STATUS']||'').toUpperCase()==='PAID') paidTN[tn]=true;
-    if(isRP(r)) returnedTN[tn]=true;
-  });
-  [sup,bud,acc].forEach(function(rows){
+  [bac,sup,bud,acc,rco,ard,csh].forEach(function(rows){
     rows.forEach(function(r){
       var tn=r['TRACKING NO.']; if(!tn) return;
+      uniqueTN[tn]=true;
+      if(String(r['STATUS']||'').toUpperCase()==='CANCELLED') cancelledTN[tn]=true;
+      if(String(r['STATUS']||'').toUpperCase()==='PAID') paidTN[tn]=true;
       if(isRP(r)) returnedTN[tn]=true;
     });
   });
@@ -732,6 +979,8 @@ function renderDashboardAnalytics() {
     {key:'supply',     label:'Supply & Property',color:'var(--teal)',  rows:sup},
     {key:'budget',     label:'Budget',            color:'var(--violet)',rows:bud},
     {key:'accounting', label:'Accounting',        color:'var(--blue)',  rows:acc},
+    {key:'rcao',       label:'RCAO',              color:'var(--orange)',rows:rco},
+    {key:'arda',       label:'ARDA',              color:'var(--green)', rows:ard},
     {key:'cash',       label:'Cashier',           color:'var(--green)', rows:csh},
     {key:'enduser',    label:'Requesting Offices',color:'var(--orange)',rows:cachedDashboardData.enduser || []}
   ];
@@ -751,6 +1000,11 @@ function renderDashboardAnalytics() {
 
   var pipeEl = document.getElementById('dashboard-pipeline');
   if(pipeEl){
+    function pipelineBarColor(colorVar) {
+      var c = String(colorVar || '').toLowerCase();
+      if (c.indexOf('red') !== -1) return 'var(--blue)';
+      return colorVar || 'var(--blue)';
+    }
     pipeEl.innerHTML = '<div class="pipeline-list">'+dStats.map(function(ds){
       var pct = Math.round(ds.load / maxLoad * 100);
       var primaryCount = ds.key === 'enduser' ? ds.returned : ds.active;
@@ -761,7 +1015,7 @@ function renderDashboardAnalytics() {
           '<div class="pipeline-dept-sub">'+ds.total+' total row'+(ds.total!==1?'s':'')+'</div>'+
         '</div>'+
         '<div class="pipeline-dept-right">'+
-          '<div class="pipeline-bar-wrap"><div class="pipeline-bar-fill" style="width:'+pct+'%;background:'+ds.color+'"></div></div>'+
+          '<div class="pipeline-bar-wrap"><div class="pipeline-bar-fill" style="width:'+pct+'%;background:'+pipelineBarColor(ds.color)+'"></div></div>'+
           '<div class="pipeline-metrics">'+
             '<span class="pm pm-active">'+primaryCount+' '+primaryLabel+'</span>'+
             (ds.key !== 'enduser' && ds.returned?'<span class="pm pm-returned">'+ds.returned+' returned</span>':'')+
@@ -839,7 +1093,7 @@ function renderDashboardAnalytics() {
         return '<div class="db-alert-item stale-flash" onclick="switchDashboardDeptTab(\''+item.deptKey+'\');switchDashboardTab(\''+item.tab+'\');">'+
           '<div class="db-alert-hdr">'+
             '<span class="td-pr">'+esc2(r['TRACKING NO.']||'—')+'</span>'+
-            (r['P.R #']?'<span class="td-tracking"> · '+esc2(r['P.R #'])+'</span>':'')+
+            ((r['P.R NO.']||r['P.R #'])?'<span class="td-tracking"> · '+esc2(r['P.R NO.']||r['P.R #'])+'</span>':'')+
             '<span class="db-alert-dept db-dept-'+item.deptKey+'">'+esc2(item.deptLabel)+'</span>'+
           '</div>'+
           '<div class="db-alert-meta">'+item.daysOld+' day'+(item.daysOld!==1?'s':'')+' no update · '+stateLabel+'</div>'+
@@ -866,7 +1120,7 @@ function renderDashboardTable() {
     return dashboardRowsForTab(page, tab).filter(rowMatchesActiveBacCategory);
   }
 
-  var allDepts = ['bac','supply','budget','accounting','cash'];
+  var allDepts = ['bac','supply','budget','accounting','rcao','arda','cash'];
   var display;
   if (dashboardDeptTab === 'all') {
     display = [];
@@ -884,7 +1138,7 @@ function renderDashboardTable() {
   var meta = DASHBOARD_DEPT_META[dashboardDeptTab] || DASHBOARD_DEPT_META.bac;
   function selectedDeptCount(tab) {
     if (dashboardDeptTab === 'all') {
-      return rowsFor('bac', tab).length + rowsFor('supply', tab).length + rowsFor('budget', tab).length + rowsFor('accounting', tab).length + rowsFor('cash', tab).length;
+      return rowsFor('bac', tab).length + rowsFor('supply', tab).length + rowsFor('budget', tab).length + rowsFor('accounting', tab).length + rowsFor('rcao', tab).length + rowsFor('arda', tab).length + rowsFor('cash', tab).length;
     }
     return rowsFor(dashboardDeptTab, tab).length;
   }
@@ -899,11 +1153,11 @@ function renderDashboardTable() {
     var el = document.getElementById('dashboard-count-'+t); if (el) el.textContent = counts[t];
   });
 
-  ['bac','supply','budget','accounting','cash','enduser','all'].forEach(function(key){
+  ['bac','supply','budget','accounting','rcao','arda','cash','enduser','all'].forEach(function(key){
     var el = document.getElementById('dashboard-dept-count-'+key);
     if (el) {
       if (key === 'all') {
-        el.textContent = rowsFor('bac', dashboardTab).length + rowsFor('supply', dashboardTab).length + rowsFor('budget', dashboardTab).length + rowsFor('accounting', dashboardTab).length + rowsFor('cash', dashboardTab).length;
+        el.textContent = rowsFor('bac', dashboardTab).length + rowsFor('supply', dashboardTab).length + rowsFor('budget', dashboardTab).length + rowsFor('accounting', dashboardTab).length + rowsFor('rcao', dashboardTab).length + rowsFor('arda', dashboardTab).length + rowsFor('cash', dashboardTab).length;
       } else {
         el.textContent = rowsFor(key, dashboardTab).length;
       }
@@ -918,12 +1172,22 @@ function renderDashboardTable() {
   if (titleEl) titleEl.textContent = displayTabLabel;
   if (sub) sub.textContent = display.length + ' transaction' + (display.length !== 1 ? 's' : '');
 
-  if (thead) thead.innerHTML = dashboardRenderTab === 'returned' ? meta.returnedHeader : (dashboardRenderTab === 'active' ? meta.activeHeader : meta.otherHeader);
+  if (thead) {
+    if (dashboardDeptTab === 'all') {
+      thead.innerHTML = dashboardRenderTab === 'returned' ? meta.returnedHeader : (dashboardRenderTab === 'active' ? meta.activeHeader : meta.otherHeader);
+    } else if (dashboardDeptTab === 'enduser') {
+      thead.innerHTML = dashboardRenderTab === 'returned' ? meta.returnedHeader : (dashboardRenderTab === 'active' ? meta.activeHeader : meta.otherHeader);
+    } else {
+      thead.innerHTML = dashboardRenderTab === 'returned' ? meta.returnedHeader : dashboardDeptHeader(dashboardDeptTab, dashboardRenderTab);
+    }
+  }
   if (titleEl) titleEl.textContent = displayTabLabel + ' · ' + meta.title;
   if (sub) sub.textContent = display.length + ' row' + (display.length !== 1 ? 's' : '');
   syncBacCategoryFilterVisibility();
 
-  var colSpan = dashboardRenderTab === 'returned' ? meta.returnedCols : (dashboardRenderTab === 'active' ? meta.activeCols : meta.otherCols);
+  var colSpan = dashboardDeptTab === 'all' || dashboardDeptTab === 'enduser'
+    ? (dashboardRenderTab === 'returned' ? meta.returnedCols : (dashboardRenderTab === 'active' ? meta.activeCols : meta.otherCols))
+    : (dashboardRenderTab === 'returned' ? meta.returnedCols : dashboardDeptColSpan(dashboardDeptTab, dashboardRenderTab));
   if (!display.length) { tb.innerHTML='<tr><td colspan="'+colSpan+'">'+emptyRow(colSpan)+'</td></tr>'; return; }
 
   tb.innerHTML = display.map(function(r) {
@@ -935,7 +1199,7 @@ function renderDashboardTable() {
     var isReturnLocked = category === 'locked';
     var isCompleted = category === 'completed' || category === 'cancelled';
     var isForwarded = status.indexOf('FORWARDED TO') === 0;
-    var canModify = ['bac','supply','budget','accounting','cash'].indexOf(actionDept) !== -1;
+    var canModify = ['bac','supply','budget','accounting','rcao','arda','cash'].indexOf(actionDept) !== -1;
     var actions = '<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\''+actionDept+'\','+r._rowNum+')">View</button>';
     if (isReturnedTarget) {
@@ -956,10 +1220,23 @@ function renderDashboardTable() {
       }
     }
     actions += '</div></div>';
+
+    if (dashboardDeptTab === 'all') {
+      var allCells = DASHBOARD_ALL_TX_COLUMNS.map(function(col){
+        var rawVal = r[col] || '';
+        if (col === 'CURRENT DEPT') return '<td>'+esc2(String(rawVal || deptForRow).toUpperCase() || '—')+'</td>';
+        if (col === 'CURRENT STATUS') return '<td>'+statusBadge(rawVal || r['STATUS'] || '—')+'</td>';
+        if (col === 'TRACKING NO.' || col === 'P.R NO.') return dashboardPrimaryIdCell(col, rawVal, deptForRow);
+        if (DASHBOARD_ALL_TX_CURRENCY[col]) return '<td>'+currency(rawVal || '—')+'</td>';
+        return '<td'+(col === 'PARTICULARS' ? ' class="td-wrap"' : '')+'>'+esc2(rawVal || '—')+'</td>';
+      }).join('');
+      return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+allCells+'<td>'+actions+'</td></tr>';
+    }
+
     if (dashboardRenderTab === 'returned') {
       if (deptForRow === 'enduser') {
         return '<tr class="completed-row">'+
-          trackingPrCell(r)+
+          trackingPrCell(r, undefined, true)+
           '<td>'+esc2(r['REQUESTING OFFICE']||r['END-USER / REQUESTED BY']||r['END USER']||'—')+'</td>'+
           '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
           '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
@@ -968,8 +1245,9 @@ function renderDashboardTable() {
           '</tr>';
       }
       var deptDisplay = dashboardDeptTab === 'all' ? ('<td>'+esc2(deptForRow.toUpperCase())+'</td>') : '';
+      var noPrCell = dashboardDeptTab !== 'all' && dashboardDeptTab !== 'bac';
       return '<tr class="completed-row">'+
-        trackingPrCell(r)+
+        trackingPrCell(r, undefined, noPrCell)+
         deptDisplay+
         '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
         (dashboardDeptTab === 'all' ? '<td>'+esc2(r['RETURNED DATE']||'—')+'</td>' : ('<td>'+esc2(r['RETURN REMARKS']||'—')+'</td><td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'))+
@@ -979,7 +1257,7 @@ function renderDashboardTable() {
 
     if (deptForRow === 'enduser' && dashboardRenderTab === 'active') {
       return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+
-        trackingPrCell(r)+
+        trackingPrCell(r, undefined, true)+
         '<td>'+esc2(r['REQUESTING OFFICE']||r['END-USER / REQUESTED BY']||r['END USER']||'—')+'</td>'+
         '<td>'+esc2(r['DATE CREATED']||r['DATE RECEIVED']||'—')+'</td>'+
         '<td>'+statusBadge(r['STATUS'])+'</td>'+
@@ -989,7 +1267,7 @@ function renderDashboardTable() {
 
     if (deptForRow === 'enduser') {
       return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+
-        trackingPrCell(r)+
+        trackingPrCell(r, undefined, true)+
         '<td>'+esc2(r['REQUESTING OFFICE']||r['END-USER / REQUESTED BY']||r['END USER']||'—')+'</td>'+
         '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
         '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
@@ -1001,30 +1279,7 @@ function renderDashboardTable() {
         '</tr>';
     }
 
-    if (dashboardDeptTab === 'all') {
-      var allDate = r['DATE RECEIVED'] || r['DATE CREATED'] || '—';
-      return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+
-        trackingPrCell(r)+
-        '<td>'+esc2(deptForRow.toUpperCase())+'</td>'+
-        '<td>'+esc2(allDate)+'</td>'+
-        '<td>'+statusBadge(r['STATUS'])+'</td>'+
-        '<td>'+actions+'</td>'+
-        '</tr>';
-    }
-
-    return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+
-      trackingPrCell(r)+
-      (dashboardDeptTab === 'all' ? '<td>'+esc2(deptForRow.toUpperCase())+'</td>' : '')+
-      '<td>'+esc2(r['DATE RECEIVED']||r['DATE CREATED']||'—')+'</td>'+
-      (deptForRow==='bac'?('<td>'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td><td>'+esc2(r['CATEGORY']||'—')+'</td><td class="td-mono">'+esc2(r['PHIGEPS POSTED']||'—')+'</td><td>'+esc2(r['APPROVED ABC']||'—')+'</td><td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td><td>'+esc2(r['RFQ']||'—')+'</td><td>'+esc2(r['RFQ DATE OF COMPLETION']||'—')+'</td><td>'+esc2(r['ABSTRACT OF AWARD']||'—')+'</td><td>'+esc2(r['AWARDED TO']||'—')+'</td><td>'+esc2(r['DATE OF AWARD']||'—')+'</td><td>'+esc2(r['BAC RESO']||'—')+'</td><td>'+esc2(r['NOA']||'—')+'</td><td>'+esc2(r['NTP']||'—')+'</td>'):
-      deptForRow==='supply'?('<td>'+esc2(r['END USER']||'—')+'</td><td>'+esc2(r['P.O. No.']||'—')+'</td><td>'+esc2(r['P.O. DATE']||'—')+'</td><td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td><td>'+esc2(r['SUPPLIER']||'—')+'</td><td>'+esc2(r['PARTICULARS']||'—')+'</td><td>'+currency(r['AMOUNT'])+'</td><td>'+esc2(r['DATE TRANSMITTED TO SUPPLIER']||'—')+'</td><td>'+esc2(r['DATE RECEIVED BY SUPPLIER']||'—')+'</td><td>'+esc2(r['COA DATE RECEIVED']||'—')+'</td><td>'+esc2(r['I.A.R #']||'—')+'</td><td>'+esc2(r['INVOICE #']||'—')+'</td><td>'+esc2(r['DATE RETURNED TO SUPPLY']||'—')+'</td>'):
-      deptForRow==='budget'?('<td>'+esc2(r['ORS NO.']||'—')+'</td><td>'+esc2(r['BUPR NO.']||'—')+'</td><td>'+currency(r['AMOUNT'])+'</td>'):
-      deptForRow==='accounting'?('<td>'+esc2(r['DV No.']||'—')+'</td><td>'+currency(r['Net Amount'])+'</td><td>'+currency(r['TAX Amount'])+'</td>'):
-      deptForRow==='cash'?('<td>'+esc2(r['CHEQUE NO. / LDDAP']||'—')+'</td><td>'+esc2(r['DATE OF CHEQUE']||'—')+'</td>'):'')+
-      '<td>'+statusBadge(r['STATUS'])+'</td>'+
-      (dashboardRenderTab === 'active' ? '' : '<td>'+esc2((deptForRow==='enduser' ? (r['RETURN RECEIVED DATE']||r['COMPLETED AT']) : r['COMPLETED AT'])||'—')+'</td>')+
-      '<td>'+actions+'</td>'+
-      '</tr>';
+    return dashboardDeptRow(deptForRow, r, dashboardRenderTab, actions);
   }).join('');
 }
 
@@ -1055,39 +1310,39 @@ function switchTab(page,tab){
   });
   var theadCfg = {
     bac: {
-      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
-      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
-      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
-      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+      newCols:        '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>RFQ</th><th>Complete RFQ Returned</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>NOA</th><th>NTP</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     supply: {
-      newCols:        '<tr><th>P.R # / Tracking No.</th><th>End User</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
-      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>I.A.R #</th><th>Invoice #</th><th>Status</th><th>Actions</th></tr>',
-      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
-      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>Amount</th><th>I.A.R #</th><th>Invoice #</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+      newCols:        '<tr><th>Tracking No.</th><th>P.R No.</th><th>End User</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     budget: {
-      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
-      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th>Actions</th></tr>',
-      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
-      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>Amount</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+      newCols:        '<tr><th>Tracking No.</th><th>P.R No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>ORS Amount</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>ORS Amount</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     accounting: {
-      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
-      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th>Actions</th></tr>',
-      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
-      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>DV No.</th><th>Net Amount</th><th>TAX Amount</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+      newCols:        '<tr><th>Tracking No.</th><th>P.R No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>DV NO.</th><th>NET AMOUNT</th><th>TAX AMOUNT</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>DV NO.</th><th>NET AMOUNT</th><th>TAX AMOUNT</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     cash: {
-      newCols:        '<tr><th>P.R # / Tracking No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
-      activeCols:     '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
-      returnedCols:   '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
-      returndoneCols: '<tr><th>P.R # / Tracking No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
-      otherCols:      '<tr><th>P.R # / Tracking No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+      newCols:        '<tr><th>Tracking No.</th><th>P.R No.</th><th>Submitted Date</th><th>Forwarded From</th><th>Forward Remarks</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th>Actions</th></tr>',
+      returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
+      returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned From</th><th>Returned To</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     }
   };
   var cfg = theadCfg[page];
@@ -1117,54 +1372,55 @@ var PAGE_LOADERS={
     if (alertsEl) alertsEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
 
     var tok = ++_dashToken;
-    _dashCount = 0;
     dashboardLastActivityByTracking = {};
-    function onLoad(){
-      if (tok !== _dashToken) return;
-      rebuildDashboardRequestingOfficeRows();
-      _dashCount++;
-      renderDashboardTable();
-      if (_dashCount >= 6) renderDashboardAnalytics();
-    }
-
     google.script.run
-      .withSuccessHandler(function(bac){ cachedDashboardData.bac = bac||[]; rememberTransactionCategoriesFromBacRows(cachedDashboardData.bac); onLoad(); })
-      .getBACData();
-    google.script.run
-      .withSuccessHandler(function(sup){ cachedDashboardData.supply = sup||[]; onLoad(); })
-      .getSupplyData();
-    google.script.run
-      .withSuccessHandler(function(bud){ cachedDashboardData.budget = bud||[]; onLoad(); })
-      .getBudgetData();
-    google.script.run
-      .withSuccessHandler(function(acc){ cachedDashboardData.accounting = acc||[]; onLoad(); })
-      .getAccountingData();
-    google.script.run
-      .withSuccessHandler(function(csh){ cachedDashboardData.cash = csh||[]; onLoad(); })
-      .getCashData();
-
-    google.script.run
-      .withSuccessHandler(function(map){ dashboardLastActivityByTracking = map || {}; onLoad(); })
-      .withFailureHandler(function(){ dashboardLastActivityByTracking = {}; onLoad(); })
-      .getLatestActivityByTracking(8000);
+      .withSuccessHandler(function(bundle){
+        if (tok !== _dashToken) return;
+        bundle = bundle || {};
+        cachedDashboardData.bac = bundle.bac || [];
+        rememberTransactionCategoriesFromBacRows(cachedDashboardData.bac);
+        cachedDashboardData.supply = bundle.supply || [];
+        cachedDashboardData.budget = bundle.budget || [];
+        cachedDashboardData.accounting = bundle.accounting || [];
+        cachedDashboardData.cash = bundle.cash || [];
+        cachedDashboardData.rcao = bundle.rcao || [];
+        cachedDashboardData.arda = bundle.arda || [];
+        dashboardLastActivityByTracking = bundle.latestActivityByTracking || {};
+        rebuildDashboardRequestingOfficeRows();
+        renderDashboardTable();
+        renderDashboardAnalytics();
+      })
+      .withFailureHandler(function(){
+        if (tok !== _dashToken) return;
+        cachedDashboardData = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[], enduser:[] };
+        dashboardLastActivityByTracking = {};
+        rebuildDashboardRequestingOfficeRows();
+        renderDashboardTable();
+        renderDashboardAnalytics();
+      })
+      .getDashboardLoadBundle();
   },
 
   myreqs: function(){
     var tb = document.getElementById('myreqs-tbody');
     var thead = document.getElementById('myreqs-thead');
-    if (thead) thead.innerHTML = MYREQS_DEPT_META[myReqsDeptTab].activeHeader;
-    if (tb) tb.innerHTML='<tr><td colspan="'+MYREQS_DEPT_META[myReqsDeptTab].activeCols+'"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr>';
+    var meta = MYREQS_DEPT_META[myReqsDeptTab] || MYREQS_DEPT_META.bac;
+    var loadingCols = meta.allCols || meta.activeCols || 9;
+    if (thead) thead.innerHTML = (myReqsDeptTab === 'all' ? meta.allHeader : meta.activeHeader);
+    if (tb) tb.innerHTML='<tr><td colspan="'+loadingCols+'"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr>';
     google.script.run
       .withSuccessHandler(function(bundle){ renderMyReqsBundle(bundle); })
-      .withFailureHandler(function(e){ var tb2=document.getElementById('myreqs-tbody'); if(tb2) tb2.innerHTML='<tr><td colspan="'+MYREQS_DEPT_META[myReqsDeptTab].activeCols+'"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
+      .withFailureHandler(function(e){ var tb2=document.getElementById('myreqs-tbody'); if(tb2) tb2.innerHTML='<tr><td colspan="'+loadingCols+'"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
       .getMyRequestDepartmentBundle(currentUser.role);
   },
 
-  bac:        function(){ loadSheet('bac',        'bac-tbody',    18, 'getBACData');        },
+  bac:        function(){ loadSheet('bac',        'bac-tbody',    18, 'getBACPageData');    },
   supply:     function(){ loadSheet('supply',     'supply-tbody', 13, 'getSupplyData');     },
   budget:     function(){ loadSheet('budget',     'budget-tbody',  8, 'getBudgetData');     },
   accounting: function(){ loadSheet('accounting', 'acctg-tbody',   8, 'getAccountingData'); },
   cash:       function(){ loadSheet('cash',       'cash-tbody',    7, 'getCashData');       },
+  rcao:       function(){ loadSheet('rcao',       'rcao-tbody',    6, 'getRCAOData');       },
+  arda:       function(){ loadSheet('arda',       'arda-tbody',    6, 'getARDAData');       },
   track:      function(){ /* interactive */ },
 
   users: function(){
@@ -1243,6 +1499,8 @@ function renderUsersTable(rows){
       var statusClass = r.isActive ? 'badge-op' : 'badge-grey';
       var statusText = r.isActive ? 'Active' : 'Inactive';
       return '<tr>'+
+        '<td>'+esc2(r.firstName||'—')+'</td>'+
+        '<td>'+esc2(r.lastName||'—')+'</td>'+
         '<td class="td-primary">'+esc2(r.username||'—')+'</td>'+
         '<td>'+roleBadge(r.role)+'</td>'+
         '<td><span class="badge '+statusClass+'">'+statusText+'</span></td>'+
@@ -1254,8 +1512,8 @@ function renderUsersTable(rows){
     }).join('');
   }
 
-  if (staffTb) staffTb.innerHTML = buildRows(staffRows, 4);
-  if (euTb)    euTb.innerHTML    = buildRows(euRows, 4);
+  if (staffTb) staffTb.innerHTML = buildRows(staffRows, 6);
+  if (euTb)    euTb.innerHTML    = buildRows(euRows, 6);
 }
 
 function filterStaffTable(){
@@ -1306,7 +1564,7 @@ function supplierStatusBadge(status){
 
 function roleBadge(role){
   var r = String(role||'').toUpperCase();
-  var cls = {'ADMIN':'role-admin','BAC':'role-bac','SUPPLY':'role-supply','BUDGET':'role-budget','ACCOUNTING':'role-accounting','CASHIER':'role-cash','CASH':'role-cash'}[r] || 'role-enduser';
+  var cls = {'ADMIN':'role-admin','BAC':'role-bac','SUPPLY':'role-supply','BUDGET':'role-budget','ACCOUNTING':'role-accounting','CASHIER':'role-cash','CASH':'role-cash','RCAO':'role-bac','ARDA':'role-bac'}[r] || 'role-enduser';
   return '<span class="role-badge '+cls+'">'+r+'</span>';
 }
 
@@ -1346,6 +1604,10 @@ function buildStaffTabForm(data){
   }).join('');
   var isActive = data.isActive !== false;
   return '<div class="form-grid">'+
+    '<div class="form-group"><label class="form-label">First Name</label>'+
+    '<input class="form-input" id="uf-first-name" type="text" value="'+esc(data.firstName||'')+'" placeholder="e.g. John"/></div>'+
+    '<div class="form-group"><label class="form-label">Last Name</label>'+
+    '<input class="form-input" id="uf-last-name" type="text" value="'+esc(data.lastName||'')+'" placeholder="e.g. Smith"/></div>'+
     '<div class="form-group"><label class="form-label">Username <span class="req">*</span></label>'+
     '<input class="form-input" id="uf-username" type="text" value="'+esc(data.username||'')+'" placeholder="e.g. jsmith"/></div>'+
     '<div class="form-group"><label class="form-label">Password'+(isEdit?'':' <span class="req">*</span>')+'</label>'+
@@ -1365,6 +1627,10 @@ function buildEndUserTabForm(data){
   }).join('');
   if (!euRolesHtml) euRolesHtml = '<option disabled>No end user roles found — add them in End User Management</option>';
   return '<div class="form-grid">'+
+    '<div class="form-group"><label class="form-label">First Name</label>'+
+    '<input class="form-input" id="uf-first-name" type="text" value="'+esc(data.firstName||'')+'" placeholder="e.g. John"/></div>'+
+    '<div class="form-group"><label class="form-label">Last Name</label>'+
+    '<input class="form-input" id="uf-last-name" type="text" value="'+esc(data.lastName||'')+'" placeholder="e.g. Smith"/></div>'+
     '<div class="form-group"><label class="form-label">Username <span class="req">*</span></label>'+
     '<input class="form-input" id="uf-username" type="text" value="'+esc(data.username||'')+'" placeholder="e.g. hr_office"/></div>'+
     '<div class="form-group"><label class="form-label">Password'+(isEdit?'':' <span class="req">*</span>')+'</label>'+
@@ -1391,6 +1657,8 @@ function openEditUserModal(rowNum){
 
 function saveUserModal(){
   var btn      = document.getElementById('user-modal-save');
+  var firstName = (document.getElementById('uf-first-name').value||'').trim();
+  var lastName = (document.getElementById('uf-last-name').value||'').trim();
   var username = (document.getElementById('uf-username').value||'').trim();
   var password = (document.getElementById('uf-password').value||'').trim();
   var role     = (document.getElementById('uf-role').value||'').trim();
@@ -1401,7 +1669,7 @@ function saveUserModal(){
   if (!role)     { showToast('Role is required.','error'); return; }
   if (userModalState.mode === 'add' && !password) { showToast('Password is required for new users.','error'); return; }
 
-  var userData = { username:username, role:role, isEndUser:isEndUser, isActive:isActive };
+  var userData = { firstName:firstName, lastName:lastName, username:username, role:role, isEndUser:isEndUser, isActive:isActive };
   if (password) userData.password = password;
   btn.disabled = true;
 
@@ -1663,4 +1931,6 @@ function closeSupplierModal(e){
   document.getElementById('supplier-modal').classList.remove('open'); supplierModalState={};
 }
 </script>
+
+
 

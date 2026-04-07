@@ -1,5 +1,4 @@
 <template id="tpl-supply">
-  {{DEPT_SWITCHER}}
   <div class="section-head">
     <div>
       <div class="bac-cat-filter">
@@ -20,7 +19,6 @@
   <div class="tab-nav">
     <button class="tab-btn" id="tab-supply-new" onclick="switchNewSubTab('supply','incoming')">🔔 New <span id="supply-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-supply-active" onclick="switchTab('supply','active')">Active <span id="supply-active-count" class="badge badge-teal" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-supply-returned" onclick="switchTab('supply','returned')">Returned History <span id="supply-returned-count" class="badge badge-op" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-supply-done" onclick="switchTab('supply','done')">Completed <span id="supply-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-supply-cancelled" onclick="switchTab('supply','cancelled')">Cancelled <span id="supply-cancelled-count" class="badge badge-down" style="margin-left:4px;"></span></button>
   </div>
@@ -34,7 +32,7 @@
     </div>
     <div class="tbl-wrap"><table>
       <thead id="supply-thead"><tr>
-        <th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>Doc Type</th>
+        <th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. No.</th><th>Doc Type</th>
         <th>Supplier</th><th>Particulars</th><th>Amount</th><th>I.A.R #</th><th>Invoice #</th>
         <th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th>
       </tr></thead>

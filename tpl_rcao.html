@@ -1,0 +1,41 @@
+<template id="tpl-rcao">
+  <div class="section-head">
+    <div>
+        <div class="bac-cat-filter">
+          <span class="bac-cat-filter-label">Category:</span>
+          <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
+          <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
+          <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
+          <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
+          <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
+        </div>
+    </div>
+    <div class="section-actions">
+      <div class="search-wrap"><span class="search-icon">🔍</span><input id="rcao-search" placeholder="Search…" oninput="filterRows('rcao')"/></div>
+      <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
+    </div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn" id="tab-rcao-new" onclick="switchNewSubTab('rcao','incoming')">🔔 New <span id="rcao-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
+    <button class="tab-btn active" id="tab-rcao-active" onclick="switchTab('rcao','active')">Active <span id="rcao-active-count" class="badge badge-op" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-rcao-done" onclick="switchTab('rcao','done')">Completed <span id="rcao-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-rcao-cancelled" onclick="switchTab('rcao','cancelled')">Cancelled <span id="rcao-cancelled-count" class="badge badge-down" style="margin-left:4px;"></span></button>
+  </div>
+  <div class="tab-subnav" id="rcao-new-subtabs" style="display:none;margin-top:8px;">
+    <button class="tab-btn active" id="tab-rcao-new-sub-incoming" onclick="switchNewSubTab('rcao','incoming')">New Transactions <span id="rcao-new-incoming-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-rcao-new-sub-returns" onclick="switchNewSubTab('rcao','returns')">Return Transactions <span id="rcao-new-returns-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
+  </div>
+  <div class="panel" id="rcao-table-panel">
+    <div class="panel-header">
+      <div><div class="panel-title">Active Transactions</div><div class="panel-sub" id="rcao-panel-sub"></div></div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead id="rcao-thead"><tr>
+        <th>Tracking No.</th><th>Date Received</th>
+        <th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="rcao-tbody"><tr><td colspan="5"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
+    </table></div>
+  </div>
+</template>

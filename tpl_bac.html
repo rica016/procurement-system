@@ -1,5 +1,4 @@
 <template id="tpl-bac">
-  {{DEPT_SWITCHER}}
   <div class="section-head">
     <div>
       <div class="bac-cat-filter">
@@ -23,7 +22,6 @@
     <button class="tab-btn active" id="tab-bac-active" onclick="switchTab('bac','active')">Active <span id="bac-active-count" class="badge badge-teal" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-bac-done" onclick="switchTab('bac','done')">Completed <span id="bac-done-count" class="badge badge-grey" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-bac-cancelled" onclick="switchTab('bac','cancelled')">Cancelled <span id="bac-cancelled-count" class="badge badge-down" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-bac-returned" onclick="switchTab('bac','returned')">Returned History <span id="bac-returned-count" class="badge badge-op" style="margin-left:4px;"></span></button>
   </div>
   <div class="tab-subnav" id="bac-new-subtabs" style="display:none;margin-top:8px;">
     <button class="tab-btn active" id="tab-bac-new-sub-returns" onclick="switchNewSubTab('bac','returns')">Return Transactions <span id="bac-new-returns-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
@@ -34,12 +32,12 @@
     </div>
     <div class="tbl-wrap"><table>
       <thead id="bac-thead"><tr>
-        <th>P.R # / Tracking No.</th><th>Date Received</th><th>End User</th><th>PHIGEPS Posted</th><th>Approved ABC</th>
-        <th>Mode of Procurement</th><th>RFQ</th><th>RFQ Date of Completion</th><th>Abstract of Award</th>
-        <th>Awarded To</th><th>Date of Award</th><th>BAC Reso</th><th>NOA</th><th>NTP</th>
-        <th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th>
+        <th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th>
+        <th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th>
+        <th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>NOA</th><th>NTP</th>
+        <th>Status</th><th>Actions</th>
       </tr></thead>
-      <tbody id="bac-tbody"><tr><td colspan="17"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
+      <tbody id="bac-tbody"><tr><td colspan="19"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>
     </table></div>
   </div>
 </template>

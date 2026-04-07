@@ -13,6 +13,13 @@ function forwardedFromDisplay(r, page){
   return fallback[page]||'—';
 }
 
+function notificationHintBadge(r){
+  var notified = String(r['IS NOTIFIED']||'').trim().toUpperCase() === 'TRUE';
+  return notified
+    ? '<span class="badge badge-teal" style="margin-left:6px;vertical-align:middle;">Notified</span>'
+    : '<span class="badge badge-warn" style="margin-left:6px;vertical-align:middle;">Pending</span>';
+}
+
 function canContinueReturnDone(r, page){
   // User must be able to edit this department
   var deptMap={bac:'BAC',supply:'SUPPLY',budget:'BUDGET',accounting:'ACCOUNTING',cash:'CASH'};
@@ -39,6 +46,7 @@ function continueReturnDone(sheetName, rowNum, page, btn){
   var data = {
     'STATUS':'PROCESSING',
     'COMPLETED AT':'',
+      'IS NOTIFIED':'', 
     'IS NEW':'',
     'RETURN TO':'',
     'RETURNED FROM':'',
@@ -90,18 +98,20 @@ function continueReturnedNew(sheetName, rowNum, page, btn){
 }
 
 function getReprocessStatusForPage(page){
-  return page==='cash' ? 'UNPAID' : 'PROCESSING';
+  var _ = page;
+  return 'PROCESSING';
 }
 
 function reopenCompletedRecord(sheetName, rowNum, page, btn){
   if(!btn) btn=event.target;
   var originalText=btn.textContent;
   var targetStatus=getReprocessStatusForPage(page);
-  btn.textContent='Reopening…'; btn.disabled=true;
+  btn.textContent='Undoing…'; btn.disabled=true;
 
   var data = {
     'STATUS':targetStatus,
     'COMPLETED AT':'',
+    'IS NOTIFIED':'',
     'IS NEW':''
   };
 
@@ -127,12 +137,12 @@ var ROW_BUILDERS={
   bac:function(r,tab){
       var active=tab==='active',isNew=tab==='new';
       var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-      var show=(active||isNew||tab==='done')&&canEdit('BAC');
+      var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('BAC');
     var showReturned=tab==='returned'&&canEdit('BAC')&&String(r['RETURN TO']||'').trim()==='BAC';
-    var showCompletedAt=!(active||tab==='returned');
+    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
     var cls=isNew?'new-row':((!active)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
       '<td>'+esc2(returnedToDisplay(r))+'</td>'+
       '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
@@ -144,7 +154,7 @@ var ROW_BUILDERS={
       '</div></div></td>'+
       '</tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
       '<td>'+esc2(returnedToDisplay(r))+'</td>'+
       '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
@@ -156,32 +166,37 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'bac\','+r._rowNum+')">👁 View</button>'+
       ((active||tab==='done')?'<button class="btn-sm edit" onclick="openEditModal(\'bac\','+r._rowNum+')">✏ Update</button>':'')+
-      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BAC\','+r._rowNum+',\'bac\',this)">↺ Return to Processing</button>':'')+
+      (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BAC\','+r._rowNum+',\'bac\',this)">↺ Undo</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BAC\','+r._rowNum+',\'bac\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BAC\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BAC\','+r._rowNum+')">↩ Return</button>':'')+
       (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'BAC\','+r._rowNum+')">🗑 Cancel</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'" data-category="'+esc(r['CATEGORY']||'')+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
-      '<td>'+esc2(forwardedFromDisplay(r,'bac'))+'</td>'+
+      '<td>'+esc2(r['CATEGORY']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RFQ']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['COMPLETE RFQ RETURNED']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'bac'))+notificationHintBadge(r)+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
     return '<tr class="'+cls+'" data-category="'+esc(r['CATEGORY']||'')+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
+      '<td>'+esc2(r['CATEGORY']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['PHIGEPS POSTED']||'—')+'</td>'+
       '<td>'+currency(r['APPROVED ABC'])+'</td>'+
-      '<td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RFQ']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['COMPLETE RFQ RETURNED']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RFQ DATE OF COMPLETION']||'—')+'</td>'+
       '<td>'+esc2(r['ABSTRACT OF AWARD']||'—')+'</td>'+
       '<td>'+esc2(r['AWARDED TO']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE OF AWARD']||'—')+'</td>'+
+      '<td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['BAC RESO']||'—')+'</td>'+
       '<td>'+esc2(r['NOA']||'—')+'</td>'+
       '<td>'+esc2(r['NTP']||'—')+'</td>'+
@@ -193,9 +208,9 @@ var ROW_BUILDERS={
   supply:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew||tab==='done')&&canEdit('SUPPLY');
+    var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('SUPPLY');
     var showReturned=tab==='returned'&&canEdit('SUPPLY')&&String(r['RETURN TO']||'').trim()==='Supply';
-    var showCompletedAt=!(active||tab==='returned');
+    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
@@ -222,15 +237,15 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'supply\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'supply\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
-      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">↺ Return to Processing</button>':'')+
+      (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">↺ Undo</button>':'')+    
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">↩ Return</button>':'')+
-      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'SUPPLY AND PROPERTY\','+r._rowNum+')">🗑 Cancel</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'supply'))+'</td>'+
@@ -241,13 +256,17 @@ var ROW_BUILDERS={
       trackingPrCell(r)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
-      '<td class="td-mono">'+esc2(r['P.O. No.']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['P.O. NO.']||r['P.O. No.']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['P.O. DATE']||'—')+'</td>'+
       '<td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td>'+
       '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
-      '<td>'+esc2(r['PARTICULARS']||'—')+'</td>'+
-      '<td>'+currency(r['AMOUNT'])+'</td>'+
-      '<td class="td-mono">'+esc2(r['I.A.R #']||'—')+'</td>'+
-      '<td class="td-mono">'+esc2(r['INVOICE #']||'—')+'</td>'+
+      '<td class="td-wrap">'+esc2(r['PARTICULARS']||'—')+'</td>'+
+      '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
+      '<td class="td-mono">'+esc2(r['DATE TRANSMITTED TO SUPPLIER']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED BY SUPPLIER']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['COA DATE RECEIVED']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['I.A.R  NO.']||r['I.A.R #']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['INVOICE  NO.']||r['INVOICE #']||'—')+'</td>'+
       '<td>'+statusBadge(r['STATUS'])+'</td>'+
       (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
@@ -256,9 +275,9 @@ var ROW_BUILDERS={
   budget:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew||tab==='done')&&canEdit('BUDGET');
+    var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('BUDGET');
     var showReturned=tab==='returned'&&canEdit('BUDGET')&&String(r['RETURN TO']||'').trim()==='Budget';
-    var showCompletedAt=!(active||tab==='returned');
+    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
@@ -285,15 +304,15 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'budget\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'budget\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
-      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BUDGET\','+r._rowNum+',\'budget\',this)">↺ Return to Processing</button>':'')+
+      (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BUDGET\','+r._rowNum+',\'budget\',this)">↺ Undo</button>':'')+ 
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BUDGET\','+r._rowNum+',\'budget\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BUDGET\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BUDGET\','+r._rowNum+')">↩ Return</button>':'')+
-      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'BUDGET\','+r._rowNum+')">🗑 Cancel</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'budget'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
@@ -304,7 +323,7 @@ var ROW_BUILDERS={
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['ORS NO.']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['BUPR NO.']||'—')+'</td>'+
-      '<td>'+currency(r['AMOUNT'])+'</td>'+
+      '<td>'+currency(r['ORS AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td>'+statusBadge(r['STATUS'])+'</td>'+
       (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
@@ -313,9 +332,9 @@ var ROW_BUILDERS={
   accounting:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew||tab==='done')&&canEdit('ACCOUNTING');
+    var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('ACCOUNTING');
     var showReturned=tab==='returned'&&canEdit('ACCOUNTING')&&String(r['RETURN TO']||'').trim()==='Accounting';
-    var showCompletedAt=!(active||tab==='returned');
+    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
@@ -342,14 +361,14 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'accounting\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'accounting\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
-      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">↺ Return to Processing</button>':'')+
+      (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">↺ Undo</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'ACCOUNTING\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'ACCOUNTING\','+r._rowNum+')">↩ Return</button>':'')+
-      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'accounting'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
@@ -358,9 +377,9 @@ var ROW_BUILDERS={
     return '<tr class="'+cls+'">'+
       trackingPrCell(r)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
-      '<td class="td-mono">'+esc2(r['DV No.']||'—')+'</td>'+
-      '<td>'+currency(r['Net Amount'])+'</td>'+
-      '<td>'+currency(r['TAX Amount'])+'</td>'+
+      '<td class="td-mono">'+esc2(r['DV NO.']||r['DV No.']||'—')+'</td>'+
+      '<td>'+currency(r['NET AMOUNT']||r['Net Amount'])+'</td>'+
+      '<td>'+currency(r['TAX AMOUNT']||r['TAX Amount'])+'</td>'+
       '<td>'+statusBadge(r['STATUS'])+'</td>'+
       (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
@@ -369,9 +388,9 @@ var ROW_BUILDERS={
   cash:function(r,tab){
     var active=tab==='active',isNew=tab==='new';
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
-    var show=(active||isNew||tab==='done')&&canEdit('CASH');
+    var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('CASH');
     var showReturned=tab==='returned'&&canEdit('CASH')&&String(r['RETURN TO']||'').trim()==='Cashier';
-    var showCompletedAt=!(active||tab==='returned');
+    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
@@ -398,14 +417,14 @@ var ROW_BUILDERS={
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'cash\','+r._rowNum+')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'cash\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
-      (tab==='done'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'CASH\','+r._rowNum+',\'cash\',this)">↺ Return to Processing</button>':'')+
+      (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'CASH\','+r._rowNum+',\'cash\',this)">↺ Undo</button>':'')+     
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'CASH\','+r._rowNum+',\'cash\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm paid" onclick="doMarkPaid('+r._rowNum+')">✓ Mark Paid</button>':'')+
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'CASH\','+r._rowNum+')">↩ Return</button>':'')+
-      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R #'])+'\')">✎ P.R #</button>':'')+
+      ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'cash'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
@@ -420,6 +439,110 @@ var ROW_BUILDERS={
         (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
+  },
+  rcao:function(r,tab){
+    var active=tab==='active',isNew=tab==='new';
+    var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
+    var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('RCAO');
+    var showReturned=tab==='returned'&&canEdit('RCAO')&&String(r['RETURN TO']||'').trim()==='RCAO';
+    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
+    if (tab==='returndone') return '<tr class="completed-row">'+
+      trackingPrCell(r, undefined, true)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      (canContinueReturnDone(r,'rcao')?'<button class="btn-sm forward" onclick="openForwardModal(\'RCAO\','+r._rowNum+')">Forward<\/button>':'')+
+      '</div></div></td>'+
+      '</tr>';
+    if (tab==='returned') return '<tr class="'+cls+'">'+
+      trackingPrCell(r, undefined, true)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'rcao\','+r._rowNum+')">👁 View</button>'+
+      (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'RCAO\','+r._rowNum+',\'page\',\'rcao\')">✔ Receive<\/button>':'')+
+      '</div></div></td></tr>';
+    var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'rcao\','+r._rowNum+')">👁 View</button>'+
+      '<button class="btn-sm edit" onclick="openEditModal(\'rcao\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'RCAO\','+r._rowNum+',\'rcao\',this)">↺ Undo<\/button>':'')+
+      (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'RCAO\','+r._rowNum+',\'rcao\',this)">▶ Continue<\/button>':'')+
+      (active?'<button class="btn-sm forward" onclick="openForwardModal(\'RCAO\','+r._rowNum+')">Forward<\/button>':'')+
+      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'RCAO\','+r._rowNum+')">↩ Return<\/button>':'')+
+      '</div></div>':'';
+    if (isNew) return '<tr class="'+cls+'">'+
+      trackingPrCell(r, true, true)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'rcao'))+'</td>'+
+      '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+    return '<tr class="'+cls+'">'+
+      trackingPrCell(r, undefined, true)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+statusBadge(r['RCAO'])+'</td>'+
+      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+  },
+  arda:function(r,tab){
+    var active=tab==='active',isNew=tab==='new';
+    var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
+    var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('ARDA');
+    var showReturned=tab==='returned'&&canEdit('ARDA')&&String(r['RETURN TO']||'').trim()==='ARDA';
+    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
+    if (tab==='returndone') return '<tr class="completed-row">'+
+      trackingPrCell(r, undefined, true)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      (canContinueReturnDone(r,'arda')?'<button class="btn-sm forward" onclick="openForwardModal(\'ARDA\','+r._rowNum+')">Forward<\/button>':'')+
+      '</div></div></td>'+
+      '</tr>';
+    if (tab==='returned') return '<tr class="'+cls+'">'+
+      trackingPrCell(r, undefined, true)+
+      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedToDisplay(r))+'</td>'+
+      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
+      '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'arda\','+r._rowNum+')">👁 View</button>'+
+      (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'ARDA\','+r._rowNum+',\'page\',\'arda\')">✔ Receive<\/button>':'')+
+      '</div></div></td></tr>';
+    var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+      '<button class="btn-sm view" onclick="openViewModal(\'arda\','+r._rowNum+')">👁 View</button>'+
+      '<button class="btn-sm edit" onclick="openEditModal(\'arda\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
+      (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'ARDA\','+r._rowNum+',\'arda\',this)">↺ Undo<\/button>':'')+
+      (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'ARDA\','+r._rowNum+',\'arda\',this)">▶ Continue<\/button>':'')+
+      (active?'<button class="btn-sm forward" onclick="openForwardModal(\'ARDA\','+r._rowNum+')">Forward<\/button>':'')+
+      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'ARDA\','+r._rowNum+')">↩ Return<\/button>':'')+
+      '</div></div>':'';
+    if (isNew) return '<tr class="'+cls+'">'+
+      trackingPrCell(r, true, true)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+esc2(forwardedFromDisplay(r,'arda'))+'</td>'+
+      '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
+    return '<tr class="'+cls+'">'+
+      trackingPrCell(r, undefined, true)+
+      '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+      '<td>'+statusBadge(r['ARDA'])+'</td>'+
+      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (show?'<td>'+actions+'</td>':'')+
+      '</tr>';
   }
 };
 
@@ -430,8 +553,8 @@ var _bacCatFilter = 'All';
 
 function filterRows(page){
   if (page === 'bac') { applyBacFilters(); return; }
-  var searchIds={supply:'supply-search',budget:'budget-search',accounting:'acctg-search',cash:'cash-search'};
-  var tbIds={supply:'supply-tbody',budget:'budget-tbody',accounting:'acctg-tbody',cash:'cash-tbody'};
+  var searchIds={supply:'supply-search',budget:'budget-search',accounting:'acctg-search',cash:'cash-search',rcao:'rcao-search',arda:'arda-search'};
+  var tbIds={supply:'supply-tbody',budget:'budget-tbody',accounting:'acctg-tbody',cash:'cash-tbody',rcao:'rcao-tbody',arda:'arda-tbody'};
   var qEl=document.getElementById(searchIds[page]);
   var tb =document.getElementById(tbIds[page]);
   if(!qEl||!tb) return;
@@ -513,14 +636,15 @@ var MODAL_CONFIGS={
   bac:{
     editTitle:'Update BAC Record',
     fields:[
-      { key:'P.R #',                   label:'P.R #',                   type:'text',     required:false,
-        hint:'Updates P.R # across all department sheets.' },
+      { key:'P.R NO.',                 label:'P.R NO.',                 type:'text',     required:false,
+        hint:'Updates P.R NO. in TRANSACTIONS.' },
       { key:'END-USER / REQUESTED BY', label:'End User / Requested By', type:'enduser',  required:false },
       { key:'CATEGORY',                label:'Category',                 type:'select',   required:false,
         options:['Regular','SPLIT','Agri-Agra','IPARC'] },
       { key:'PHIGEPS POSTED',          label:'PhilGEPS Posted',          type:'checkdate', required:false },
       { key:'APPROVED ABC',            label:'Approved ABC (₱)',         type:'number',   required:false },
       { key:'RFQ',                     label:'RFQ',                      type:'text',     required:false },
+      { key:'COMPLETE RFQ RETURNED',   label:'Complete RFQ Returned',    type:'date',     required:false },
       { key:'RFQ DATE OF COMPLETION',  label:'RFQ Date of Completion',   type:'date',     required:false },
       { key:'ABSTRACT OF AWARD',       label:'Abstract of Award',        type:'text',     required:false },
       { key:'AWARDED TO',              label:'Awarded To',               type:'supplier', required:false },
@@ -533,24 +657,23 @@ var MODAL_CONFIGS={
       { key:'NTP',        label:'NTP',                type:'select', required:false,
         options:['FOR SIGN OF RD','FOR SIGN OF SUPPLIER','FORWARDED TO SUPPLY'] },
       { key:'STATUS',     label:'Status',             type:'select', required:false,
-        options:['PROCESSING','FOR CANVAS','FOR REVIEW','FOR SIGNATURE','RETURNED TO REQUESTING OFFICE','FORWARDED TO SUPPLY','RETURNED'] }
+        options:['FOR CANVAS','FOR REVIEW','FOR SIGNATURE'] }
     ]
   },
   supply:{
     editTitle:'Update Supply Record',
     fields:[
-      { key:'P.O. No.',                    label:'P.O. No.',                     type:'text',     required:false },
+      { key:'P.O. NO.',                    label:'P.O. NO.',                     type:'text',     required:false },
       { key:'P.O. DATE',                   label:'P.O. Date',                    type:'date',     required:false },
       { key:'DOCUMENT TYPE',               label:'Document Type',                type:'select',   required:false, options:['P.O','CONTRACT','JO','OTHERS'] },
       { key:'SUPPLIER',                    label:'Supplier',                     type:'supplier', required:false },
       { key:'PARTICULARS',                 label:'Particulars',                  type:'text',     required:false },
-      { key:'AMOUNT',                      label:'Amount (₱)',                   type:'number',   required:false },
+      { key:'P.O. AMOUNT',                 label:'P.O. Amount (₱)',              type:'number',   required:false },
       { key:'DATE TRANSMITTED TO SUPPLIER',label:'Date Transmitted to Supplier', type:'date',     required:false },
       { key:'DATE RECEIVED BY SUPPLIER',   label:'Date Received by Supplier',    type:'date',     required:false },
-      { key:'DATE RETURNED TO SUPPLY',     label:'Date Returned to Supply',      type:'date',     required:false },
       { key:'COA DATE RECEIVED',           label:'COA Date Received',            type:'date',     required:false },
-      { key:'I.A.R #',                     label:'I.A.R #',                      type:'text',     required:false },
-      { key:'INVOICE #',                   label:'Invoice #',                    type:'text',     required:false }
+      { key:'I.A.R  NO.',                  label:'I.A.R  NO.',                   type:'text',     required:false },
+      { key:'INVOICE  NO.',                label:'Invoice  NO.',                 type:'text',     required:false }
     ]
   },
   budget:{
@@ -558,15 +681,15 @@ var MODAL_CONFIGS={
     fields:[
       { key:'ORS NO.',  label:'ORS No.',    type:'text',   required:false },
       { key:'BUPR NO.', label:'BUPR No.',   type:'text',   required:false },
-      { key:'AMOUNT',   label:'Amount (₱)', type:'number', required:false }
+      { key:'ORS AMOUNT',   label:'ORS Amount (₱)', type:'number', required:false }
     ]
   },
   accounting:{
     editTitle:'Update Accounting Record',
     fields:[
-      { key:'DV No.',     label:'DV No.',         type:'text',   required:false },
-      { key:'Net Amount', label:'Net Amount (₱)', type:'number', required:false },
-      { key:'TAX Amount', label:'Tax Amount (₱)', type:'number', required:false }
+      { key:'DV NO.',      label:'DV NO.',         type:'text',   required:false },
+      { key:'NET AMOUNT',  label:'Net Amount (₱)', type:'number', required:false },
+      { key:'TAX AMOUNT',  label:'Tax Amount (₱)', type:'number', required:false }
     ]
   },
   cash:{
@@ -574,6 +697,20 @@ var MODAL_CONFIGS={
     fields:[
       { key:'CHEQUE NO. / LDDAP', label:'Cheque No. / LDDAP', type:'text',   required:false },
       { key:'DATE OF CHEQUE',     label:'Date of Cheque',      type:'date',   required:false }
+    ]
+  },
+  rcao:{
+    editTitle:'Update RCAO Record',
+    fields:[
+      { key:'RCAO', label:'Status', type:'select', required:false,
+        options:['FOR REVIEW','SIGNED / APPROVED'] }
+    ]
+  },
+  arda:{
+    editTitle:'Update ARDA Record',
+    fields:[
+      { key:'ARDA', label:'Status', type:'select', required:false,
+        options:['FOR REVIEW','SIGNED / APPROVED'] }
     ]
   }
 };
@@ -668,8 +805,9 @@ function openEditModal(page, rowNum){
   var row=getRowFromCache(page, rowNum);
   var cfg=MODAL_CONFIGS[page];
   if(!cfg||!row){ showToast('Row data unavailable. Please refresh.','error'); return; }
-  var idMeta=(row['P.R #']?'P.R #: '+row['P.R #']:'')+(row['TRACKING NO.']?((row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):'');
-  modalState={mode:'edit',page:page,rowNum:rowNum,isNew:String(row['IS NEW']||'').trim().toUpperCase()==='TRUE'};
+  var prMeta = row['P.R NO.'] || row['P.R #'] || '';
+  var idMeta=(prMeta?'P.R NO.: '+prMeta:'')+(row['TRACKING NO.']?((prMeta?' · ':'')+'Tracking: '+row['TRACKING NO.']):'');
+  modalState={mode:'edit',page:page,rowNum:rowNum,isNew:String(row['IS NOTIFIED']||row['IS NEW']||'').trim().toUpperCase()==='TRUE'};
   document.getElementById('main-modal-title').textContent=cfg.editTitle||'Update Record';
   document.getElementById('main-modal-meta').textContent=idMeta;
   document.getElementById('main-modal-save').textContent='Save Updates';
@@ -827,6 +965,7 @@ function saveMainModal(){
         document.getElementById('main-modal').classList.remove('open');
         if(res&&res.success){
           showToast('✅ Transaction created! Tracking No.: '+res.trackingNo,'success');
+          refreshSupplierDatalist();
           delete cachedRows['bac'];
           loadData();
         } else { showToast('Error: '+(res&&res.message||'Unknown'),'error'); }
@@ -851,7 +990,7 @@ function saveMainModal(){
   var savedPage    = modalState.page;
   var savedRowNum  = modalState.rowNum;
   var savedIsNew   = modalState.isNew;
-  var savedPrNo    = (savedPage === 'bac') ? (editData['P.R #'] || '') : null;
+  var savedPrNo    = (savedPage === 'bac') ? (editData['P.R NO.'] || editData['P.R #'] || '') : null;
   var savedTracking= (savedPage === 'bac') ? ((getRowFromCache('bac', savedRowNum)||{})['TRACKING NO.'] || '') : '';
 
   google.script.run
@@ -864,6 +1003,7 @@ function saveMainModal(){
         if (savedPage === 'bac' && savedTracking && savedPrNo !== null) {
           google.script.run.updatePrNumber(savedTracking, savedPrNo, currentUser.username);
         }
+        refreshSupplierDatalist();
         tabState[savedPage] = 'active';
         loadData();
         setTimeout(function(){ switchTab(savedPage, 'active'); }, 200);
@@ -890,10 +1030,12 @@ var RETURN_TARGETS=[
   {value:'SUPPLY AND PROPERTY',label:'Supply'},
   {value:'BUDGET',label:'Budget'},
   {value:'ACCOUNTING',label:'Accounting'},
-  {value:'CASH',label:'Cashier'}
+  {value:'CASH',label:'Cashier'},
+  {value:'RCAO',label:'RCAO'},
+  {value:'ARDA',label:'ARDA'}
 ];
 
-function getPageKeyFromSheet(sn){ var m={'BAC':'bac','SUPPLY AND PROPERTY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASH':'cash'}; return m[sn]||'bac'; }
+function getPageKeyFromSheet(sn){ var m={'BAC':'bac','SUPPLY AND PROPERTY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASH':'cash','RCAO':'rcao','ARDA':'arda'}; return m[sn]||'bac'; }
 function returnTargetOptions(sheetName){
   return RETURN_TARGETS.filter(function(opt){ return opt.value!==sheetName; });
 }
@@ -912,7 +1054,8 @@ function openForwardModal(sheetName, rowNum){
   var pageKey=getPageKeyFromSheet(sheetName);
   var row=getRowFromCache(pageKey, rowNum);
   var defaultTarget = FORWARD_DEFAULT_TARGETS[sheetName] || '';
-  var idMeta=(row&&row['P.R #']?'P.R #: '+row['P.R #']:'')+(row&&row['TRACKING NO.']?((row&&row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):'');
+  var rowPr = row ? (row['P.R NO.'] || row['P.R #'] || '') : '';
+  var idMeta=(row&&rowPr?'P.R NO.: '+rowPr:'')+(row&&row['TRACKING NO.']?((row&&rowPr?' · ':'')+'Tracking: '+row['TRACKING NO.']):'');
   fwdState={sheetName:sheetName,rowNum:rowNum};
   document.getElementById('fwd-modal-title').textContent='Forward Transaction';
   document.getElementById('fwd-modal-meta').textContent=
@@ -953,8 +1096,8 @@ function openReturnModal(sheetName, rowNum){
   var row=getRowFromCache(pageKey, rowNum);
   returnState={sheetName:sheetName,rowNum:rowNum};
   document.getElementById('return-modal-title').textContent='Return Transaction';
-  document.getElementById('return-modal-meta').textContent=(row&&((row['P.R #']||'').trim()|| (row['TRACKING NO.']||'').trim()))
-    ? ((row['P.R #']?'P.R #: '+row['P.R #']:'') + (row['TRACKING NO.']?((row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):''))
+  document.getElementById('return-modal-meta').textContent=(row&&(((row['P.R NO.']||row['P.R #']||'').trim())|| (row['TRACKING NO.']||'').trim()))
+    ? (((row['P.R NO.']||row['P.R #'])?'P.R NO.: '+(row['P.R NO.']||row['P.R #']):'') + (row['TRACKING NO.']?(((row['P.R NO.']||row['P.R #'])?' · ':'')+'Tracking: '+row['TRACKING NO.']):''))
     : ('Row #'+rowNum);
   var opts=returnTargetOptions(sheetName).map(function(opt){ return '<option value="'+esc(opt.value)+'">'+esc2(opt.label)+'</option>'; }).join('');
   var body='<div class="form-grid">'+
@@ -991,18 +1134,21 @@ function confirmReturn(){
 function openCompleteReturnedModal(sheetName, rowNum, contextName, pageKey){
   var resolvedPage = pageKey || getPageKeyFromSheet(sheetName);
   var row = getRowFromCache(resolvedPage, rowNum);
+  var context = contextName || 'page';
   modalState = {
     mode:'return-complete',
     sheetName:sheetName,
     rowNum:rowNum,
-    returnContext:contextName || 'page',
+    returnContext:context,
     returnPage:resolvedPage
   };
   document.getElementById('main-modal-title').textContent='Receive';
-  document.getElementById('main-modal-meta').textContent=(row&&((row['P.R #']||'').trim()|| (row['TRACKING NO.']||'').trim()))
-    ? ((row['P.R #']?'P.R #: '+row['P.R #']:'') + (row['TRACKING NO.']?((row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):''))
+  document.getElementById('main-modal-meta').textContent=(row&&(((row['P.R NO.']||row['P.R #']||'').trim())|| (row['TRACKING NO.']||'').trim()))
+    ? (((row['P.R NO.']||row['P.R #'])?'P.R NO.: '+(row['P.R NO.']||row['P.R #']):'') + (row['TRACKING NO.']?(((row['P.R NO.']||row['P.R #'])?' · ':'')+'Tracking: '+row['TRACKING NO.']):''))
     : ('Row #'+rowNum);
-  var forwardOpts = receiveForwardTargetOptions().map(function(opt){
+  var forwardOpts = receiveForwardTargetOptions().filter(function(opt){
+    return !(context === 'myreqs' && opt.value === 'END USER');
+  }).map(function(opt){
     var label = opt.value === 'END USER' ? 'End User' : opt.label;
     return '<option value="'+esc(opt.value)+'">'+esc2(label)+'</option>';
   }).join('');

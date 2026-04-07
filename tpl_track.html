@@ -1,9 +1,9 @@
 <template id="tpl-track">
   <div class="panel">
-    <div class="panel-header"><div><div class="panel-title">🔍 Transaction Search</div><div class="panel-sub">Enter a Tracking No. (e.g. DAR-2026-03-0001) or P.R #</div></div></div>
+    <div class="panel-header"><div><div class="panel-title">🔍 Transaction Search</div><div class="panel-sub">Enter a Tracking No. (e.g. DAR-2026-03-0001)</div></div></div>
     <div class="panel-body">
       <div style="display:flex;gap:10px;margin-bottom:8px;">
-        <input class="form-input" id="track-input" style="flex:1;max-width:480px;" placeholder="DAR-YYYY-MM-XXXX  or  P.R #…" onkeydown="if(event.key==='Enter') doTrackSearch()"/>
+        <input class="form-input" id="track-input" style="flex:1;max-width:480px;" placeholder="DAR-YYYY-MM-XXXX" onkeydown="if(event.key==='Enter') doTrackSearch()"/>
         <button class="tb-btn primary" onclick="doTrackSearch()">Search</button>
         <button class="tb-btn" onclick="document.getElementById('track-input').value='';document.getElementById('track-result').innerHTML='';">Clear</button>
       </div>

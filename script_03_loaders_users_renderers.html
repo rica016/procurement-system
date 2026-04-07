@@ -31,10 +31,10 @@ function filterAuditTable(){
 // ═══════════════════════════════════════════════════════════════════════════════
 //  RENDER PAGE DATA (dept pages)
 // ═══════════════════════════════════════════════════════════════════════════════
-var PAGE_COLS={bac:18, supply:13, budget:8, accounting:8, cash:7};
-var PAGE_COLS_ACTIVE={bac:17, supply:12, budget:7, accounting:7, cash:6};
-var PAGE_COLS_RETURNED={bac:6, supply:6, budget:6, accounting:6, cash:6};
-var PAGE_COLS_NEW={bac:6, supply:6, budget:5, accounting:5, cash:5};
+var PAGE_COLS={bac:20, supply:18, budget:9, accounting:9, cash:8, rcao:5, arda:5};
+var PAGE_COLS_ACTIVE={bac:19, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
+var PAGE_COLS_RETURNED={bac:7, supply:7, budget:7, accounting:7, cash:7, rcao:6, arda:6};
+var PAGE_COLS_NEW={bac:10, supply:7, budget:6, accounting:6, cash:6, rcao:5, arda:5};
 
 function renderPageData(page, rows){
   rows = (rows || []).filter(function(r){
@@ -44,6 +44,10 @@ function renderPageData(page, rows){
   var newSub = (typeof newSubTabState !== 'undefined' && newSubTabState[page]) ? newSubTabState[page] : 'incoming';
   var returnTargetLabel = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page] || '';
 
+  function isNotifiedRow(r) {
+    return String(r['IS NOTIFIED'] || r['IS NEW'] || '').trim().toUpperCase() === 'TRUE';
+  }
+
   function isReturnPending(r){
     return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()==='';
   }
@@ -52,7 +56,7 @@ function renderPageData(page, rows){
   }
 
   var newRows = rows.filter(function(r){
-    return String(r['IS NEW']||'').trim().toUpperCase()==='TRUE' &&
+    return isNotifiedRow(r) &&
            !isReturnPending(r) &&
            String(r['STATUS']||'').trim().toUpperCase()!=='CANCELLED' &&
            (!r['COMPLETED AT']||r['COMPLETED AT'].trim()==='');
@@ -74,7 +78,7 @@ function renderPageData(page, rows){
   });
   var activeRows = rows.filter(function(r){
     var s   = String(r['STATUS']||'').trim().toUpperCase();
-    var isN = String(r['IS NEW']||'').trim().toUpperCase()==='TRUE';
+    var isN = isNotifiedRow(r);
     return (!r['COMPLETED AT']||r['COMPLETED AT'].trim()==='') && s!=='CANCELLED' && !isN && !isReturnPending(r) && !isReturnResolved(r);
   });
   var doneRows = rows.filter(function(r){
@@ -87,8 +91,8 @@ function renderPageData(page, rows){
   if (tab === 'new' && newSub === 'returns') renderTab = 'returned';
 
   var displayRows = renderTab==='new'?newRows:(renderTab==='returned'?(tab==='new'?returnRows:returnHistoryRows):(renderTab==='returndone'?returnDoneRows:(renderTab==='done'?doneRows:(renderTab==='cancelled'?cancelledRows:activeRows))));
-  var showActions = renderTab==='new'||renderTab==='active'||renderTab==='returned'||renderTab==='returndone'||renderTab==='done';
-  var cols = (renderTab==='new'&&PAGE_COLS_NEW[page]) || (renderTab==='returned'&&PAGE_COLS_RETURNED[page]) || (renderTab==='returndone'&&8) || (renderTab==='active'&&PAGE_COLS_ACTIVE[page]) || PAGE_COLS[page] || 8;
+  var showActions = renderTab==='new'||renderTab==='active'||renderTab==='returned'||renderTab==='returndone'||renderTab==='done'||renderTab==='cancelled';
+  var cols = (renderTab==='new'&&PAGE_COLS_NEW[page]) || (renderTab==='returned'&&PAGE_COLS_RETURNED[page]) || (renderTab==='returndone'&&9) || (renderTab==='active'&&PAGE_COLS_ACTIVE[page]) || (renderTab==='cancelled'&&PAGE_COLS_ACTIVE[page]) || PAGE_COLS[page] || 9;
 
   var cm={new:newRows.length+returnRows.length,active:activeRows.length,returned:returnHistoryRows.length,returndone:returnDoneRows.length,done:doneRows.length,cancelled:cancelledRows.length};
   Object.keys(cm).forEach(function(t){
@@ -123,7 +127,7 @@ function renderPageData(page, rows){
   if(thAct) thAct.style.display=showActions?'':'none';
   var completedSel='#'+(page==='accounting'?'accounting':page)+'-thead .th-completed-at';
   var thCompleted=document.querySelector(completedSel);
-  if(thCompleted) thCompleted.style.display=renderTab==='active'?'none':'';
+  if(thCompleted) thCompleted.style.display=(renderTab==='active'||renderTab==='cancelled')?'none':'';
 
   var tbId = page==='accounting'?'acctg-tbody':page+'-tbody';
   var tb=document.getElementById(tbId); if(!tb) return;
@@ -134,7 +138,7 @@ function renderPageData(page, rows){
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ROW BUILDERS
 // ═══════════════════════════════════════════════════════════════════════════════
-var SHEET_NAMES={bac:'BAC',supply:'SUPPLY AND PROPERTY',budget:'BUDGET',accounting:'ACCOUNTING',cash:'CASH'};
+var SHEET_NAMES={bac:'BAC',supply:'SUPPLY AND PROPERTY',budget:'BUDGET',accounting:'ACCOUNTING',cash:'CASH',rcao:'RCAO',arda:'ARDA'};
 
 function isAdmin(){ return currentUser&&currentUser.role==='ADMIN'; }
 function canEdit(dept){
@@ -145,8 +149,16 @@ function canEdit(dept){
   );
 }
 
-function trackingPrCell(r){
-  return '<td><span class="td-pr">'+esc2(r['P.R #']||'—')+'</span><br><span class="td-tracking">'+esc2(r['TRACKING NO.']||'—')+'</span></td>';
+function trackingPrCell(r, showPr, noPrCell){
+  var tracking = r['TRACKING NO.'] || '—';
+  var pr = r['P.R NO.'] || r['P.R #'] || '';
+  if (showPr === undefined) {
+    var dept = String(r['CURRENT DEPT'] || '').trim().toUpperCase();
+    showPr = dept === 'BAC';
+  }
+  var trackingCell = '<td><span class="td-tracking" tabindex="0">'+esc2(tracking)+'</span></td>';
+  if (noPrCell) return trackingCell;
+  return trackingCell + '<td><span class="td-pr">'+esc2(showPr && pr ? pr : '—')+'</span></td>';
 }
 
 function getRowFromCache(page, rowNum){
@@ -162,9 +174,11 @@ function openViewModal(page, rowNum){
   var row=getRowFromCache(page, rowNum);
   if(!row){ showToast('Row data unavailable. Please refresh.','error'); return; }
 
-  var titleMap={bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier'};
-  var idMeta=(row['P.R #']?'P.R #: '+row['P.R #']:'')+(row['TRACKING NO.']?((row['P.R #']?' · ':'')+'Tracking: '+row['TRACKING NO.']):'');
-  var isNew = String(row['IS NEW']||'').trim().toUpperCase() === 'TRUE';
+  var titleMap={bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA'};
+  var pr = row['P.R NO.'] || row['P.R #'] || '';
+  var showPr = page === 'bac';
+  var idMeta=(row['TRACKING NO.']?('Tracking: '+row['TRACKING NO.']):'')+(showPr && pr ? (' · P.R NO.: '+pr) : '');
+  var isNew = String(row['IS NOTIFIED']||row['IS NEW']||'').trim().toUpperCase() === 'TRUE';
   var forwardedFrom = String(row['FORWARDED FROM']||'').trim();
   modalState={mode:'view'};
   document.getElementById('main-modal-title').textContent=(isNew && forwardedFrom ? '🔔 Incoming — ' : 'View ')+(titleMap[page]||'Transaction')+' Record';
@@ -192,17 +206,19 @@ function openViewModal(page, rowNum){
 
 function buildRowViewHTML(page,row){
   var fieldOrder={
-    bac:['DATE RECEIVED','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','MODE OF PROCUREMENT','RFQ','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','BAC RESO','NOA','NTP','STATUS','COMPLETED AT','FORWARD REMARKS','RETURN TO','RETURNED FROM','RETURN REMARKS','RETURNED DATE','RETURN RECEIVED DATE','RETURN RECEIVED REMARKS'],
-    supply:['DATE RECEIVED','END USER','P.O. No.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R #','INVOICE #','DATE RETURNED TO SUPPLY','STATUS','COMPLETED AT','FORWARD REMARKS','RETURN TO','RETURNED FROM','RETURN REMARKS','RETURNED DATE','RETURN RECEIVED DATE','RETURN RECEIVED REMARKS'],
-    budget:['DATE RECEIVED','ORS NO.','BUPR NO.','AMOUNT','STATUS','COMPLETED AT','FORWARD REMARKS','RETURN TO','RETURNED FROM','RETURN REMARKS','RETURNED DATE','RETURN RECEIVED DATE','RETURN RECEIVED REMARKS'],
-    accounting:['DATE RECEIVED','DV No.','Net Amount','TAX Amount','STATUS','COMPLETED AT','FORWARD REMARKS','RETURN TO','RETURNED FROM','RETURN REMARKS','RETURNED DATE','RETURN RECEIVED DATE','RETURN RECEIVED REMARKS'],
-    cash:['DATE RECEIVED','CHEQUE NO. / LDDAP','DATE OF CHEQUE','STATUS','COMPLETED AT','FORWARD REMARKS','RETURN TO','RETURNED FROM','RETURN REMARKS','RETURNED DATE','RETURN RECEIVED DATE','RETURN RECEIVED REMARKS']
+    bac:['DATE RECEIVED','P.R NO.','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','NOA','NTP','STATUS','COMPLETED AT'],
+    supply:['DATE RECEIVED','P.R NO.','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','STATUS','COMPLETED AT'],
+    budget:['DATE RECEIVED','P.R NO.','ORS NO.','BUPR NO.','ORS AMOUNT','STATUS','COMPLETED AT'],
+    accounting:['DATE RECEIVED','P.R NO.','DV NO.','NET AMOUNT','TAX AMOUNT','STATUS','COMPLETED AT'],
+    cash:['DATE RECEIVED','CHEQUE NO. / LDDAP','DATE OF CHEQUE','STATUS','COMPLETED AT','FORWARD REMARKS','RETURN TO','RETURNED FROM','RETURN REMARKS','RETURNED DATE','RETURN RECEIVED DATE','RETURN RECEIVED REMARKS'],
+    rcao:['DATE RECEIVED','STATUS','COMPLETED AT'],
+    arda:['DATE RECEIVED','STATUS','COMPLETED AT']
   };
 
   function valueFor(k){
     var v=row[k];
     if(k==='STATUS') return statusBadge(v||'—');
-    if(k==='APPROVED ABC'||k==='AMOUNT'||k==='Net Amount'||k==='TAX Amount') return currency(v||'—');
+    if(k==='APPROVED ABC'||k==='AMOUNT'||k==='P.O. AMOUNT'||k==='ORS AMOUNT'||k==='Net Amount'||k==='NET AMOUNT'||k==='TAX Amount'||k==='TAX AMOUNT') return currency(v||'—');
     return esc2(v||'—');
   }
 
@@ -221,9 +237,9 @@ function buildRowViewHTML(page,row){
             '<div class="returned-view-main">'+
               '<div class="returned-view-tag">Returned Transaction</div>'+
               '<div class="returned-view-id">'+
-                '<span class="td-pr">'+esc2(row['P.R #']||'—')+'</span>'+
-                '<span class="returned-view-sep">/</span>'+
                 '<span class="td-tracking">'+esc2(row['TRACKING NO.']||'—')+'</span>'+
+                '<span class="returned-view-sep">/</span>'+ 
+                '<span class="td-pr">'+esc2(row['P.R NO.']||row['P.R #']||'—')+'</span>'+ 
               '</div>'+
             '</div>'+
           '</div>'+
@@ -250,11 +266,12 @@ function buildRowViewHTML(page,row){
     '';
   }
 
+  var showPr = page === 'bac' && String(row['P.R NO.'] || row['P.R #'] || '').trim() !== '';
   var summary=''+
     '<div class="view-summary">'+
       '<div class="view-card">'+
-        '<div class="view-label">P.R # / Tracking No.</div>'+
-        '<div class="view-value"><span class="td-pr">'+esc2(row['P.R #']||'—')+'</span><br><span class="td-tracking">'+esc2(row['TRACKING NO.']||'—')+'</span></div>'+
+        '<div class="view-label">Tracking No.'+(showPr ? ' / P.R NO.' : '')+'</div>'+
+        '<div class="view-value"><span class="td-tracking">'+esc2(row['TRACKING NO.']||'—')+'</span>'+(showPr ? '<br><span class="td-pr">'+esc2(row['P.R NO.']||row['P.R #']||'—')+'</span>' : '')+'</div>'+
       '</div>'+
       '<div class="view-card">'+
         '<div class="view-label">Status</div>'+
@@ -265,7 +282,7 @@ function buildRowViewHTML(page,row){
   var RETURN_FIELDS={'RETURN TO':1,'RETURNED FROM':1,'RETURN REMARKS':1,'RETURNED DATE':1,'RETURN RECEIVED DATE':1,'RETURN RECEIVED REMARKS':1};
   var FIELD_LABELS={'RETURN REMARKS':'Return From Remarks','RETURN RECEIVED REMARKS':'Forward Remarks'};
   var fields=(fieldOrder[page]||Object.keys(row)).filter(function(k){
-    if(k==='TRACKING NO.'||k==='P.R #'||k==='_rowNum'||k==='IS NEW'||k==='STATUS'||k==='COMPLETED AT'||k==='FORWARD REMARKS') return false;
+    if(k==='TRACKING NO.'||k==='P.R #'||k==='_rowNum'||k==='IS NOTIFIED'||k==='IS NEW'||k==='STATUS'||k==='COMPLETED AT'||k==='FORWARD REMARKS') return false;
     if(RETURN_FIELDS[k] && !isReturnedRecord) return false;
     return true;
   });
@@ -283,8 +300,8 @@ function buildRowViewHTML(page,row){
 function buildNewItemViewHTML(page, targetRow, fromDept, sourceRow) {
   var summary = '<div class="view-summary">'+
     '<div class="view-card">'+
-      '<div class="view-label">P.R # / Tracking No.</div>'+
-      '<div class="view-value"><span class="td-pr">'+esc2(targetRow['P.R #']||'—')+'</span><br><span class="td-tracking">'+esc2(targetRow['TRACKING NO.']||'—')+'</span></div>'+
+      '<div class="view-label">Tracking No.'+(page === 'bac' ? ' / P.R NO.' : '')+'</div>'+
+      '<div class="view-value"><span class="td-tracking">'+esc2(targetRow['TRACKING NO.']||'—')+'</span>'+(page === 'bac' && String(targetRow['P.R NO.']||targetRow['P.R #']||'').trim() !== '' ? '<br><span class="td-pr">'+esc2(targetRow['P.R NO.']||targetRow['P.R #']||'—')+'</span>' : '')+'</div>'+
     '</div>'+
     '<div class="view-card">'+
       '<div class="view-label">Date Received</div>'+
@@ -311,7 +328,7 @@ function buildNewItemViewHTML(page, targetRow, fromDept, sourceRow) {
 
 function buildSourceFieldsHTML(sourceRow) {
   var SKIP = {
-    '_rowNum':1,'IS NEW':1,'TRACKING NO.':1,'P.R #':1,
+    '_rowNum':1,'IS NOTIFIED':1,'IS NEW':1,'TRACKING NO.':1,'P.R #':1,
     'RETURN TO':1,'RETURNED FROM':1,'RETURN REMARKS':1,
     'RETURNED DATE':1,'RETURN RECEIVED DATE':1,'RETURN RECEIVED REMARKS':1,
     'FORWARDED FROM':1,'FORWARDED DATE':1,'FORWARDED TO':1,
