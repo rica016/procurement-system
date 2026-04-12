@@ -1090,6 +1090,7 @@ function renderDashboardAnalytics() {
       alertsEl.innerHTML = staleItems.map(function(item){
         var r = item.row;
         var stateLabel = item.tab === 'returned' ? 'Not Taken' : 'In Progress';
+        var lastActivityTimestamp = (item.lastActivityRaw && item.lastActivityRaw.timestamp) ? item.lastActivityRaw.timestamp : (r['DATE RECEIVED']||r['RETURNED DATE']||'—');
         return '<div class="db-alert-item stale-flash" onclick="switchDashboardDeptTab(\''+item.deptKey+'\');switchDashboardTab(\''+item.tab+'\');">'+
           '<div class="db-alert-hdr">'+
             '<span class="td-pr">'+esc2(r['TRACKING NO.']||'—')+'</span>'+
@@ -1097,7 +1098,7 @@ function renderDashboardAnalytics() {
             '<span class="db-alert-dept db-dept-'+item.deptKey+'">'+esc2(item.deptLabel)+'</span>'+
           '</div>'+
           '<div class="db-alert-meta">'+item.daysOld+' day'+(item.daysOld!==1?'s':'')+' no update · '+stateLabel+'</div>'+
-          '<div class="db-alert-remarks">At '+esc2(item.deptLabel)+' · last activity: '+esc2(item.lastActivityRaw||r['DATE RECEIVED']||r['RETURNED DATE']||'—')+'</div>'+ 
+          '<div class="db-alert-remarks">At '+esc2(item.deptLabel)+' · last activity: '+esc2(lastActivityTimestamp)+'</div>'+ 
         '</div>';
       }).join('');
     }
