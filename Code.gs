@@ -505,7 +505,6 @@ function buildDepartmentRows(deptName) {
     var allowNotifiedFromHistory = statusUpper !== 'PROCESSING' && statusUpper !== 'RETURN TO PROCESSING' && statusUpper !== 'UNDO';
     var displayStatus = statusUpper === 'UNDO' ? 'PROCESSING' : (t.currentStatus || 'PROCESSING');
     var isNewNotified = false;
-    var latestForwardIdx = -1;
     for (var z = history.length - 1; z >= 0; z--) {
       var hz = history[z];
       if (!completedAt && String(hz.action || '').toUpperCase() === 'COMPLETED') completedAt = hz.timestamp;
@@ -514,27 +513,9 @@ function buildDepartmentRows(deptName) {
       }
       if (!isNewNotified && allowNotifiedFromHistory && String(hz.action || '').toUpperCase() === 'FORWARD') {
         isNewNotified = hz.isNotified === false || String(hz.isNotified || '').toLowerCase() === 'false';
-        latestForwardIdx = z;
         break;
       }
       if (completedAt && receivedAt) break;
-    }
-    // A transaction is "returning" to this dept if it was previously processed here
-    // (i.e., this dept appears as fromDept in any history entry before the latest forward)
-    var isReturnBack = false;
-    var returnBackFromDept = ''; // the dept that forwarded it back (e.g. END USER)
-    if (isNewNotified && latestForwardIdx > 0) {
-      for (var k = 0; k < latestForwardIdx; k++) {
-        if (normalizeDepartmentName(history[k].fromDept) === t.currentDept) {
-          isReturnBack = true;
-        }
-        // Track the most recent Returned event where this dept returned it to someone —
-        // that recipient is who eventually forwarded it back
-        if (isReturnBack && String(history[k].action || '').toUpperCase() === 'RETURNED' &&
-            normalizeDepartmentName(history[k].fromDept) === t.currentDept) {
-          returnBackFromDept = history[k].toDept;
-        }
-      }
     }
 
     out.push({
@@ -597,9 +578,6 @@ function buildDepartmentRows(deptName) {
       'RETURN RECEIVED REMARKS': '',
       'IS NOTIFIED': isNewNotified ? 'TRUE' : '',
       'IS NEW': isNewNotified ? 'TRUE' : '',
-      'IS RETURN BACK': isReturnBack ? 'TRUE' : '',
-      'RETURNED FROM': isReturnBack ? displayDepartmentName(returnBackFromDept) : '',
-      'RETURNED DATE': isReturnBack && latest ? latest.timestamp : '',
       'DATE RECEIVED': receivedAt || (latest ? latest.timestamp : '')
     });
   }
@@ -943,22 +921,6 @@ function getMyRequestDepartmentBundle(role) {
     var directDeptKey = workflowDeptMap[currentDept];
     if (directDeptKey) {
       departmentRows[directDeptKey].push(row);
-      // Also add completed-copy rows to depts that have already processed this transaction
-      var txHistory = historyByTracking[trackingNo] || [];
-      var addedPastDepts = {};
-      addedPastDepts[directDeptKey] = true;
-      for (var h2 = 0; h2 < txHistory.length; h2++) {
-        var hItem = txHistory[h2];
-        if (String(hItem.action || '').toUpperCase() !== 'FORWARD') continue;
-        var pastKey = workflowDeptMap[normalizeDepartmentName(hItem.fromDept)];
-        if (!pastKey || addedPastDepts[pastKey]) continue;
-        addedPastDepts[pastKey] = true;
-        departmentRows[pastKey].push(Object.assign({}, row, {
-          'IS NOTIFIED': '',
-          'IS NEW': '',
-          'COMPLETED AT': hItem.timestamp || ''
-        }));
-      }
       continue;
     }
 
@@ -1780,24 +1742,6 @@ function getAuditLogs(limitRows) {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     ensureCoreSheets(ss);
 
-    // Build username → full name lookup from USERS sheet
-    var nameMap = {};
-    try {
-      var uSheet = ss.getSheetByName(SHEETS.USERS);
-      if (uSheet && uSheet.getLastRow() >= 2) {
-        var uData = uSheet.getDataRange().getValues();
-        var uHdrs = uData[0].map(function(h){ return String(h||'').trim().toUpperCase(); });
-        var uHm = getHeaderMap(uHdrs);
-        for (var u = 1; u < uData.length; u++) {
-          var uname = String(uData[u][uHm['USERNAME']] || '').trim().toLowerCase();
-          if (!uname) continue;
-          var fn = uHm['FIRST NAME'] !== undefined ? String(uData[u][uHm['FIRST NAME']] || '').trim() : '';
-          var ln = uHm['LAST NAME']  !== undefined ? String(uData[u][uHm['LAST NAME']]  || '').trim() : '';
-          nameMap[uname] = (fn + ' ' + ln).trim() || uname;
-        }
-      }
-    } catch(eu) {}
-
     var sheet = ss.getSheetByName(SHEETS.AUDIT);
     if (!sheet || sheet.getLastRow() < 2) return [];
 
@@ -1806,12 +1750,9 @@ function getAuditLogs(limitRows) {
     var limit = Math.max(1, parseInt(limitRows, 10) || 500);
 
     for (var i = data.length - 1; i >= 1 && out.length < limit; i--) {
-      var rawUser = String(data[i][1] || '');
-      var fullName = nameMap[rawUser.toLowerCase()] || rawUser;
       out.push({
         timestamp: formatCellForClient('TIMESTAMP', data[i][0]),
-        username: rawUser,
-        fullName: fullName,
+        username: String(data[i][1] || ''),
         action: String(data[i][2] || ''),
         department: String(data[i][3] || ''),
         recordId: String(data[i][4] || '')

@@ -54,18 +54,19 @@
     <button class="tab-btn active" id="tab-dashboard-enduser-sub-nottaken" onclick="switchDashboardEnduserSubTab('nottaken')">Not Taken</button>
     <button class="tab-btn" id="tab-dashboard-enduser-sub-done" onclick="switchDashboardEnduserSubTab('done')">Completed</button>
   </div>
+  <div class="bac-cat-filter" id="dashboard-bac-cat-filter">
+    <span class="bac-cat-filter-label">Category:</span>
+    <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
+    <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
+    <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
+    <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
+    <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
+  </div>
   <div class="panel">
     <div class="panel-header">
       <div><div class="panel-title" id="dashboard-panel-title">All Transactions</div><div class="panel-sub" id="dashboard-sub"></div></div>
       <div class="panel-actions">
         <div class="search-wrap"><span class="search-icon">🔍</span><input id="dashboard-search" placeholder="Search tracking no., office, P.R #…" oninput="filterDashboard()"/></div>
-        <select class="form-select" id="dashboard-cat-filter" onchange="onDashboardCatFilterChange()" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:140px;">
-          <option value="All">All Categories</option>
-          <option value="Regular">Regular</option>
-          <option value="SPLIT">SPLIT</option>
-          <option value="Agri-Agra">Agri-Agra</option>
-          <option value="IPARC">IPARC</option>
-        </select>
         <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
       </div>
     </div>

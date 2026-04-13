@@ -1,4 +1,21 @@
 <template id="tpl-supply">
+  <div class="section-head">
+    <div>
+      <div class="bac-cat-filter">
+        <span class="bac-cat-filter-label">Category:</span>
+        <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
+        <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
+        <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
+        <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
+        <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
+      </div>
+    </div>
+    <div class="section-actions">
+      <div class="search-wrap"><span class="search-icon">🔍</span><input id="supply-search" placeholder="Search…" oninput="filterRows('supply')"/></div>
+      <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
+    </div>
+  </div>
+  
   <div class="tab-nav">
     <button class="tab-btn" id="tab-supply-new" onclick="switchNewSubTab('supply','incoming')">🔔 New <span id="supply-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-supply-active" onclick="switchTab('supply','active')">Active <span id="supply-active-count" class="badge badge-teal" style="margin-left:4px;"></span></button>
@@ -12,17 +29,6 @@
   <div class="panel" id="supply-table-panel">
     <div class="panel-header">
       <div><div class="panel-title">Active Transactions</div><div class="panel-sub" id="supply-panel-sub"></div></div>
-      <div class="panel-actions">
-        <div class="search-wrap"><span class="search-icon">🔍</span><input id="supply-search" placeholder="Search…" oninput="filterRows('supply')"/></div>
-        <select class="form-select" id="supply-cat-filter" onchange="filterBacCategory(this.value)" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:140px;">
-          <option value="All">All Categories</option>
-          <option value="Regular">Regular</option>
-          <option value="SPLIT">SPLIT</option>
-          <option value="Agri-Agra">Agri-Agra</option>
-          <option value="IPARC">IPARC</option>
-        </select>
-        <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
-      </div>
     </div>
     <div class="tbl-wrap"><table>
       <thead id="supply-thead"><tr>

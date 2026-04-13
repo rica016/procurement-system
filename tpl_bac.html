@@ -1,4 +1,22 @@
 <template id="tpl-bac">
+  <div class="section-head">
+    <div>
+      <div class="bac-cat-filter">
+        <span class="bac-cat-filter-label">Category:</span>
+        <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
+        <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
+        <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
+        <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
+        <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
+      </div>
+    </div>
+    <div class="section-actions">
+      <div class="search-wrap"><span class="search-icon">🔍</span><input id="bac-search" placeholder="Search…" oninput="filterRows('bac')"/></div>
+      <button class="tb-btn primary" onclick="openCreateModal()">＋ New Transaction</button>
+      <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
+    </div>
+  </div>
+  
   <div class="tab-nav">
     <button class="tab-btn" id="tab-bac-new" onclick="switchNewSubTab('bac','returns')">🔔 New <span id="bac-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-bac-active" onclick="switchTab('bac','active')">Active <span id="bac-active-count" class="badge badge-teal" style="margin-left:4px;"></span></button>
@@ -11,18 +29,6 @@
   <div class="panel" id="bac-table-panel">
     <div class="panel-header">
       <div><div class="panel-title">Active Transactions</div><div class="panel-sub" id="bac-panel-sub"></div></div>
-      <div class="panel-actions">
-        <div class="search-wrap"><span class="search-icon">🔍</span><input id="bac-search" placeholder="Search…" oninput="filterRows('bac')"/></div>
-        <select class="form-select" id="bac-cat-filter" onchange="filterBacCategory(this.value)" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:140px;">
-          <option value="All">All Categories</option>
-          <option value="Regular">Regular</option>
-          <option value="SPLIT">SPLIT</option>
-          <option value="Agri-Agra">Agri-Agra</option>
-          <option value="IPARC">IPARC</option>
-        </select>
-        <button class="tb-btn primary" onclick="openCreateModal()">＋ New Transaction</button>
-        <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
-      </div>
     </div>
     <div class="tbl-wrap"><table>
       <thead id="bac-thead"><tr>

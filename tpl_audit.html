@@ -1,13 +1,8 @@
 <template id="tpl-audit">
   <div class="section-head">
-    <div></div>
+    <div><div class="section-title">Audit Log</div><div class="section-sub">Complete history of all system activity</div></div>
     <div class="section-actions audit-filter">
       <div class="search-wrap"><span class="search-icon">🔍</span><input id="audit-search" placeholder="Filter by user, action, dept…" oninput="filterAuditTable()"/></div>
-      <label class="audit-date-label">From</label>
-      <input class="form-input audit-date-input" type="date" id="audit-date-from" onchange="filterAuditTable()"/>
-      <label class="audit-date-label">To</label>
-      <input class="form-input audit-date-input" type="date" id="audit-date-to" onchange="filterAuditTable()"/>
-      <button class="tb-btn" onclick="clearAuditDateFilter()" id="audit-date-clear" style="display:none;">✕ Clear</button>
       <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
     </div>
   </div>
