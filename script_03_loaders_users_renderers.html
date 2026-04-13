@@ -80,11 +80,11 @@ function clearAuditDateFilter(){
 // ═══════════════════════════════════════════════════════════════════════════════
 //  RENDER PAGE DATA (dept pages)
 // ═══════════════════════════════════════════════════════════════════════════════
-var PAGE_COLS={bac:20, supply:18, budget:9, accounting:9, cash:8, rcao:5, arda:5};
-var PAGE_COLS_ACTIVE={bac:19, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
-var PAGE_COLS_DONE={bac:19, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
+var PAGE_COLS={bac:20, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
+var PAGE_COLS_ACTIVE={bac:20, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
+var PAGE_COLS_DONE={bac:20, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
 var PAGE_COLS_RETURNED={bac:6, supply:6, budget:6, accounting:6, cash:6, rcao:5, arda:5};
-var PAGE_COLS_NEW={bac:10, supply:7, budget:6, accounting:6, cash:6, rcao:5, arda:5};
+var PAGE_COLS_NEW={bac:11, supply:6, budget:8, accounting:8, cash:6, rcao:8, arda:8};
 
 function renderPageData(page, rows){
   rows = (rows || []).filter(function(r){
@@ -171,7 +171,7 @@ function renderPageData(page, rows){
   var newReturnsTab=document.getElementById('tab-'+page+'-new-sub-returns');
   if(newReturnsTab) newReturnsTab.classList.toggle('active', newSub==='returns');
 
-  var titleMap={new:(newSub==='returns'?'↩ Return Transactions':'🔔 New'),active:'Active',returned:'Returned History',returndone:'Return Done',done:'Completed',cancelled:'Cancelled'};
+  var titleMap={new:(newSub==='returns'?'↩ Return':'🔔 New'),active:'Active',returned:'Returned History',returndone:'Return Done',done:'Completed',cancelled:'Cancelled'};
   var panelEl=document.querySelector('#'+page+'-table-panel .panel-title');
   if(panelEl) panelEl.textContent=(titleMap[tab]||'Active')+' Transactions';
 
@@ -184,7 +184,7 @@ function renderPageData(page, rows){
   if(thAct) thAct.style.display=showActions?'':'none';
   var completedSel='#'+(page==='accounting'?'accounting':page)+'-thead .th-completed-at';
   var thCompleted=document.querySelector(completedSel);
-  if(thCompleted) thCompleted.style.display=(renderTab==='active'||renderTab==='cancelled')?'none':'';
+  if(thCompleted) thCompleted.style.display=(renderTab==='active')?'none':'';
 
   var tbId = page==='accounting'?'acctg-tbody':page+'-tbody';
   var tb=document.getElementById(tbId); if(!tb) return;
@@ -263,7 +263,7 @@ function openViewModal(page, rowNum){
 
 function buildRowViewHTML(page,row){
   var fieldOrder={
-    bac:['DATE RECEIVED','P.R NO.','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','NOA','NTP','STATUS','COMPLETED AT'],
+    bac:['DATE RECEIVED','P.R NO.','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','BAC RESO STATUS','NOA','NTP','STATUS','COMPLETED AT'],
     supply:['DATE RECEIVED','P.R NO.','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','STATUS','COMPLETED AT'],
     budget:['DATE RECEIVED','P.R NO.','ORS NO.','BUPR NO.','ORS AMOUNT','STATUS','COMPLETED AT'],
     accounting:['DATE RECEIVED','P.R NO.','DV NO.','NET AMOUNT','TAX AMOUNT','STATUS','COMPLETED AT'],
@@ -417,6 +417,3 @@ function buildSourceFieldsHTML(sourceRow) {
   }).join('')+'</div>';
 }
 </script>
-
-
-

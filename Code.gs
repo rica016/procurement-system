@@ -17,7 +17,7 @@ var END_USER_ROLES = ['HR','GSS','LTID','LEGAL','FINANCE','IT','ADMIN DIVISION',
 
 var TRANSACTIONS_HEADERS = [
   'TRACKING NO.','P.R NO.','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED',
-  'RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','NOA','NTP',
+  'RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','BAC RESO STATUS','NOA','NTP',
   'P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER',
   'DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','ORS NO.','BUPR NO.','ORS AMOUNT','DV NO.',
   'NET AMOUNT','TAX AMOUNT','CHEQUE NO. / LDDAP','DATE OF CHEQUE','RCAO','ARDA','CURRENT DEPT','CURRENT STATUS'
@@ -555,6 +555,7 @@ function buildDepartmentRows(deptName) {
       'DATE OF AWARD': pickTx('DATE OF AWARD'),
       'MODE OF PROCUREMENT': pickTx('MODE OF PROCUREMENT'),
       'BAC RESO': pickTx('BAC RESO'),
+      'BAC RESO STATUS': pickTx('BAC RESO STATUS'),
       'NOA': pickTx('NOA'),
       'NTP': pickTx('NTP'),
       'P.O. No.': pickTx('P.O. NO.'),
@@ -598,8 +599,9 @@ function buildDepartmentRows(deptName) {
       'IS NOTIFIED': isNewNotified ? 'TRUE' : '',
       'IS NEW': isNewNotified ? 'TRUE' : '',
       'IS RETURN BACK': isReturnBack ? 'TRUE' : '',
-      'RETURNED FROM': isReturnBack ? displayDepartmentName(returnBackFromDept) : '',
-      'RETURNED DATE': isReturnBack && latest ? latest.timestamp : '',
+      'RETURNED FROM': isReturnBack ? displayDepartmentName(returnBackFromDept) : (t.currentDept === 'END USER' && latest ? displayDepartmentName(normalizeDepartmentName(latest.fromDept)) : ''),
+      'RETURN REMARKS': t.currentDept === 'END USER' && latest ? (latest.remarks || '') : '',
+      'RETURNED DATE': (isReturnBack && latest ? latest.timestamp : (t.currentDept === 'END USER' && latest ? latest.timestamp : '')),
       'DATE RECEIVED': receivedAt || (latest ? latest.timestamp : '')
     });
   }
@@ -608,7 +610,7 @@ function buildDepartmentRows(deptName) {
 }
 
 function buildDepartmentRowsMapFromAllRows(allRows) {
-  var map = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[] };
+  var map = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[], enduser:[] };
   (allRows || []).forEach(function(r) {
     var dept = normalizeDepartmentName(r['CURRENT DEPT']);
     if (dept === 'BAC') map.bac.push(r);
@@ -618,6 +620,7 @@ function buildDepartmentRowsMapFromAllRows(allRows) {
     else if (dept === 'CASH') map.cash.push(r);
     else if (dept === 'RCAO') map.rcao.push(r);
     else if (dept === 'ARDA') map.arda.push(r);
+    else if (dept === 'END USER') map.enduser.push(r);
   });
   return map;
 }
@@ -1008,6 +1011,7 @@ function getDashboardLoadBundle() {
     cash: deptMap.cash,
     rcao: deptMap.rcao,
     arda: deptMap.arda,
+    enduser: deptMap.enduser,
     latestActivityByTracking: getLatestActivityByTracking(8000)
   };
 }
@@ -1053,6 +1057,7 @@ function createTransaction(data, username) {
       'DATE OF AWARD': data['DATE OF AWARD'] || '',
       'MODE OF PROCUREMENT': data['MODE OF PROCUREMENT'] || '',
       'BAC RESO': data['BAC RESO'] || '',
+      'BAC RESO STATUS': data['BAC RESO STATUS'] || '',
       'NOA': data['NOA'] || '',
       'NTP': data['NTP'] || ''
     });

@@ -139,7 +139,7 @@ var ROW_BUILDERS={
       var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
       var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('BAC');
     var showReturned=tab==='returned'&&canEdit('BAC')&&String(r['RETURN TO']||'').trim()==='BAC';
-    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r, true)+
@@ -181,6 +181,7 @@ var ROW_BUILDERS={
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'" data-category="'+esc(r['CATEGORY']||'')+'">'+
       trackingPrCell(r, true)+
+      '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
       '<td>'+esc2(r['CATEGORY']||'—')+'</td>'+
@@ -196,7 +197,7 @@ var ROW_BUILDERS={
       '<td class="td-primary">'+esc2(r['END-USER / REQUESTED BY']||'—')+'</td>'+
       '<td>'+esc2(r['CATEGORY']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['PHIGEPS POSTED']||'—')+'</td>'+
-      '<td>'+currency(r['APPROVED ABC'])+'</td>'+
+      '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td class="td-mono">'+esc2(r['RFQ']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['COMPLETE RFQ RETURNED']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RFQ DATE OF COMPLETION']||'—')+'</td>'+
@@ -205,6 +206,7 @@ var ROW_BUILDERS={
       '<td class="td-mono">'+esc2(r['DATE OF AWARD']||'—')+'</td>'+
       '<td>'+esc2(r['MODE OF PROCUREMENT']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['BAC RESO']||'—')+'</td>'+
+      '<td>'+esc2(r['BAC RESO STATUS']||'—')+'</td>'+
       '<td>'+esc2(r['NOA']||'—')+'</td>'+
       '<td>'+esc2(r['NTP']||'—')+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['STATUS'])+'</td>':'')+
@@ -217,10 +219,10 @@ var ROW_BUILDERS={
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
     var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('SUPPLY');
     var showReturned=tab==='returned'&&canEdit('SUPPLY')&&String(r['RETURN TO']||'').trim()==='Supply';
-    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
@@ -231,7 +233,7 @@ var ROW_BUILDERS={
       '</div></div></td>'+
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
@@ -240,7 +242,7 @@ var ROW_BUILDERS={
       (canEdit('SUPPLY')?'<button class="btn-sm forward" onclick="continueReturnedNew(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">▶ Continue</button>':'')+
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
@@ -260,14 +262,13 @@ var ROW_BUILDERS={
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
       trackingPrCell(r, true)+
-      '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'supply'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
     return '<tr class="'+cls+'">'+
-      trackingPrCell(r)+
+      trackingPrCell(r, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td class="td-primary">'+esc2(r['END USER']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['P.O. NO.']||r['P.O. No.']||'—')+'</td>'+
@@ -291,7 +292,7 @@ var ROW_BUILDERS={
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
     var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('BUDGET');
     var showReturned=tab==='returned'&&canEdit('BUDGET')&&String(r['RETURN TO']||'').trim()==='Budget';
-    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
@@ -334,6 +335,8 @@ var ROW_BUILDERS={
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
       trackingPrCell(r, true)+
+      '<td class="td-mono">'+esc2(r['P.O. NO.']||r['P.O. No.']||'—')+'</td>'+
+      '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'budget'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
@@ -355,7 +358,7 @@ var ROW_BUILDERS={
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
     var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('ACCOUNTING');
     var showReturned=tab==='returned'&&canEdit('ACCOUNTING')&&String(r['RETURN TO']||'').trim()==='Accounting';
-    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
@@ -397,6 +400,8 @@ var ROW_BUILDERS={
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
       trackingPrCell(r, true)+
+      '<td class="td-mono">'+esc2(r['P.O. NO.']||r['P.O. No.']||'—')+'</td>'+
+      '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'accounting'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
@@ -418,7 +423,7 @@ var ROW_BUILDERS={
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
     var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('CASH');
     var showReturned=tab==='returned'&&canEdit('CASH')&&String(r['RETURN TO']||'').trim()==='Cashier';
-    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
@@ -480,7 +485,7 @@ var ROW_BUILDERS={
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
     var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('RCAO');
     var showReturned=tab==='returned'&&canEdit('RCAO')&&String(r['RETURN TO']||'').trim()==='RCAO';
-    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r, undefined, true)+
@@ -520,7 +525,9 @@ var ROW_BUILDERS={
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'RCAO\','+r._rowNum+')">↩ Return<\/button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
-      trackingPrCell(r, true, true)+
+      trackingPrCell(r, true)+
+      '<td class="td-mono">'+esc2(r['P.O. NO.']||r['P.O. No.']||'—')+'</td>'+
+      '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'rcao'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
@@ -539,7 +546,7 @@ var ROW_BUILDERS={
     var isReturnedNew=isNew&&String(r['RETURNED DATE']||'').trim()!=='';
     var show=(active||isNew||tab==='done'||tab==='cancelled')&&canEdit('ARDA');
     var showReturned=tab==='returned'&&canEdit('ARDA')&&String(r['RETURN TO']||'').trim()==='ARDA';
-    var showCompletedAt=!(active||tab==='returned'||tab==='cancelled');
+    var showCompletedAt=!(active||tab==='returned');
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r, undefined, true)+
@@ -579,7 +586,9 @@ var ROW_BUILDERS={
       (active?'<button class="btn-sm warn" onclick="openReturnModal(\'ARDA\','+r._rowNum+')">↩ Return<\/button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
-      trackingPrCell(r, true, true)+
+      trackingPrCell(r, true)+
+      '<td class="td-mono">'+esc2(r['P.O. NO.']||r['P.O. No.']||'—')+'</td>'+
+      '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       '<td>'+esc2(forwardedFromDisplay(r,'arda'))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
@@ -705,6 +714,8 @@ var MODAL_CONFIGS={
       { key:'MODE OF PROCUREMENT',     label:'Mode of Procurement',      type:'select',   required:false,
         options:['Shopping','Negotiated Procurement','Public Bidding','Direct Contracting','Small Value Procurement','Emergency'] },
       { key:'BAC RESO',   label:'BAC Resolution No.', type:'text',   required:false },
+      { key:'BAC RESO STATUS', label:'BAC Resolution Status', type:'select', required:false,
+        options:['Draft','For Signature','Partially Signed','Fully Signed','Approved'] },
       { key:'NOA',        label:'NOA',                type:'select', required:false,
         options:['FOR SIGN OF RD','FOR SIGN OF SUPPLIER','FORWARDED TO SUPPLY'] },
       { key:'NTP',        label:'NTP',                type:'select', required:false,
@@ -1247,5 +1258,3 @@ function doCancelTransaction(sheetName, rowNum){
 // ═══════════════════════════════════════════════════════════════════════════════
 //  HELPERS
 </script>
-
-
