@@ -2,30 +2,79 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 //  RENDER AUDIT TABLE
 // ═══════════════════════════════════════════════════════════════════════════════
+var _auditRows = [];
+
 function renderAuditTable(rows){
-  var tb  = document.getElementById('audit-tbody');
-  var sub = document.getElementById('audit-panel-sub');
-  if (!tb) return;
-  if (sub) sub.textContent = rows.length + ' record' + (rows.length!==1?'s':'') + ' · Most recent first';
-  if (!rows.length){ tb.innerHTML='<tr><td colspan="5">'+emptyRow(5)+'</td></tr>'; return; }
-  tb.innerHTML = rows.map(function(r){
-    var a = String(r.action||'').toUpperCase();
-    var acls = a.includes('CREATE')?'audit-action-create':a.includes('DELETE')?'audit-action-delete':a.includes('LOGIN')?'audit-action-login':'audit-action-update';
-    return '<tr class="audit-row">'+
-      '<td class="td-mono" style="white-space:nowrap;">'+esc2(r.timestamp)+'</td>'+
-      '<td style="font-weight:700;">'+esc2(r.username)+'</td>'+
-      '<td class="'+acls+'">'+esc2(r.action)+'</td>'+
-      '<td>'+esc2(r.department)+'</td>'+
-      '<td class="td-mono">'+esc2(r.recordId)+'</td>'+
-    '</tr>';
-  }).join('');
+  _auditRows = rows || [];
+  _applyAuditFilter();
 }
 
-function filterAuditTable(){
-  var q  = (document.getElementById('audit-search').value||'').toLowerCase();
-  var tb = document.getElementById('audit-tbody');
+function _auditRowHTML(r){
+  var a = String(r.action||'').toUpperCase();
+  var acls = a.includes('CREATE')?'audit-action-create':a.includes('DELETE')?'audit-action-delete':a.includes('LOGIN')?'audit-action-login':'audit-action-update';
+  var displayName = r.fullName || r.username || '—';
+  var userCell = '<td style="font-weight:700;">'+esc2(displayName)+
+    '<div style="font-size:10.5px;font-weight:400;color:var(--muted2);font-family:\'DM Mono\',monospace;margin-top:2px;">'+esc2(r.username)+'</div></td>';
+  return '<tr class="audit-row">'+
+    '<td class="td-mono" style="white-space:nowrap;">'+esc2(r.timestamp)+'</td>'+
+    userCell+
+    '<td class="'+acls+'">'+esc2(r.action)+'</td>'+
+    '<td>'+esc2(r.department)+'</td>'+
+    '<td class="td-mono">'+esc2(r.recordId)+'</td>'+
+  '</tr>';
+}
+
+function _applyAuditFilter(){
+  var tb  = document.getElementById('audit-tbody');
+  var sub = document.getElementById('audit-panel-sub');
+  var clearBtn = document.getElementById('audit-date-clear');
   if (!tb) return;
-  tb.querySelectorAll('tr').forEach(function(r){ r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'; });
+
+  var q    = (document.getElementById('audit-search').value||'').toLowerCase();
+  var from = document.getElementById('audit-date-from').value; // "YYYY-MM-DD" or ""
+  var to   = document.getElementById('audit-date-to').value;
+
+  // Show/hide the Clear button
+  if (clearBtn) clearBtn.style.display = (from||to) ? '' : 'none';
+
+  var filtered = _auditRows.filter(function(r){
+    // Text search
+    if (q) {
+      var hay = [r.timestamp,r.username,r.action,r.department,r.recordId].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    // Date range — timestamp field is expected as "YYYY-MM-DD HH:MM:SS" or similar
+    if (from || to) {
+      // Extract just the date part (first 10 chars) regardless of separator
+      var ts = String(r.timestamp||'').trim();
+      // Handle common formats: "2025-04-07 14:30" or "04/07/2025 14:30"
+      var datePart = ts.slice(0,10); // works for YYYY-MM-DD…
+      // Fallback: try parsing as Date if slice doesn't look like a date
+      if (!/^\d{4}-\d{2}-\d{2}/.test(datePart)) {
+        var d = new Date(ts);
+        if (!isNaN(d)) {
+          datePart = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        }
+      }
+      if (from && datePart < from) return false;
+      if (to   && datePart > to)   return false;
+    }
+    return true;
+  });
+
+  if (sub) sub.textContent = filtered.length + ' record' + (filtered.length!==1?'s':'') + ' · Most recent first' + (filtered.length < _auditRows.length ? ' (filtered)' : '');
+  if (!filtered.length){ tb.innerHTML='<tr><td colspan="5">'+emptyRow(5)+'</td></tr>'; return; }
+  tb.innerHTML = filtered.map(_auditRowHTML).join('');
+}
+
+function filterAuditTable(){ _applyAuditFilter(); }
+
+function clearAuditDateFilter(){
+  var f = document.getElementById('audit-date-from');
+  var t = document.getElementById('audit-date-to');
+  if (f) f.value = '';
+  if (t) t.value = '';
+  _applyAuditFilter();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -33,7 +82,8 @@ function filterAuditTable(){
 // ═══════════════════════════════════════════════════════════════════════════════
 var PAGE_COLS={bac:20, supply:18, budget:9, accounting:9, cash:8, rcao:5, arda:5};
 var PAGE_COLS_ACTIVE={bac:19, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
-var PAGE_COLS_RETURNED={bac:7, supply:7, budget:7, accounting:7, cash:7, rcao:6, arda:6};
+var PAGE_COLS_DONE={bac:19, supply:17, budget:8, accounting:8, cash:7, rcao:4, arda:4};
+var PAGE_COLS_RETURNED={bac:6, supply:6, budget:6, accounting:6, cash:6, rcao:5, arda:5};
 var PAGE_COLS_NEW={bac:10, supply:7, budget:6, accounting:6, cash:6, rcao:5, arda:5};
 
 function renderPageData(page, rows){
@@ -47,6 +97,9 @@ function renderPageData(page, rows){
   function isNotifiedRow(r) {
     return String(r['IS NOTIFIED'] || r['IS NEW'] || '').trim().toUpperCase() === 'TRUE';
   }
+  function isReturnBackRow(r) {
+    return String(r['IS RETURN BACK'] || '').trim().toUpperCase() === 'TRUE';
+  }
 
   function isReturnPending(r){
     return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()==='';
@@ -57,11 +110,15 @@ function renderPageData(page, rows){
 
   var newRows = rows.filter(function(r){
     return isNotifiedRow(r) &&
+           !isReturnBackRow(r) &&
            !isReturnPending(r) &&
            String(r['STATUS']||'').trim().toUpperCase()!=='CANCELLED' &&
            (!r['COMPLETED AT']||r['COMPLETED AT'].trim()==='');
   });
   var returnRows = rows.filter(function(r){
+    // Forwarded back to this dept after it previously processed the transaction
+    if (isReturnBackRow(r)) return true;
+    // Returned to this dept, pending receipt
     if (!isReturnPending(r)) return false;
     var rt = String(r['RETURN TO']||'').trim();
     return rt === returnTargetLabel;
@@ -92,7 +149,7 @@ function renderPageData(page, rows){
 
   var displayRows = renderTab==='new'?newRows:(renderTab==='returned'?(tab==='new'?returnRows:returnHistoryRows):(renderTab==='returndone'?returnDoneRows:(renderTab==='done'?doneRows:(renderTab==='cancelled'?cancelledRows:activeRows))));
   var showActions = renderTab==='new'||renderTab==='active'||renderTab==='returned'||renderTab==='returndone'||renderTab==='done'||renderTab==='cancelled';
-  var cols = (renderTab==='new'&&PAGE_COLS_NEW[page]) || (renderTab==='returned'&&PAGE_COLS_RETURNED[page]) || (renderTab==='returndone'&&9) || (renderTab==='active'&&PAGE_COLS_ACTIVE[page]) || (renderTab==='cancelled'&&PAGE_COLS_ACTIVE[page]) || PAGE_COLS[page] || 9;
+  var cols = (renderTab==='new'&&PAGE_COLS_NEW[page]) || (renderTab==='returned'&&PAGE_COLS_RETURNED[page]) || (renderTab==='returndone'&&9) || (renderTab==='active'&&PAGE_COLS_ACTIVE[page]) || (renderTab==='done'&&PAGE_COLS_DONE[page]) || (renderTab==='cancelled'&&PAGE_COLS[page]) || PAGE_COLS[page] || 9;
 
   var cm={new:newRows.length+returnRows.length,active:activeRows.length,returned:returnHistoryRows.length,returndone:returnDoneRows.length,done:doneRows.length,cancelled:cancelledRows.length};
   Object.keys(cm).forEach(function(t){
@@ -250,7 +307,7 @@ function buildRowViewHTML(page,row){
         '</div>'+
         '<div class="returned-view-grid">'+
           '<div class="returned-view-card">'+
-            '<div class="view-label">Returned From</div>'+
+            '<div class="view-label">Returned By</div>'+
             '<div class="view-value">'+returnedFrom+'</div>'+
           '</div>'+
           '<div class="returned-view-card">'+
@@ -258,7 +315,7 @@ function buildRowViewHTML(page,row){
             '<div class="view-value">'+returnedTo+'</div>'+
           '</div>'+
           '<div class="returned-view-card full">'+
-            '<div class="view-label">Return From Remarks</div>'+
+            '<div class="view-label">Remarks</div>'+
             '<div class="view-value">'+returnRemarks+'</div>'+
           '</div>'+
         '</div>'+
@@ -280,7 +337,7 @@ function buildRowViewHTML(page,row){
     '</div>';
 
   var RETURN_FIELDS={'RETURN TO':1,'RETURNED FROM':1,'RETURN REMARKS':1,'RETURNED DATE':1,'RETURN RECEIVED DATE':1,'RETURN RECEIVED REMARKS':1};
-  var FIELD_LABELS={'RETURN REMARKS':'Return From Remarks','RETURN RECEIVED REMARKS':'Forward Remarks'};
+  var FIELD_LABELS={'RETURN REMARKS':'Remarks','RETURN RECEIVED REMARKS':'Forward Remarks'};
   var fields=(fieldOrder[page]||Object.keys(row)).filter(function(k){
     if(k==='TRACKING NO.'||k==='P.R #'||k==='_rowNum'||k==='IS NOTIFIED'||k==='IS NEW'||k==='STATUS'||k==='COMPLETED AT'||k==='FORWARD REMARKS') return false;
     if(RETURN_FIELDS[k] && !isReturnedRecord) return false;
@@ -360,4 +417,6 @@ function buildSourceFieldsHTML(sourceRow) {
   }).join('')+'</div>';
 }
 </script>
+
+
 

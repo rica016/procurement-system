@@ -504,6 +504,10 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .audit-action-delete{color:var(--red);}
 .audit-action-login {color:var(--muted);}
 .audit-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.audit-date-label{font-size:11.5px;font-weight:700;color:var(--muted);white-space:nowrap;}
+.audit-date-input{padding:7px 10px;font-size:12.5px;width:140px;cursor:pointer;color-scheme:light;}
+.audit-date-input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.6;padding:2px;border-radius:4px;transition:opacity .15s;}
+.audit-date-input::-webkit-calendar-picker-indicator:hover{opacity:1;background:var(--blue-light);}
 
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
@@ -682,7 +686,7 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
       <hr class="nav-divider"/>
       <button class="nav-item nav-users"       data-page="users"       onclick="navigate('users')">      <span class="nav-icon">👥</span> User Management</button>
       <button class="nav-item nav-suppliers"   data-page="suppliers"   onclick="navigate('suppliers')">  <span class="nav-icon">🏷️</span> Supplier Management</button>
-      <button class="nav-item nav-endusers"    data-page="endusers"    onclick="navigate('endusers')">   <span class="nav-icon">🏢</span> End User Management</button>
+      <button class="nav-item nav-endusers"    data-page="endusers"    onclick="navigate('endusers')">   <span class="nav-icon">🏢</span> End User Role Management</button>
       <button class="nav-item nav-audit"       data-page="audit"       onclick="navigate('audit')">      <span class="nav-icon">📜</span> Audit Log</button>
     </nav>
     <div class="sidebar-footer">

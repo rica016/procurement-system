@@ -1,21 +1,4 @@
 <template id="tpl-budget">
-  <div class="section-head">
-    <div>
-      <div class="bac-cat-filter">
-        <span class="bac-cat-filter-label">Category:</span>
-        <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
-        <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
-        <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
-        <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
-        <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
-      </div>
-    </div>
-    <div class="section-actions">
-      <div class="search-wrap"><span class="search-icon">🔍</span><input id="budget-search" placeholder="Search…" oninput="filterRows('budget')"/></div>
-      <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
-    </div>
-  </div>
-  
   <div class="tab-nav">
     <button class="tab-btn" id="tab-budget-new" onclick="switchNewSubTab('budget','incoming')">🔔 New <span id="budget-new-count" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-budget-active" onclick="switchTab('budget','active')">Active <span id="budget-active-count" class="badge badge-violet" style="margin-left:4px;"></span></button>
@@ -29,10 +12,21 @@
   <div class="panel" id="budget-table-panel">
     <div class="panel-header">
       <div><div class="panel-title">Active Transactions</div><div class="panel-sub" id="budget-panel-sub"></div></div>
+      <div class="panel-actions">
+        <div class="search-wrap"><span class="search-icon">🔍</span><input id="budget-search" placeholder="Search…" oninput="filterRows('budget')"/></div>
+        <select class="form-select" id="budget-cat-filter" onchange="filterBacCategory(this.value)" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:140px;">
+          <option value="All">All Categories</option>
+          <option value="Regular">Regular</option>
+          <option value="SPLIT">SPLIT</option>
+          <option value="Agri-Agra">Agri-Agra</option>
+          <option value="IPARC">IPARC</option>
+        </select>
+        <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
+      </div>
     </div>
     <div class="tbl-wrap"><table>
       <thead id="budget-thead"><tr>
-        <th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th> 
+        <th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th>
         <th>Amount</th><th>Status</th><th class="th-completed-at">Completed At</th><th>Actions</th>
       </tr></thead>
       <tbody id="budget-tbody"><tr><td colspan="10"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr></tbody>

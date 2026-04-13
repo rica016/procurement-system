@@ -1,37 +1,32 @@
 <template id="tpl-myreqs">
-  <div class="myreqs-info-bar">
-    <div class="mib-icon">📌</div>
-    <div class="mib-text">Showing transactions assigned to <span>{{CURRENT_ROLE}}</span>. Use the department tabs below to review the full BAC-to-Cashier records for each request.</div>
-  </div>
   <div class="tab-nav">
+    <button class="tab-btn" id="tab-myreqs-returned" onclick="switchMyReqsTab('returned')">↩ End-User Returns <span id="myreqs-count-returned" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn active" id="tab-myreqs-active" onclick="switchMyReqsTab('active')">Active <span id="myreqs-count-active" class="badge badge-blue" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-returned" onclick="switchMyReqsTab('returned')">Returned <span id="myreqs-count-returned" class="badge badge-warn" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-done" onclick="switchMyReqsTab('done')">Completed <span id="myreqs-count-done" class="badge badge-op" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-myreqs-cancelled" onclick="switchMyReqsTab('cancelled')">Cancelled <span id="myreqs-count-cancelled" class="badge badge-down" style="margin-left:4px;"></span></button>
-  </div>
-  <div class="tab-nav" style="margin-top:-8px;">
-    <button class="tab-btn" id="tab-myreqs-dept-all" onclick="switchMyReqsDeptTab('all')">All <span id="myreqs-dept-count-all" class="badge badge-grey" style="margin-left:4px;"></span></button>
-    <button class="tab-btn active" id="tab-myreqs-dept-bac" onclick="switchMyReqsDeptTab('bac')">BAC <span id="myreqs-dept-count-bac" class="badge badge-amber" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-dept-supply" onclick="switchMyReqsDeptTab('supply')">Supply <span id="myreqs-dept-count-supply" class="badge badge-teal" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-dept-budget" onclick="switchMyReqsDeptTab('budget')">Budget <span id="myreqs-dept-count-budget" class="badge badge-violet" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-dept-rcao" onclick="switchMyReqsDeptTab('rcao')">RCAO <span id="myreqs-dept-count-rcao" class="badge badge-op" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-dept-arda" onclick="switchMyReqsDeptTab('arda')">ARDA <span id="myreqs-dept-count-arda" class="badge badge-op" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-dept-accounting" onclick="switchMyReqsDeptTab('accounting')">Accounting <span id="myreqs-dept-count-accounting" class="badge badge-blue" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-dept-cash" onclick="switchMyReqsDeptTab('cash')">Cashier <span id="myreqs-dept-count-cash" class="badge badge-op" style="margin-left:4px;"></span></button>
-  </div>
-  <div class="bac-cat-filter" id="myreqs-bac-cat-filter">
-    <span class="bac-cat-filter-label">Category:</span>
-    <button class="cat-chip active" onclick="filterBacCategory('All')">All</button>
-    <button class="cat-chip" onclick="filterBacCategory('Regular')">Regular</button>
-    <button class="cat-chip" onclick="filterBacCategory('SPLIT')">SPLIT</button>
-    <button class="cat-chip" onclick="filterBacCategory('Agri-Agra')">Agri-Agra</button>
-    <button class="cat-chip" onclick="filterBacCategory('IPARC')">IPARC</button>
+    <button class="tab-btn" id="tab-myreqs-done" onclick="switchMyReqsTab('done')">Completed <span id="myreqs-count-done" class="badge badge-op" style="margin-left:4px;"></span></button>
   </div>
   <div class="panel">
     <div class="panel-header">
-      <div><div class="panel-title" id="myreqs-panel-title">All Requests</div><div class="panel-sub" id="myreqs-sub"></div></div>
+      <div><div class="panel-title" id="myreqs-panel-title">Active Requests</div><div class="panel-sub" id="myreqs-sub"></div></div>
       <div class="panel-actions">
         <div class="search-wrap"><span class="search-icon">🔍</span><input id="myreqs-search" placeholder="Search tracking no., P.R #…" oninput="filterMyReqs()"/></div>
+        <select class="form-select" id="myreqs-dept-filter" onchange="onMyReqsDeptFilterChange()" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:130px;">
+          <option value="all">All Depts</option>
+          <option value="bac">BAC</option>
+          <option value="supply">Supply</option>
+          <option value="budget">Budget</option>
+          <option value="accounting">Accounting</option>
+          <option value="cash">Cashier</option>
+          <option value="rcao">RCAO</option>
+          <option value="arda">ARDA</option>
+        </select>
+        <select class="form-select" id="myreqs-cat-filter" onchange="onMyReqsCatFilterChange()" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:120px;display:none;">
+          <option value="All">All Categories</option>
+          <option value="Regular">Regular</option>
+          <option value="SPLIT">SPLIT</option>
+          <option value="Agri-Agra">Agri-Agra</option>
+          <option value="IPARC">IPARC</option>
+        </select>
         <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
       </div>
     </div>
