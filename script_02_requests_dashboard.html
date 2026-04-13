@@ -1907,7 +1907,7 @@ function buildSupplierForm(data){
   }).join('');
   return '<div class="form-grid">'+
     '<div class="form-group full"><label class="form-label">Supplier Name <span class="req">*</span></label>'+
-    '<input class="form-input" id="sf-name" type="text" value="'+esc(data.supplierName||'')+'" placeholder="e.g. ABC Trading"/></div>'+
+    '<input class="form-input" id="sf-name" type="text" value="'+esc(String(data.supplierName||'').toUpperCase())+'" placeholder="e.g. ABC TRADING" oninput="this.value=(this.value||\'\').toUpperCase()"/></div>'+
     '<div class="form-group full"><label class="form-label">Status <span class="req">*</span></label>'+
     '<select class="form-select" id="sf-status">'+statusOptions+'</select></div>'+
   '</div>';
@@ -1915,7 +1915,7 @@ function buildSupplierForm(data){
 
 function saveSupplierModal(){
   var btn = document.getElementById('supplier-modal-save');
-  var supplierName = (document.getElementById('sf-name').value||'').trim();
+  var supplierName = ((document.getElementById('sf-name').value||'').trim()).toUpperCase();
   var status = (document.getElementById('sf-status').value||'').trim();
   if (!supplierName) { showToast('Supplier name is required.','error'); return; }
 

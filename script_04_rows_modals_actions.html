@@ -788,7 +788,9 @@ function buildFormHTML(fields, prefix, existingData){
     } else if(f.type==='office'){
       html+='<input class="form-input" type="text" id="'+id+'" value="'+esc(val)+'" placeholder="Type or select office…" list="office-datalist" autocomplete="off"/>';
     } else if(f.type==='supplier'){
-      html+='<input class="form-input" type="text" id="'+id+'" value="'+esc(val)+'" placeholder="Type or select supplier…" list="supplier-datalist" autocomplete="off"/>';
+      var supplierKey = String(f.key||'').toUpperCase();
+      var forceUpper = supplierKey==='AWARDED TO' || supplierKey==='SUPPLIER';
+      html+='<input class="form-input" type="text" id="'+id+'" value="'+esc(forceUpper?String(val||'').toUpperCase():val)+'" placeholder="Type or select supplier…" list="supplier-datalist" autocomplete="off" onfocus="updateSupplierDatalistByQuery(this.value||\'\')" oninput="handleSupplierInput(this,'+(forceUpper?'true':'false')+')"/>';
     } else if(f.type==='enduser'){
       var euOpts=endUsers.map(function(r){ return '<option'+(r===val?' selected':'')+' value="'+esc(r)+'">'+esc2(r)+'</option>'; }).join('');
       html+='<select class="form-select" id="'+id+'"><option value="">— Select End User —</option>'+euOpts+'</select>';
@@ -819,6 +821,10 @@ function readFormData(fields, prefix){
       data[f.key]=(cbEl&&cbEl.checked)?fromDateInput(el.value.trim()):'';
     } else {
       data[f.key]=f.type==='date'?fromDateInput(el.value.trim()):el.value.trim();
+      var normalizedKey = String(f.key||'').toUpperCase();
+      if (normalizedKey==='AWARDED TO' || normalizedKey==='SUPPLIER') {
+        data[f.key]=String(data[f.key]||'').toUpperCase();
+      }
     }
   });
   return data;

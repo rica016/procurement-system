@@ -302,8 +302,31 @@ function injectDatalist(id, vals){
   document.body.appendChild(dl);
 }
 
+function renderSupplierDatalistOptions(vals){
+  injectDatalist('supplier-datalist', vals || []);
+}
+
+function updateSupplierDatalistByQuery(query){
+  var q = String(query||'').trim().toLowerCase();
+  if (!q) {
+    renderSupplierDatalistOptions((suppliers||[]).slice(0,5));
+    return;
+  }
+  var matched = (suppliers||[]).filter(function(v){ return String(v||'').toLowerCase().indexOf(q)!==-1; });
+  renderSupplierDatalistOptions(matched);
+}
+
+function handleSupplierInput(inputEl, forceUpper){
+  if (!inputEl) return;
+  if (forceUpper) inputEl.value = String(inputEl.value||'').toUpperCase();
+  updateSupplierDatalistByQuery(inputEl.value || '');
+}
+
 function refreshSupplierDatalist(){
-  google.script.run.withSuccessHandler(function(list){ suppliers=list||[]; injectDatalist('supplier-datalist',suppliers); }).getSuppliers();
+  google.script.run.withSuccessHandler(function(list){
+    suppliers=list||[];
+    renderSupplierDatalistOptions(suppliers.slice(0,5));
+  }).getSuppliers();
 }
 
 function refreshEndUserDatalist(){
