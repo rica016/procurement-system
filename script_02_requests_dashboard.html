@@ -1026,8 +1026,8 @@ function renderDashboardAnalytics() {
     }).join('')+'</div>';
   }
 
-  // ── Needs Attention (stale items: 7+ days without update on current dept) ──
-  var STALE_DAYS = 7;
+  // ── Needs Attention (stale items: 3+ days without update on current dept) ──
+  var STALE_DAYS = 3;
   var DAY_MS = 24 * 60 * 60 * 1000;
 
   function parseDashboardDate(v) {
@@ -1077,7 +1077,7 @@ function renderDashboardAnalytics() {
   staleItems.sort(function(a,b){ return b.daysOld - a.daysOld; });
 
   var alertsSubEl = document.getElementById('dashboard-alerts-sub');
-  if(alertsSubEl) alertsSubEl.textContent = staleItems.length+' stale transaction'+(staleItems.length!==1?'s':'')+' (7+ days no update)';
+  if(alertsSubEl) alertsSubEl.textContent = staleItems.length+' stale transaction'+(staleItems.length!==1?'s':'')+' (3+ days no update)';
 
   var alertsEl = document.getElementById('dashboard-alerts');
   if(alertsEl){
@@ -1085,7 +1085,7 @@ function renderDashboardAnalytics() {
       alertsEl.innerHTML='<div style="padding:28px;text-align:center;color:var(--muted);">'+
         '<div style="font-size:32px;margin-bottom:8px;">✅</div>'+
         '<div style="font-weight:700;font-size:13px;">All clear!</div>'+
-        '<div style="font-size:12px;margin-top:4px;">No stale transactions (7+ days) in current departments.</div></div>';
+        '<div style="font-size:12px;margin-top:4px;">No stale transactions (3+ days) in current departments.</div></div>';
     } else {
       alertsEl.innerHTML = staleItems.map(function(item){
         var r = item.row;
