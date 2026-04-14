@@ -210,7 +210,7 @@ var ROW_BUILDERS={
       '<td>'+esc2(r['NOA']||'—')+'</td>'+
       '<td>'+esc2(r['NTP']||'—')+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['STATUS'])+'</td>':'')+
-      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (showCompletedAt?'<td class="td-mono">'+esc2((tab==='cancelled'?r['CANCELLED AT']:r['COMPLETED AT'])||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
   },
@@ -283,7 +283,7 @@ var ROW_BUILDERS={
       '<td class="td-mono">'+esc2(r['I.A.R  NO.']||r['I.A.R #']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['INVOICE  NO.']||r['INVOICE #']||'—')+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['STATUS'])+'</td>':'')+
-      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (showCompletedAt?'<td class="td-mono">'+esc2((tab==='cancelled'?r['CANCELLED AT']:r['COMPLETED AT'])||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
   },
@@ -349,7 +349,7 @@ var ROW_BUILDERS={
       '<td class="td-mono">'+esc2(r['BUPR NO.']||'—')+'</td>'+
       '<td>'+currency(r['ORS AMOUNT']||r['AMOUNT'])+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['STATUS'])+'</td>':'')+
-      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (showCompletedAt?'<td class="td-mono">'+esc2((tab==='cancelled'?r['CANCELLED AT']:r['COMPLETED AT'])||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
   },
@@ -414,7 +414,7 @@ var ROW_BUILDERS={
       '<td>'+currency(r['NET AMOUNT']||r['Net Amount'])+'</td>'+
       '<td>'+currency(r['TAX AMOUNT']||r['TAX Amount'])+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['STATUS'])+'</td>':'')+
-      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (showCompletedAt?'<td class="td-mono">'+esc2((tab==='cancelled'?r['CANCELLED AT']:r['COMPLETED AT'])||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
   },
@@ -476,7 +476,7 @@ var ROW_BUILDERS={
       '<td class="td-mono">'+esc2(r['CHEQUE NO. / LDDAP']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE OF CHEQUE']||'—')+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['STATUS'])+'</td>':'')+
-      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (showCompletedAt?'<td class="td-mono">'+esc2((tab==='cancelled'?r['CANCELLED AT']:r['COMPLETED AT'])||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
   },
@@ -537,7 +537,7 @@ var ROW_BUILDERS={
       trackingPrCell(r, undefined, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['RCAO'])+'</td>':'')+
-      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (showCompletedAt?'<td class="td-mono">'+esc2((tab==='cancelled'?r['CANCELLED AT']:r['COMPLETED AT'])||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
   },
@@ -598,7 +598,7 @@ var ROW_BUILDERS={
       trackingPrCell(r, undefined, true)+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
       (!showCompletedAt?'<td>'+statusBadge(r['ARDA'])+'</td>':'')+
-      (showCompletedAt?'<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>':'')+
+      (showCompletedAt?'<td class="td-mono">'+esc2((tab==='cancelled'?r['CANCELLED AT']:r['COMPLETED AT'])||'—')+'</td>':'')+
       (show?'<td>'+actions+'</td>':'')+
       '</tr>';
   }

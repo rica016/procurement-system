@@ -501,6 +501,7 @@ function buildDepartmentRows(deptName) {
 
     var receivedAt = '';
     var completedAt = '';
+    var cancelledAt = '';
     var statusUpper = String(t.currentStatus || '').trim().toUpperCase();
     var allowNotifiedFromHistory = statusUpper !== 'PROCESSING' && statusUpper !== 'RETURN TO PROCESSING' && statusUpper !== 'UNDO';
     var displayStatus = statusUpper === 'UNDO' ? 'PROCESSING' : (t.currentStatus || 'PROCESSING');
@@ -509,6 +510,7 @@ function buildDepartmentRows(deptName) {
     for (var z = history.length - 1; z >= 0; z--) {
       var hz = history[z];
       if (!completedAt && String(hz.action || '').toUpperCase() === 'COMPLETED') completedAt = hz.timestamp;
+      if (!cancelledAt && String(hz.action || '').toUpperCase() === 'CANCELLED') cancelledAt = hz.timestamp;
       if (!receivedAt && normalizeDepartmentName(hz.toDept) === t.currentDept && String(hz.action || '').toUpperCase() === 'RECEIVED') {
         receivedAt = hz.timestamp;
       }
@@ -517,7 +519,7 @@ function buildDepartmentRows(deptName) {
         latestForwardIdx = z;
         break;
       }
-      if (completedAt && receivedAt) break;
+      if (completedAt && cancelledAt && receivedAt) break;
     }
     // A transaction is "returning" to this dept if it was previously processed here
     // (i.e., this dept appears as fromDept in any history entry before the latest forward)
@@ -590,6 +592,7 @@ function buildDepartmentRows(deptName) {
       'CURRENT DEPT': t.currentDept,
       'FORWARD REMARKS': latest ? latest.remarks : '',
       'COMPLETED AT': completedAt,
+      'CANCELLED AT': cancelledAt,
       'RETURN TO': '',
       'RETURNED FROM': '',
       'RETURN REMARKS': '',

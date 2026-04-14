@@ -27,6 +27,8 @@ var MYREQS_DEPT_META = {
     title:'All Departments',
     allHeader:'<tr>'+MYREQS_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'</tr>',
     allCols:MYREQS_ALL_TX_COLUMNS.length,
+    otherHeader:'<tr>'+MYREQS_ALL_TX_COLUMNS.map(function(c){ if(c==='CURRENT STATUS') return '<th>Cancelled At</th>'; return '<th>'+c+'</th>'; }).join('')+'</tr>',
+    otherCols:MYREQS_ALL_TX_COLUMNS.length,
     returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     returnedCols:6
   },
@@ -326,13 +328,14 @@ function renderMyReqsTable(reqs) {
 
   var isReturnTab     = myReqsTab === 'returned';
   var isActiveTab     = myReqsTab === 'active';
+  var isCancelledTab  = myReqsTab === 'cancelled';
   var cols = (myReqsDeptTab === 'all')
-    ? (isReturnTab ? (meta.returnedCols || meta.allCols) : meta.allCols)
+    ? (isReturnTab ? (meta.returnedCols || meta.allCols) : (isActiveTab ? meta.allCols : (meta.otherCols || meta.allCols)))
     : (isReturnTab ? meta.returnedCols : (isActiveTab ? meta.activeCols : meta.otherCols));
 
   if (thead) {
     if (myReqsDeptTab === 'all') {
-      thead.innerHTML = isReturnTab ? (meta.returnedHeader || meta.allHeader) : meta.allHeader;
+      thead.innerHTML = isReturnTab ? (meta.returnedHeader || meta.allHeader) : (isActiveTab ? meta.allHeader : (meta.otherHeader || meta.allHeader));
     } else {
       thead.innerHTML = isReturnTab ? meta.returnedHeader : (isActiveTab ? meta.activeHeader : meta.otherHeader);
     }
@@ -366,7 +369,7 @@ function renderMyReqsTable(reqs) {
         myReqsTrackingPrCell(r)+
         MYREQS_ALL_TX_COLUMNS.slice(2).map(function(col) {
           if (col === 'CURRENT DEPT') return '<td>'+esc2(String(r[col] || '').toUpperCase() || '—')+'</td>';
-          if (col === 'CURRENT STATUS') return '<td>'+statusBadge(r[col] || r['STATUS'] || '—')+'</td>';
+          if (col === 'CURRENT STATUS') return (isCancelledTab) ? '<td class="td-mono">'+esc2(r['CANCELLED AT'] || '—')+'</td>' : '<td>'+statusBadge(r[col] || r['STATUS'] || '—')+'</td>';
           if (col === 'PARTICULARS') return '<td class="td-wrap">'+esc2(r[col] || '—')+'</td>';
           if (col === 'APPROVED ABC' || col === 'P.O. AMOUNT' || col === 'ORS AMOUNT' || col === 'NET AMOUNT' || col === 'TAX AMOUNT') {
             return '<td>'+currency(r[col])+'</td>';
@@ -850,6 +853,7 @@ function dashboardDeptColumnLabel(key) {
     'DATE OF CHEQUE':'Date of Cheque',
     'STATUS':'Status',
     'COMPLETED AT':'Completed At',
+    'CANCELLED AT':'Cancelled At',
     'RCAO':'Status',
     'ARDA':'Status'
   };
@@ -882,7 +886,7 @@ function dashboardDeptHeader(page, tab) {
   var layout = DASHBOARD_DEPT_FIELD_LAYOUT[page] || DASHBOARD_DEPT_FIELD_LAYOUT.bac;
   var fields = tab === 'active' ? layout.active : layout.other;
   if (tab === 'cancelled') {
-    fields = fields.filter(function(field){ return field !== 'COMPLETED AT'; });
+    fields = fields.map(function(field){ return field === 'COMPLETED AT' ? 'CANCELLED AT' : field; });
   }
   var isBAC = page === 'bac';
   var idHeaders = '<th>Tracking No.</th>'+(isBAC ? '<th>P.R No.</th>' : '');
@@ -893,7 +897,7 @@ function dashboardDeptColSpan(page, tab) {
   var layout = DASHBOARD_DEPT_FIELD_LAYOUT[page] || DASHBOARD_DEPT_FIELD_LAYOUT.bac;
   var fields = tab === 'active' ? layout.active : layout.other;
   if (tab === 'cancelled') {
-    fields = fields.filter(function(field){ return field !== 'COMPLETED AT'; });
+    fields = fields.map(function(field){ return field === 'COMPLETED AT' ? 'CANCELLED AT' : field; });
   }
   var isBAC = page === 'bac';
   return fields.length + (isBAC ? 3 : 2);
@@ -908,13 +912,13 @@ function dashboardDeptRow(page, row, tab, actions) {
     actions = actions.replace('</div></div>', '<button class="btn-sm warn" onclick="reopenCompletedRecord(\''+SHEET_NAMES[page]+'\','+row._rowNum+',\''+page+'\',this)">↺ Undo</button></div></div>');
   }
   if (tab === 'cancelled') {
-    fields = fields.filter(function(field){ return field !== 'COMPLETED AT'; });
+    fields = fields.map(function(field){ return field === 'COMPLETED AT' ? 'CANCELLED AT' : field; });
   }
   return '<tr class="'+(completedCls ? 'completed-row' : '')+'">'+
     trackingPrCell(row, undefined, page !== 'bac')+
     fields.map(function(field){
       var tdClass = '';
-      if (field === 'COMPLETED AT') tdClass = 'td-mono';
+      if (field === 'COMPLETED AT' || field === 'CANCELLED AT') tdClass = 'td-mono';
       else if (field === 'PARTICULARS') tdClass = 'td-wrap';
       return '<td'+(tdClass ? ' class="'+tdClass+'"' : '')+'>'+dashboardDeptColumnValue(page, row, field)+'</td>';
     }).join('')+
@@ -1354,6 +1358,7 @@ function switchTab(page,tab){
       returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
       doneCols:       '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>BAC Reso Status</th><th>NOA</th><th>NTP</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>BAC Reso Status</th><th>NOA</th><th>NTP</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
       otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>Category</th><th>PHIGEPS Posted</th><th>Approved ABC</th><th>RFQ</th><th>Complete RFQ Returned</th><th>RFQ Date of Completion</th><th>Abstract of Award</th><th>Awarded To</th><th>Date of Award</th><th>Mode of Procurement</th><th>BAC Reso</th><th>BAC Reso Status</th><th>NOA</th><th>NTP</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     supply: {
@@ -1362,6 +1367,7 @@ function switchTab(page,tab){
       returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
       doneCols:       '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
       otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     budget: {
@@ -1370,6 +1376,7 @@ function switchTab(page,tab){
       returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
       doneCols:       '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>ORS Amount</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>ORS Amount</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
       otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>ORS No.</th><th>BUPR No.</th><th>ORS Amount</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     accounting: {
@@ -1378,6 +1385,7 @@ function switchTab(page,tab){
       returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
       doneCols:       '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>DV NO.</th><th>NET AMOUNT</th><th>TAX AMOUNT</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>DV NO.</th><th>NET AMOUNT</th><th>TAX AMOUNT</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
       otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>DV NO.</th><th>NET AMOUNT</th><th>TAX AMOUNT</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     cash: {
@@ -1386,6 +1394,7 @@ function switchTab(page,tab){
       returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
       doneCols:       '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
       otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Cheque No. / LDDAP</th><th>Date of Cheque</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     rcao: {
@@ -1394,6 +1403,7 @@ function switchTab(page,tab){
       returnedCols:   '<tr><th>Tracking No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
       doneCols:       '<tr><th>Tracking No.</th><th>Date Received</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>Date Received</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
       otherCols:      '<tr><th>Tracking No.</th><th>Date Received</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     arda: {
@@ -1402,6 +1412,7 @@ function switchTab(page,tab){
       returnedCols:   '<tr><th>Tracking No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
       doneCols:       '<tr><th>Tracking No.</th><th>Date Received</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>Date Received</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
       otherCols:      '<tr><th>Tracking No.</th><th>Date Received</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     }
   };
@@ -1411,7 +1422,7 @@ function switchTab(page,tab){
     var thead = document.getElementById(theadId);
     var resolvedTab = tab;
     if (tab === 'new' && (newSubTabState[page] || 'incoming') === 'returns') resolvedTab = 'returned';
-    if (thead) thead.innerHTML = (resolvedTab==='new') ? cfg.newCols : (resolvedTab==='returned' ? cfg.returnedCols : (resolvedTab==='returndone' ? cfg.returndoneCols : (resolvedTab==='active' ? cfg.activeCols : (resolvedTab==='done' ? (cfg.doneCols || cfg.otherCols) : (cfg.otherCols || cfg.activeCols)))));
+    if (thead) thead.innerHTML = (resolvedTab==='new') ? cfg.newCols : (resolvedTab==='returned' ? cfg.returnedCols : (resolvedTab==='returndone' ? cfg.returndoneCols : (resolvedTab==='active' ? cfg.activeCols : (resolvedTab==='done' ? (cfg.doneCols || cfg.otherCols) : (resolvedTab==='cancelled' ? (cfg.cancelledCols || cfg.otherCols) : (cfg.otherCols || cfg.activeCols))))));
   }
   renderPageData(page, cachedRows[page]||[]);
   if (page === 'bac') applyBacFilters();
