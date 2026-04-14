@@ -27,8 +27,6 @@ var MYREQS_DEPT_META = {
     title:'All Departments',
     allHeader:'<tr>'+MYREQS_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'</tr>',
     allCols:MYREQS_ALL_TX_COLUMNS.length,
-    otherHeader:'<tr>'+MYREQS_ALL_TX_COLUMNS.map(function(c){ if(c==='CURRENT STATUS') return '<th>Cancelled At</th>'; return '<th>'+c+'</th>'; }).join('')+'</tr>',
-    otherCols:MYREQS_ALL_TX_COLUMNS.length,
     returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     returnedCols:6
   },
@@ -328,14 +326,13 @@ function renderMyReqsTable(reqs) {
 
   var isReturnTab     = myReqsTab === 'returned';
   var isActiveTab     = myReqsTab === 'active';
-  var isCancelledTab  = myReqsTab === 'cancelled';
   var cols = (myReqsDeptTab === 'all')
-    ? (isReturnTab ? (meta.returnedCols || meta.allCols) : (isActiveTab ? meta.allCols : (meta.otherCols || meta.allCols)))
+    ? (isReturnTab ? (meta.returnedCols || meta.allCols) : meta.allCols)
     : (isReturnTab ? meta.returnedCols : (isActiveTab ? meta.activeCols : meta.otherCols));
 
   if (thead) {
     if (myReqsDeptTab === 'all') {
-      thead.innerHTML = isReturnTab ? (meta.returnedHeader || meta.allHeader) : (isActiveTab ? meta.allHeader : (meta.otherHeader || meta.allHeader));
+      thead.innerHTML = isReturnTab ? (meta.returnedHeader || meta.allHeader) : meta.allHeader;
     } else {
       thead.innerHTML = isReturnTab ? meta.returnedHeader : (isActiveTab ? meta.activeHeader : meta.otherHeader);
     }
@@ -369,7 +366,7 @@ function renderMyReqsTable(reqs) {
         myReqsTrackingPrCell(r)+
         MYREQS_ALL_TX_COLUMNS.slice(2).map(function(col) {
           if (col === 'CURRENT DEPT') return '<td>'+esc2(String(r[col] || '').toUpperCase() || '—')+'</td>';
-          if (col === 'CURRENT STATUS') return (isCancelledTab) ? '<td class="td-mono">'+esc2(r['CANCELLED AT'] || '—')+'</td>' : '<td>'+statusBadge(r[col] || r['STATUS'] || '—')+'</td>';
+          if (col === 'CURRENT STATUS') return '<td>'+statusBadge(r[col] || r['STATUS'] || '—')+'</td>';
           if (col === 'PARTICULARS') return '<td class="td-wrap">'+esc2(r[col] || '—')+'</td>';
           if (col === 'APPROVED ABC' || col === 'P.O. AMOUNT' || col === 'ORS AMOUNT' || col === 'NET AMOUNT' || col === 'TAX AMOUNT') {
             return '<td>'+currency(r[col])+'</td>';
