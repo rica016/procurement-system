@@ -3,6 +3,7 @@ node_modules/
 
 # Claude config
 .claude/
+.clasp.json
 
 # Env files
 .env
