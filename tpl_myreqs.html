@@ -1,13 +1,15 @@
 <template id="tpl-myreqs">
-  <div class="tab-nav">
-    <button class="tab-btn" id="tab-myreqs-returned" onclick="switchMyReqsTab('returned')">↩ End-User Returns <span id="myreqs-count-returned" class="badge badge-warn" style="margin-left:4px;"></span></button>
-    <button class="tab-btn active" id="tab-myreqs-active" onclick="switchMyReqsTab('active')">Active <span id="myreqs-count-active" class="badge badge-blue" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-cancelled" onclick="switchMyReqsTab('cancelled')">Cancelled <span id="myreqs-count-cancelled" class="badge badge-down" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-myreqs-done" onclick="switchMyReqsTab('done')">Completed <span id="myreqs-count-done" class="badge badge-op" style="margin-left:4px;"></span></button>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div class="tab-nav" id="myreqs-tab-nav" style="margin-bottom:0;">
+      <button class="tab-btn" id="tab-myreqs-returned" onclick="switchMyReqsTab('returned')">↩ End-User Returns <span id="myreqs-count-returned" class="badge badge-warn" style="margin-left:4px;"></span></button>
+      <button class="tab-btn active" id="tab-myreqs-active" onclick="switchMyReqsTab('active')">Processing <span id="myreqs-count-active" class="badge badge-blue" style="margin-left:4px;"></span></button>
+      <button class="tab-btn" id="tab-myreqs-done" onclick="switchMyReqsTab('done')">Completed <span id="myreqs-count-done" class="badge badge-op" style="margin-left:4px;"></span></button>
+    </div>
+    <button class="tb-btn" id="btn-all-tx" onclick="toggleAllTxView()">📋 All My Transactions</button>
   </div>
-  <div class="panel">
+  <div id="myreqs-main-panel" class="panel">
     <div class="panel-header">
-      <div><div class="panel-title" id="myreqs-panel-title">Active Requests</div><div class="panel-sub" id="myreqs-sub"></div></div>
+      <div><div class="panel-title" id="myreqs-panel-title">Processing</div><div class="panel-sub" id="myreqs-sub"></div></div>
       <div class="panel-actions">
         <div class="search-wrap"><span class="search-icon">🔍</span><input id="myreqs-search" placeholder="Search tracking no., P.R #…" oninput="filterMyReqs()"/></div>
         <select class="form-select" id="myreqs-dept-filter" onchange="onMyReqsDeptFilterChange()" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:130px;">
@@ -34,5 +36,33 @@
       <thead id="myreqs-thead"><tr><th>Tracking No.</th><th>P.R No.</th><th>Loading…</th></tr></thead>
       <tbody id="myreqs-tbody"><tr><td colspan="9"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr></tbody>
     </table></div>
+  </div>
+  <div id="all-tx-panel" style="display:none;">
+    <div class="tab-nav">
+      <button class="tab-btn active" id="tab-alltx-active" onclick="switchAllTxTab('active')">Active <span id="alltx-count-active" class="badge badge-blue" style="margin-left:4px;"></span></button>
+      <button class="tab-btn" id="tab-alltx-done" onclick="switchAllTxTab('done')">Completed <span id="alltx-count-done" class="badge badge-op" style="margin-left:4px;"></span></button>
+      <button class="tab-btn" id="tab-alltx-cancelled" onclick="switchAllTxTab('cancelled')">Cancelled <span id="alltx-count-cancelled" class="badge badge-down" style="margin-left:4px;"></span></button>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div><div class="panel-title">All My Transactions</div><div class="panel-sub" id="alltx-sub"></div></div>
+        <div class="panel-actions">
+          <div class="search-wrap"><span class="search-icon">🔍</span><input id="alltx-search" placeholder="Search tracking no., P.R #…" oninput="filterAllTx()"/></div>
+          <select class="form-select" id="alltx-cat-filter" onchange="renderAllTxTable()" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:120px;">
+            <option value="All">All Categories</option>
+            <option value="Regular">Regular</option>
+            <option value="SPLIT">SPLIT</option>
+            <option value="Agri-Agra">Agri-Agra</option>
+            <option value="IPARC">IPARC</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead id="alltx-thead">
+          <tr><th>Tracking No.</th><th>P.R No.</th><th>Category</th><th>Current Department</th><th>Status</th></tr>
+        </thead>
+        <tbody id="alltx-tbody"></tbody>
+      </table></div>
+    </div>
   </div>
 </template>

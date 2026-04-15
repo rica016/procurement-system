@@ -293,7 +293,7 @@ function initApp(){
                 : (staffDefaults[role]||'track');
   navigate(startPage);
 
-  autoRefreshId = setInterval(function(){ loadData(); }, 600000);
+  autoRefreshId = setInterval(function(){ silentLoadData(); }, 30000);
   document.getElementById('live-indicator').style.display='inline';
 }
 
@@ -365,7 +365,8 @@ function navigate(page){
   pc.innerHTML=''; pc.className='page'; void pc.offsetWidth;
   if (PAGE_TEMPLATES[page]){ pc.innerHTML=PAGE_TEMPLATES[page](); loadData(); }
 }
-function loadData(){ if(currentPage&&PAGE_LOADERS[currentPage]) PAGE_LOADERS[currentPage](); }
+function loadData(){ _silentRefresh=false; if(currentPage&&PAGE_LOADERS[currentPage]) PAGE_LOADERS[currentPage](); }
+function silentLoadData(){ _silentRefresh=true; if(currentPage&&PAGE_LOADERS[currentPage]) PAGE_LOADERS[currentPage](); setTimeout(function(){ _silentRefresh=false; },200); }
 
 function departmentPageNav(active){
   var steps=[

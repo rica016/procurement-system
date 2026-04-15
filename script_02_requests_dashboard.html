@@ -2,8 +2,9 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MY REQUESTS — End User view
 // ═══════════════════════════════════════════════════════════════════════════════
+var _silentRefresh = false;
 var cachedMyReqs = [];
-var cachedMyReqDeptRows = { bac:[], supply:[], budget:[], accounting:[], cash:[] };
+var cachedMyReqDeptRows = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[], enduser:[] };
 var myReqsTab = 'active';
 var myReqsDeptTab = 'all';
 var transactionCategoryByTracking = {};
@@ -85,6 +86,14 @@ var MYREQS_DEPT_META = {
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     returnDoneHeader:'<tr><th>Tracking No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
     activeCols:4, otherCols:4, returnedCols:5, returnDoneCols:7
+  },
+  enduser: {
+    title:'Requesting Office',
+    returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Date &amp; Time</th><th>Actions</th></tr>',
+    activeHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Forwarded From</th><th>Remarks</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Completed At</th><th>Actions</th></tr>',
+    returnDoneHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Date &amp; Time</th><th>Actions</th></tr>',
+    activeCols:7, otherCols:5, returnedCols:6, returnDoneCols:6
   }
 };
 
@@ -192,6 +201,12 @@ function ensureTransactionCategoryIndex(onReady) {
 
 function classifyMyReqDeptRow(r) {
   var status = String(r['STATUS']||'').trim().toUpperCase();
+  if (r._myReqDept === 'enduser') {
+    if (status === 'RETURNED') return 'returned';
+    if (status === 'CANCELLED') return 'cancelled';
+    if (r['COMPLETED AT'] && String(r['COMPLETED AT']).trim() !== '') return 'done';
+    return 'active';
+  }
   var isNew = String(r['IS NOTIFIED']||r['IS NEW']||'').trim().toUpperCase() === 'TRUE';
   var hasReturn = String(r['RETURNED DATE']||'').trim() !== '';
   var returnDone = String(r['RETURN RECEIVED DATE']||'').trim() !== '';
@@ -212,7 +227,7 @@ function classifyMyReqDeptRow(r) {
 
 function switchMyReqsDeptTab(tab) {
   myReqsDeptTab = tab;
-  ['all','bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(t){
+  ['all','enduser','bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(t){
     var el = document.getElementById('tab-myreqs-dept-'+t);
     if (el) el.classList.toggle('active', t === tab);
   });
@@ -241,15 +256,17 @@ function renderMyReqsBundle(bundle) {
     return;
   }
   cachedMyReqs = Array.isArray(bundle.requests) ? bundle.requests : [];
-  cachedMyReqDeptRows = bundle.departmentRows || { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[] };
+  cachedMyReqDeptRows = bundle.departmentRows || { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[], enduser:[] };
   cachedRows['bac'] = cachedMyReqDeptRows.bac || [];
   rememberTransactionCategoriesFromBacRows(cachedRows['bac']);
   cachedRows['supply'] = cachedMyReqDeptRows.supply || [];
   cachedRows['budget'] = cachedMyReqDeptRows.budget || [];
   cachedRows['accounting'] = cachedMyReqDeptRows.accounting || [];
   cachedRows['cash'] = cachedMyReqDeptRows.cash || [];
+  cachedRows['enduser'] = cachedMyReqDeptRows.enduser || [];
   syncBacCategoryFilterVisibility();
   renderMyReqsTable(cachedMyReqs);
+  if (typeof allTxView !== 'undefined' && allTxView) renderAllTxTable();
 }
 
 function renderMyReqs(reqs) {
@@ -288,13 +305,12 @@ function renderMyReqsTable(reqs) {
     });
   }
 
-  // Count badges per tab across ALL depts
+  // Count badges per tab — always from enduser sheet (My Requests is end-user centric)
   var tabCounts = { active:0, returned:0, done:0, cancelled:0 };
-  ['bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(key){
-    matchingRows(key).forEach(function(r){
-      var cat = classifyMyReqDeptRow(r);
-      if (tabCounts[cat] !== undefined) tabCounts[cat]++;
-    });
+  matchingRows('enduser').forEach(function(r){
+    r._myReqDept = 'enduser';
+    var cat = classifyMyReqDeptRow(r);
+    if (tabCounts[cat] !== undefined) tabCounts[cat]++;
   });
   Object.keys(tabCounts).forEach(function(t){
     var el = document.getElementById('myreqs-count-'+t); if (el) el.textContent = tabCounts[t];
@@ -308,11 +324,11 @@ function renderMyReqsTable(reqs) {
 
   // Dept tab counts for current status tab
   var allDeptRows = [];
-  ['bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(key){
-    var count = matchingRows(key).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; }).length;
+  ['enduser','bac','supply','budget','accounting','cash','rcao','arda'].forEach(function(key){
+    var count = matchingRows(key).filter(function(r){ r._myReqDept = key; return classifyMyReqDeptRow(r) === myReqsTab; }).length;
     var el = document.getElementById('myreqs-dept-count-'+key);
     if (el) el.textContent = count;
-    allDeptRows = allDeptRows.concat((matchingRows(key) || []).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; }).map(function(r){
+    allDeptRows = allDeptRows.concat((matchingRows(key) || []).filter(function(r){ r._myReqDept = key; return classifyMyReqDeptRow(r) === myReqsTab; }).map(function(r){
       r._myReqDept = key;
       return r;
     }));
@@ -320,28 +336,58 @@ function renderMyReqsTable(reqs) {
   var allDeptCountEl = document.getElementById('myreqs-dept-count-all');
   if (allDeptCountEl) allDeptCountEl.textContent = allDeptRows.length;
 
-  var deptRows = (myReqsDeptTab === 'all')
-    ? allDeptRows
-    : matchingRows(myReqsDeptTab).filter(function(r){ return classifyMyReqDeptRow(r) === myReqsTab; });
+  // Declare before first use (avoid hoisting issues)
+  var isReturnTab    = myReqsTab === 'returned';
+  var isActiveTab    = myReqsTab === 'active';
+  var isDoneTab      = myReqsTab === 'done';
+  var isCancelledTab = myReqsTab === 'cancelled';
+  var euMeta = MYREQS_DEPT_META.enduser;
 
-  var isReturnTab     = myReqsTab === 'returned';
-  var isActiveTab     = myReqsTab === 'active';
-  var cols = (myReqsDeptTab === 'all')
-    ? (isReturnTab ? (meta.returnedCols || meta.allCols) : meta.allCols)
-    : (isReturnTab ? meta.returnedCols : (isActiveTab ? meta.activeCols : meta.otherCols));
-
-  if (thead) {
-    if (myReqsDeptTab === 'all') {
-      thead.innerHTML = isReturnTab ? (meta.returnedHeader || meta.allHeader) : meta.allHeader;
-    } else {
-      thead.innerHTML = isReturnTab ? meta.returnedHeader : (isActiveTab ? meta.activeHeader : meta.otherHeader);
-    }
+  // All tabs use enduser rows — My Requests is always from the end-user's perspective.
+  // A transaction is only "Completed" when the end user has forwarded it (COMPLETED AT set on enduser row).
+  var deptRows;
+  if (isReturnTab || isActiveTab || isDoneTab || isCancelledTab) {
+    deptRows = matchingRows('enduser').filter(function(r){ r._myReqDept = 'enduser'; return classifyMyReqDeptRow(r) === myReqsTab; }).map(function(r){ r._myReqDept = 'enduser'; return r; });
+  } else if (myReqsDeptTab === 'all') {
+    deptRows = allDeptRows;
+  } else {
+    deptRows = matchingRows(myReqsDeptTab).filter(function(r){ r._myReqDept = myReqsDeptTab; return classifyMyReqDeptRow(r) === myReqsTab; });
   }
 
-  var titleMap = { active:'Active', returned:'Returned', done:'Completed', cancelled:'Cancelled' };
+  var cols, theadHtml;
+  if (isReturnTab) {
+    cols = euMeta.returnedCols;
+    theadHtml = euMeta.returnedHeader;
+  } else if (isActiveTab) {
+    if (myReqsDeptTab === 'all') {
+      cols = (meta.allCols || meta.activeCols) + 1;
+      theadHtml = (meta.allHeader || '').replace('</tr>', '<th>Actions</th></tr>');
+    } else {
+      cols = euMeta.activeCols;
+      theadHtml = euMeta.activeHeader;
+    }
+  } else if (isDoneTab || isCancelledTab) {
+    cols = euMeta.otherCols;
+    theadHtml = euMeta.otherHeader;
+  } else if (myReqsDeptTab === 'all') {
+    cols = meta.allCols || meta.activeCols;
+    theadHtml = meta.allHeader || meta.activeHeader;
+  } else if (myReqsDeptTab === 'enduser') {
+    cols = euMeta.otherCols;
+    theadHtml = euMeta.otherHeader;
+  } else {
+    cols = meta.otherCols;
+    theadHtml = meta.otherHeader;
+  }
+  if (thead) thead.innerHTML = theadHtml || '';
+
+  var titleMap = { active:'Processing', returned:'End-User Returns', done:'Completed', cancelled:'Cancelled' };
   var titleEl = document.getElementById('myreqs-panel-title');
-  if (titleEl) titleEl.textContent = (titleMap[myReqsTab]||'Active') + ' · ' + meta.title;
+  if (titleEl) titleEl.textContent = (isActiveTab || isReturnTab || isDoneTab || isCancelledTab) ? (titleMap[myReqsTab]||'Active') : ((titleMap[myReqsTab]||'Active') + ' · ' + meta.title);
   if (sub) sub.textContent = deptRows.length + ' record' + (deptRows.length !== 1 ? 's' : '');
+  // Hide dept filter for all end-user-centric tabs (always show enduser rows)
+  var deptFilterEl = document.getElementById('myreqs-dept-filter');
+  if (deptFilterEl) deptFilterEl.style.display = (isActiveTab || isReturnTab || isDoneTab || isCancelledTab) ? 'none' : '';
   syncBacCategoryFilterVisibility();
 
   if (!deptRows.length) {
@@ -362,6 +408,16 @@ function renderMyReqsTable(reqs) {
 
   tb.innerHTML = deptRows.map(function(r) {
     if (myReqsDeptTab === 'all' && !isReturnTab) {
+      var allActCell = '';
+      if (isActiveTab) {
+        var rd = String(r._myReqDept || '').toLowerCase();
+        allActCell = rd === 'enduser'
+          ? '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+            '<button class="btn-sm view" onclick="openViewModal(\'enduser\','+r._rowNum+')">👁 View</button>'+
+            '<button class="btn-sm forward" onclick="openForwardModal(\'END USER\','+r._rowNum+')">Forward</button>'+
+            '</div></div></td>'
+          : '<td></td>';
+      }
       return '<tr class="'+doneCls+'">'+
         myReqsTrackingPrCell(r)+
         MYREQS_ALL_TX_COLUMNS.slice(2).map(function(col) {
@@ -373,6 +429,7 @@ function renderMyReqsTable(reqs) {
           }
           return '<td>'+esc2(r[col] || '—')+'</td>';
         }).join('')+
+        allActCell+
       '</tr>';
     }
 
@@ -382,13 +439,37 @@ function renderMyReqsTable(reqs) {
 
     if (isReturnTab) {
       return '<tr class="new-row">'+
-        (myReqsDeptTab === 'all' ? trackingPrCell(r, true) : trackingPrCell(r))+
-        '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-        '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+        trackingPrCell(r, true)+
+        '<td>'+esc2(r['RETURNED FROM']||r['FORWARDED FROM']||'—')+'</td>'+
+        '<td>'+esc2(r['RETURN REMARKS']||r['FORWARD REMARKS']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
         '<td>'+actionMenu+viewBtn+
-        '<button class="btn-sm success" onclick="completeReturnedMyRequest(\''+rowDept+'\','+r._rowNum+')">✔ Receive</button>'+
+        '<button class="btn-sm success" onclick="receiveEndUserRequest('+r._rowNum+')">✔ Receive</button>'+
         '</div></div></td></tr>';
+    }
+
+    if (rowDept === 'enduser') {
+      if (isActiveTab) {
+        var actionBtnsActive = actionMenu + viewBtn +
+          '<button class="btn-sm forward" onclick="openForwardModal(\'END USER\','+r._rowNum+')">Forward</button>'+
+          '</div></div>';
+        return '<tr>'+
+          trackingPrCell(r)+
+          '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+          '<td>'+esc2(r['FORWARDED FROM']||r['RETURNED FROM']||'—')+'</td>'+
+          '<td>'+esc2(r['FORWARD REMARKS']||r['RETURN REMARKS']||'—')+'</td>'+
+          '<td>'+statusBadge(r['STATUS'])+'</td>'+
+          '<td>'+actionBtnsActive+'</td></tr>';
+      }
+      var actionBtnsDone = actionMenu + viewBtn +
+        '<button class="btn-sm warn" onclick="reopenEndUserCompleted('+r._rowNum+', this)">↺ Undo</button>'+
+        '</div></div>';
+      return '<tr class="completed-row">'+
+        trackingPrCell(r)+
+        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>'+
+        '<td>'+actionBtnsDone+'</td>'+
+      '</tr>';
     }
 
     var actionBtns = actionMenu + viewBtn + '</div></div>';
@@ -494,6 +575,149 @@ function renderMyReqsTable(reqs) {
 function filterMyReqs() {
   var q  = (document.getElementById('myreqs-search').value||'').toLowerCase();
   var tb = document.getElementById('myreqs-tbody');
+  if (!tb) return;
+  tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+}
+
+function receiveEndUserRequest(rowNum) {
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (res && res.success) { showToast('Transaction received.', 'success'); loadData(); }
+      else showToast('Error: ' + (res && res.message || 'Unknown'), 'error');
+    })
+    .withFailureHandler(function(e){ showToast('Error: ' + e.message, 'error'); })
+    .receiveTransaction('END USER', rowNum, '', currentUser.username);
+}
+
+function reopenEndUserCompleted(rowNum, btn) {
+  if (!btn) btn = event && event.target;
+  var orig = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = 'Undoing…'; btn.disabled = true; }
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (res && res.success) {
+        showToast('Transaction moved back to Processing.', 'success');
+        loadData();
+      } else {
+        if (btn) { btn.textContent = orig; btn.disabled = false; }
+        showToast('Error: ' + (res && res.message || 'Unknown'), 'error');
+      }
+    })
+    .withFailureHandler(function(e){
+      if (btn) { btn.textContent = orig; btn.disabled = false; }
+      showToast('Error: ' + e.message, 'error');
+    })
+    .receiveTransaction('END USER', rowNum, 'Reopened from completed', currentUser.username);
+}
+
+// ── ALL MY TRANSACTIONS VIEW ──────────────────────────────────────────────────
+var allTxView = false;
+var allTxTab = 'active';
+
+function toggleAllTxView() {
+  allTxView = !allTxView;
+  var tabNav   = document.getElementById('myreqs-tab-nav');
+  var mainPanel = document.getElementById('myreqs-main-panel');
+  var allPanel  = document.getElementById('all-tx-panel');
+  var btn       = document.getElementById('btn-all-tx');
+  if (tabNav)    tabNav.style.display    = allTxView ? 'none' : '';
+  if (mainPanel) mainPanel.style.display = allTxView ? 'none' : '';
+  if (allPanel)  allPanel.style.display  = allTxView ? '' : 'none';
+  if (btn) btn.textContent = allTxView ? '✕ Close' : '📋 All My Transactions';
+  if (allTxView) renderAllTxTable();
+}
+
+function switchAllTxTab(tab) {
+  allTxTab = tab;
+  ['active','done','cancelled'].forEach(function(t){
+    var el = document.getElementById('tab-alltx-'+t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  renderAllTxTable();
+}
+
+function renderAllTxTable() {
+  var tb    = document.getElementById('alltx-tbody');
+  var thead = document.getElementById('alltx-thead');
+  var subEl = document.getElementById('alltx-sub');
+  if (!tb) return;
+
+  // Build full-row lookup from dept caches (any row for a tracking no. has all cross-dept columns)
+  var fullRowByTn = {};
+  ['bac','supply','budget','accounting','cash','rcao','arda','enduser'].forEach(function(k) {
+    (cachedMyReqDeptRows[k] || []).forEach(function(r) {
+      var tn = String(r['TRACKING NO.'] || '').trim();
+      if (tn && !fullRowByTn[tn]) fullRowByTn[tn] = r;
+    });
+  });
+
+  // Update table header to show all columns
+  var colCount = MYREQS_ALL_TX_COLUMNS.length;
+  if (thead) thead.innerHTML = '<tr>'+MYREQS_ALL_TX_COLUMNS.map(function(c){ return '<th>'+esc2(c)+'</th>'; }).join('')+'</tr>';
+
+  var catFilter = (document.getElementById('alltx-cat-filter') || {value:'All'}).value || 'All';
+  var allReqs = cachedMyReqs || [];
+
+  // Update tab counts
+  var counts = { active:0, done:0, cancelled:0 };
+  allReqs.forEach(function(r){
+    var st = String(r.currentStatus||'').trim().toUpperCase();
+    var sc = String(r.currentSection||'').trim().toUpperCase();
+    if (st === 'CANCELLED') counts.cancelled++;
+    else if (st === 'COMPLETED' || sc === 'COMPLETED') counts.done++;
+    else counts.active++;
+  });
+  ['active','done','cancelled'].forEach(function(t){
+    var el = document.getElementById('alltx-count-'+t);
+    if (el) el.textContent = counts[t];
+    var btn = document.getElementById('tab-alltx-'+t);
+    if (btn) btn.classList.toggle('active', t === allTxTab);
+  });
+
+  var rows = allReqs.filter(function(r){
+    var st = String(r.currentStatus||'').trim().toUpperCase();
+    var sc = String(r.currentSection||'').trim().toUpperCase();
+    if (catFilter !== 'All') {
+      var cat = String(transactionCategoryByTracking[r.trackingNo] || '').trim();
+      if (normalizeBacCategoryValue(cat) !== normalizeBacCategoryValue(catFilter)) return false;
+    }
+    if (allTxTab === 'active')    return st !== 'COMPLETED' && st !== 'CANCELLED' && sc !== 'COMPLETED';
+    if (allTxTab === 'done')      return st === 'COMPLETED' || sc === 'COMPLETED';
+    if (allTxTab === 'cancelled') return st === 'CANCELLED';
+    return false;
+  });
+
+  if (subEl) subEl.textContent = rows.length + ' record' + (rows.length !== 1 ? 's' : '');
+
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="'+colCount+'"><div class="empty"><div class="empty-icon">📭</div>'+
+      '<div class="empty-title">No records</div>'+
+      '<div class="empty-sub">No '+({active:'active',done:'completed',cancelled:'cancelled'}[allTxTab]||'')+' transactions found.</div></div></td></tr>';
+    return;
+  }
+
+  tb.innerHTML = rows.map(function(r){
+    var tn = String(r.trackingNo || '').trim();
+    var fullRow = fullRowByTn[tn] || {};
+    return '<tr>'+MYREQS_ALL_TX_COLUMNS.map(function(col){
+      if (col === 'TRACKING NO.') return '<td><span class="td-tracking">'+esc2(tn||'—')+'</span></td>';
+      if (col === 'P.R NO.')      return '<td><span class="td-pr">'+esc2(r.prNo || fullRow[col] || '—')+'</span></td>';
+      if (col === 'CURRENT DEPT') {
+        var dept = String(r.currentSection || fullRow[col] || '').trim();
+        if (dept.toUpperCase() === 'END USER') dept = 'Requesting Office';
+        return '<td>'+esc2(dept||'—')+'</td>';
+      }
+      if (col === 'CURRENT STATUS') return '<td>'+statusBadge(r.currentStatus || fullRow['STATUS'] || '—')+'</td>';
+      if (DASHBOARD_ALL_TX_CURRENCY[col]) return '<td>'+currency(fullRow[col])+'</td>';
+      if (col === 'PARTICULARS') return '<td class="td-wrap">'+esc2(fullRow[col]||'—')+'</td>';
+      return '<td>'+esc2(fullRow[col]||'—')+'</td>';
+    }).join('')+'</tr>';
+  }).join('');
+}
+
+function filterAllTx() {
+  var q = (document.getElementById('alltx-search').value||'').toLowerCase();
+  var tb = document.getElementById('alltx-tbody');
   if (!tb) return;
   tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
 }
@@ -1430,14 +1654,16 @@ function switchTab(page,tab){
 // ═══════════════════════════════════════════════════════════════════════════════
 var PAGE_LOADERS={
   dashboard: function(){
-    var tb = document.getElementById('dashboard-tbody');
-    if (tb) tb.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div> Loading transactions…</div></td></tr>';
-    var sgEl = document.getElementById('dashboard-stat-grid');
-    if (sgEl) sgEl.innerHTML='<div class="loading"><div class="spinner"></div> Computing analytics…</div>';
-    var pipeEl = document.getElementById('dashboard-pipeline');
-    if (pipeEl) pipeEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
-    var alertsEl = document.getElementById('dashboard-alerts');
-    if (alertsEl) alertsEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
+    if (!_silentRefresh) {
+      var tb = document.getElementById('dashboard-tbody');
+      if (tb) tb.innerHTML='<tr><td colspan="8"><div class="loading"><div class="spinner"></div> Loading transactions…</div></td></tr>';
+      var sgEl = document.getElementById('dashboard-stat-grid');
+      if (sgEl) sgEl.innerHTML='<div class="loading"><div class="spinner"></div> Computing analytics…</div>';
+      var pipeEl = document.getElementById('dashboard-pipeline');
+      if (pipeEl) pipeEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
+      var alertsEl = document.getElementById('dashboard-alerts');
+      if (alertsEl) alertsEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading…</div>';
+    }
 
     var tok = ++_dashToken;
     dashboardLastActivityByTracking = {};
@@ -1474,8 +1700,10 @@ var PAGE_LOADERS={
     var thead = document.getElementById('myreqs-thead');
     var meta = MYREQS_DEPT_META[myReqsDeptTab] || MYREQS_DEPT_META.bac;
     var loadingCols = meta.allCols || meta.activeCols || 9;
-    if (thead) thead.innerHTML = (myReqsDeptTab === 'all' ? meta.allHeader : meta.activeHeader);
-    if (tb) tb.innerHTML='<tr><td colspan="'+loadingCols+'"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr>';
+    if (!_silentRefresh) {
+      if (thead) thead.innerHTML = (myReqsDeptTab === 'all' ? meta.allHeader : meta.activeHeader);
+      if (tb) tb.innerHTML='<tr><td colspan="'+loadingCols+'"><div class="loading"><div class="spinner"></div> Loading your requests…</div></td></tr>';
+    }
     google.script.run
       .withSuccessHandler(function(bundle){ renderMyReqsBundle(bundle); })
       .withFailureHandler(function(e){ var tb2=document.getElementById('myreqs-tbody'); if(tb2) tb2.innerHTML='<tr><td colspan="'+loadingCols+'"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
@@ -1483,12 +1711,12 @@ var PAGE_LOADERS={
   },
 
   bac:        function(){ loadSheet('bac',        'bac-tbody',    18, 'getBACPageData');    },
-  supply:     function(){ loadSheet('supply',     'supply-tbody', 13, 'getSupplyData');     },
-  budget:     function(){ loadSheet('budget',     'budget-tbody',  8, 'getBudgetData');     },
-  accounting: function(){ loadSheet('accounting', 'acctg-tbody',   8, 'getAccountingData'); },
-  cash:       function(){ loadSheet('cash',       'cash-tbody',    7, 'getCashData');       },
-  rcao:       function(){ loadSheet('rcao',       'rcao-tbody',    6, 'getRCAOData');       },
-  arda:       function(){ loadSheet('arda',       'arda-tbody',    6, 'getARDAData');       },
+  supply:     function(){ loadSheet('supply',     'supply-tbody', 13, 'getSupplyPageData');     },
+  budget:     function(){ loadSheet('budget',     'budget-tbody',  8, 'getBudgetPageData');     },
+  accounting: function(){ loadSheet('accounting', 'acctg-tbody',   8, 'getAccountingPageData'); },
+  cash:       function(){ loadSheet('cash',       'cash-tbody',    7, 'getCashPageData');       },
+  rcao:       function(){ loadSheet('rcao',       'rcao-tbody',    6, 'getRCAOPageData');       },
+  arda:       function(){ loadSheet('arda',       'arda-tbody',    6, 'getARDAPageData');       },
   track:      function(){ /* interactive */ },
 
   users: function(){
@@ -1531,7 +1759,7 @@ var PAGE_LOADERS={
 
 function loadSheet(page, tbId, errCols, fn){
   var tb=document.getElementById(tbId); if(!tb) return;
-  tb.innerHTML='<tr><td colspan="'+errCols+'"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr>';
+  if (!_silentRefresh) tb.innerHTML='<tr><td colspan="'+errCols+'"><div class="loading"><div class="spinner"></div> Loading…</div></td></tr>';
   google.script.run
     .withSuccessHandler(function(rows){
       cachedRows[page]=rows;

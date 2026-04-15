@@ -1,4 +1,22 @@
 <script>
+function returnedFromDisplayValue(r){
+  var keys=['RETURNED FROM','RETURNED BY','RETURNED FROM DEPT','RETURN BY','RETURNER'];
+  for (var i = 0; i < keys.length; i++) {
+    var value = String(r && r[keys[i]] || '').trim();
+    if (value) return value;
+  }
+  return '—';
+}
+
+function returnedRemarksDisplayValue(r){
+  var keys=['RETURN REMARKS','RETURNED REMARKS','RETURNED BY REMARKS'];
+  for (var i = 0; i < keys.length; i++) {
+    var value = String(r && r[keys[i]] || '').trim();
+    if (value) return value;
+  }
+  return '—';
+}
+
 function returnedToDisplay(r){
   var rt=String(r['RETURN TO']||'').trim();
   if(rt!== 'Requesting Office') return rt||'—';
@@ -9,7 +27,7 @@ function returnedToDisplay(r){
 function forwardedFromDisplay(r, page){
   var v=String(r['FORWARDED FROM']||'').trim();
   if(v) return v;
-  var fallback={bac:'Requesting Office',supply:'BAC',budget:'Supply',accounting:'Budget',cash:'Accounting'};
+  var fallback={bac:'Requesting Office',supply:'BAC',budget:'Supply',accounting:'Budget',cash:'Accounting',rcao:'Accounting',arda:'RCAO'};
   return fallback[page]||'—';
 }
 
@@ -26,7 +44,7 @@ function canContinueReturnDone(r, page){
   if(!canEdit(deptMap[page]||page.toUpperCase())) return false;
   
   // Record's RETURNED FROM must match this department's aliases
-  var rf=String(r['RETURNED FROM']||'').trim().toUpperCase();
+  var rf=returnedFromDisplayValue(r).toUpperCase();
   var aliases={
     bac:['BAC'],
     supply:['SUPPLY','SUPPLY AND PROPERTY'],
@@ -143,8 +161,8 @@ var ROW_BUILDERS={
     var cls=isNew?'new-row':((!active)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
@@ -154,7 +172,7 @@ var ROW_BUILDERS={
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
       trackingPrCell(r, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
@@ -163,8 +181,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
       trackingPrCell(r, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'bac\','+r._rowNum+')">👁 View</button>'+
@@ -176,7 +194,6 @@ var ROW_BUILDERS={
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BAC\','+r._rowNum+',\'bac\',this)">↺ Undo</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BAC\','+r._rowNum+',\'bac\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BAC\','+r._rowNum+')">Forward</button>':'')+
-      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BAC\','+r._rowNum+')">↩ Return</button>':'')+
       (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'BAC\','+r._rowNum+')">🗑 Cancel</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'" data-category="'+esc(r['CATEGORY']||'')+'">'+
@@ -223,8 +240,8 @@ var ROW_BUILDERS={
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
@@ -234,7 +251,7 @@ var ROW_BUILDERS={
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
       trackingPrCell(r, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
@@ -243,8 +260,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
       trackingPrCell(r, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'supply\','+r._rowNum+')">👁 View</button>'+
@@ -256,7 +273,6 @@ var ROW_BUILDERS={
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">↺ Undo</button>':'')+    
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">Forward</button>':'')+
-      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'SUPPLY AND PROPERTY\','+r._rowNum+')">↩ Return</button>':'')+
       ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'SUPPLY AND PROPERTY\','+r._rowNum+')">🗑 Cancel</button>':'')+
       '</div></div>':'';
@@ -296,8 +312,8 @@ var ROW_BUILDERS={
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
@@ -307,7 +323,7 @@ var ROW_BUILDERS={
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
@@ -316,8 +332,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'budget\','+r._rowNum+')">👁 View</button>'+
@@ -329,7 +345,6 @@ var ROW_BUILDERS={
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'BUDGET\','+r._rowNum+',\'budget\',this)">↺ Undo</button>':'')+ 
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'BUDGET\','+r._rowNum+',\'budget\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'BUDGET\','+r._rowNum+')">Forward</button>':'')+
-      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'BUDGET\','+r._rowNum+')">↩ Return</button>':'')+
       ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       (active?'<button class="btn-sm cancel" onclick="doCancelTransaction(\'BUDGET\','+r._rowNum+')">🗑 Cancel</button>':'')+
       '</div></div>':'';
@@ -362,8 +377,8 @@ var ROW_BUILDERS={
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
@@ -373,7 +388,7 @@ var ROW_BUILDERS={
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
@@ -382,8 +397,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'accounting\','+r._rowNum+')">👁 View</button>'+
@@ -395,7 +410,6 @@ var ROW_BUILDERS={
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">↺ Undo</button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'ACCOUNTING\','+r._rowNum+',\'accounting\',this)">▶ Continue</button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'ACCOUNTING\','+r._rowNum+')">Forward</button>':'')+
-      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'ACCOUNTING\','+r._rowNum+')">↩ Return</button>':'')+
       ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
@@ -427,8 +441,8 @@ var ROW_BUILDERS={
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
@@ -438,7 +452,7 @@ var ROW_BUILDERS={
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
@@ -447,8 +461,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
       trackingPrCell(r)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'cash\','+r._rowNum+')">👁 View</button>'+
@@ -459,8 +473,8 @@ var ROW_BUILDERS={
       '<button class="btn-sm edit" onclick="openEditModal(\'cash\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'CASH\','+r._rowNum+',\'cash\',this)">↺ Undo</button>':'')+     
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'CASH\','+r._rowNum+',\'cash\',this)">▶ Continue</button>':'')+
+      (active?'<button class="btn-sm forward" onclick="openForwardModal(\'CASH\','+r._rowNum+')">Forward</button>':'')+
       (active?'<button class="btn-sm paid" onclick="doMarkPaid('+r._rowNum+')">✓ Mark Paid</button>':'')+
-      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'CASH\','+r._rowNum+')">↩ Return</button>':'')+
       ((isAdmin()||canEdit('BAC'))&&active?'<button class="btn-sm pr-edit" onclick="openPRModal(\''+esc(r['TRACKING NO.'])+'\',\''+esc(r['P.R NO.']||r['P.R #'])+'\')">✎ P.R NO.</button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
@@ -489,8 +503,8 @@ var ROW_BUILDERS={
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r, undefined, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
@@ -500,7 +514,7 @@ var ROW_BUILDERS={
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
       trackingPrCell(r, undefined, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
@@ -509,8 +523,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
       trackingPrCell(r, undefined, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'rcao\','+r._rowNum+')">👁 View</button>'+
@@ -522,7 +536,6 @@ var ROW_BUILDERS={
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'RCAO\','+r._rowNum+',\'rcao\',this)">↺ Undo<\/button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'RCAO\','+r._rowNum+',\'rcao\',this)">▶ Continue<\/button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'RCAO\','+r._rowNum+')">Forward<\/button>':'')+
-      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'RCAO\','+r._rowNum+')">↩ Return<\/button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
       trackingPrCell(r, true)+
@@ -550,8 +563,8 @@ var ROW_BUILDERS={
     var cls=isNew?'new-row':((!active&&!isNew)?'completed-row':'');
     if (tab==='returndone') return '<tr class="completed-row">'+
       trackingPrCell(r, undefined, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td>'+esc2(r['RETURN RECEIVED REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURN RECEIVED DATE']||'—')+'</td>'+
@@ -561,7 +574,7 @@ var ROW_BUILDERS={
       '</tr>';
     if (tab==='returned' && String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE') return '<tr class="new-row">'+
       trackingPrCell(r, undefined, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
       '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
@@ -570,8 +583,8 @@ var ROW_BUILDERS={
       '</div></div></td></tr>';
     if (tab==='returned') return '<tr class="'+cls+'">'+
       trackingPrCell(r, undefined, true)+
-      '<td>'+esc2(r['RETURNED FROM']||'—')+'</td>'+
-      '<td>'+esc2(r['RETURN REMARKS']||'—')+'</td>'+
+      '<td>'+esc2(returnedFromDisplayValue(r))+'</td>'+
+      '<td>'+esc2(returnedRemarksDisplayValue(r))+'</td>'+
       '<td class="td-mono">'+esc2(r['RETURNED DATE']||'—')+'</td>'+
       '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
       '<button class="btn-sm view" onclick="openViewModal(\'arda\','+r._rowNum+')">👁 View</button>'+
@@ -583,7 +596,6 @@ var ROW_BUILDERS={
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'ARDA\','+r._rowNum+',\'arda\',this)">↺ Undo<\/button>':'')+
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'ARDA\','+r._rowNum+',\'arda\',this)">▶ Continue<\/button>':'')+
       (active?'<button class="btn-sm forward" onclick="openForwardModal(\'ARDA\','+r._rowNum+')">Forward<\/button>':'')+
-      (active?'<button class="btn-sm warn" onclick="openReturnModal(\'ARDA\','+r._rowNum+')">↩ Return<\/button>':'')+
       '</div></div>':'';
     if (isNew) return '<tr class="'+cls+'">'+
       trackingPrCell(r, true)+
@@ -1105,7 +1117,7 @@ var RETURN_TARGETS=[
   {value:'ARDA',label:'ARDA'}
 ];
 
-function getPageKeyFromSheet(sn){ var m={'BAC':'bac','SUPPLY AND PROPERTY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASH':'cash','RCAO':'rcao','ARDA':'arda'}; return m[sn]||'bac'; }
+function getPageKeyFromSheet(sn){ var m={'BAC':'bac','SUPPLY AND PROPERTY':'supply','BUDGET':'budget','ACCOUNTING':'accounting','CASH':'cash','RCAO':'rcao','ARDA':'arda','END USER':'enduser'}; return m[sn]||'bac'; }
 function returnTargetOptions(sheetName){
   return RETURN_TARGETS.filter(function(opt){ return opt.value!==sheetName; });
 }
@@ -1113,7 +1125,7 @@ function receiveForwardTargetOptions(){
   return RETURN_TARGETS.slice();
 }
 function forwardTargetOptions(sheetName){
-  return RETURN_TARGETS.filter(function(opt){ return opt.value!=='END USER' && opt.value!==sheetName; });
+  return RETURN_TARGETS.filter(function(opt){ return opt.value!==sheetName; });
 }
 function forwardTargetLabel(value){
   var found = RETURN_TARGETS.find(function(opt){ return opt.value===value; });
@@ -1153,12 +1165,16 @@ function confirmForward(){
     .withSuccessHandler(function(res){
       btn.textContent='Forward →'; btn.disabled=false;
       document.getElementById('forward-modal').classList.remove('open');
-      if(res&&res.success){ showToast('Forwarded to '+forwardTargetLabel(target)+'.','success'); loadData(); }
+      if(res&&res.success){
+        showToast('Forwarded to '+forwardTargetLabel(target)+'.','success');
+        loadData();
+        if (fwdState.sheetName === 'ACCOUNTING') setTimeout(function(){ switchTab('accounting','active'); }, 150);
+      }
       else showToast('Error: '+(res&&res.message||'Unknown'),'error');
       fwdState={};
     })
     .withFailureHandler(function(e){ btn.textContent='Forward →'; btn.disabled=false; showToast('Error: '+e.message,'error'); })
-    .forwardTransaction(fwdState.sheetName, fwdState.rowNum, target, extraD, currentUser.username);
+    .smartForwardTransaction(fwdState.sheetName, fwdState.rowNum, target, extraD, currentUser.username);
 }
 
 function openReturnModal(sheetName, rowNum){
@@ -1194,7 +1210,11 @@ function confirmReturn(){
     .withSuccessHandler(function(res){
       btn.textContent='Return'; btn.disabled=false;
       document.getElementById('return-modal').classList.remove('open');
-      if(res&&res.success){ showToast('Transaction returned successfully.','success'); loadData(); }
+      if(res&&res.success){
+        showToast('Transaction returned successfully.','success');
+        loadData();
+        if (returnState.sheetName === 'ACCOUNTING') setTimeout(function(){ switchTab('accounting','active'); }, 150);
+      }
       else showToast('Error: '+(res&&res.message||'Unknown'),'error');
       returnState={};
     })
@@ -1224,7 +1244,7 @@ function openCompleteReturnedModal(sheetName, rowNum, contextName, pageKey){
   }).join('');
   document.getElementById('main-modal-body').innerHTML=
     '<div class="form-grid">'+
-      (row&&row['RETURN REMARKS']?'<div class="form-group full"><label class="form-label">Returner Remarks</label><div class="view-value" style="min-height:72px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);">'+esc2(row['RETURN REMARKS'])+'</div></div>':'')+
+      (row&&returnedRemarksDisplayValue(row)!=='—'?'<div class="form-group full"><label class="form-label">Returner Remarks</label><div class="view-value" style="min-height:72px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);">'+esc2(returnedRemarksDisplayValue(row))+'</div></div>':'')+
       '<div class="form-group full"><label class="form-label">Forward Remarks <span class="req">*</span></label><textarea class="form-textarea" id="mf_return_complete_remarks" placeholder="Add forward remarks" style="min-height:140px;"></textarea></div>'+
       '<div class="form-group full"><label class="form-label">Forward To Department <span class="req">*</span></label><select class="form-select" id="mf_return_complete_forward_to"><option value="">— Select —</option>'+forwardOpts+'</select></div>'+
     '</div>';

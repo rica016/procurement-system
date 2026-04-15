@@ -502,6 +502,10 @@ function buildDepartmentRows(deptName) {
     var receivedAt = '';
     var completedAt = '';
     var cancelledAt = '';
+    var forwardedFromDept = '';
+    var returnedFromDept = '';
+    var returnedFromDate = '';
+    var returnedFromRemarks = '';
     var statusUpper = String(t.currentStatus || '').trim().toUpperCase();
     var allowNotifiedFromHistory = statusUpper !== 'PROCESSING' && statusUpper !== 'RETURN TO PROCESSING' && statusUpper !== 'UNDO';
     var displayStatus = statusUpper === 'UNDO' ? 'PROCESSING' : (t.currentStatus || 'PROCESSING');
@@ -514,9 +518,17 @@ function buildDepartmentRows(deptName) {
       if (!receivedAt && normalizeDepartmentName(hz.toDept) === t.currentDept && String(hz.action || '').toUpperCase() === 'RECEIVED') {
         receivedAt = hz.timestamp;
       }
+      if (!returnedFromDept && String(hz.action || '').toUpperCase() === 'RETURNED' && normalizeDepartmentName(hz.toDept) === t.currentDept) {
+        returnedFromDept = displayDepartmentName(normalizeDepartmentName(hz.fromDept));
+        returnedFromDate = hz.timestamp || '';
+        returnedFromRemarks = hz.remarks || '';
+      }
       if (!isNewNotified && allowNotifiedFromHistory && String(hz.action || '').toUpperCase() === 'FORWARD') {
         isNewNotified = hz.isNotified === false || String(hz.isNotified || '').toLowerCase() === 'false';
         latestForwardIdx = z;
+        if (!forwardedFromDept && normalizeDepartmentName(hz.toDept) === t.currentDept) {
+          forwardedFromDept = displayDepartmentName(normalizeDepartmentName(hz.fromDept));
+        }
         break;
       }
       if (completedAt && cancelledAt && receivedAt) break;
@@ -590,21 +602,19 @@ function buildDepartmentRows(deptName) {
       'ARDA': pickTx('ARDA'),
       'STATUS': displayStatus,
       'CURRENT DEPT': t.currentDept,
+      'FORWARDED FROM': forwardedFromDept,
       'FORWARD REMARKS': latest ? latest.remarks : '',
       'COMPLETED AT': completedAt,
       'CANCELLED AT': cancelledAt,
       'RETURN TO': '',
-      'RETURNED FROM': '',
-      'RETURN REMARKS': '',
-      'RETURNED DATE': '',
+      'RETURNED FROM': isReturnBack ? displayDepartmentName(returnBackFromDept) : returnedFromDept,
+      'RETURN REMARKS': returnedFromRemarks,
+      'RETURNED DATE': isReturnBack && latest ? latest.timestamp : returnedFromDate,
       'RETURN RECEIVED DATE': '',
       'RETURN RECEIVED REMARKS': '',
       'IS NOTIFIED': isNewNotified ? 'TRUE' : '',
       'IS NEW': isNewNotified ? 'TRUE' : '',
       'IS RETURN BACK': isReturnBack ? 'TRUE' : '',
-      'RETURNED FROM': isReturnBack ? displayDepartmentName(returnBackFromDept) : (t.currentDept === 'END USER' && latest ? displayDepartmentName(normalizeDepartmentName(latest.fromDept)) : ''),
-      'RETURN REMARKS': t.currentDept === 'END USER' && latest ? (latest.remarks || '') : '',
-      'RETURNED DATE': (isReturnBack && latest ? latest.timestamp : (t.currentDept === 'END USER' && latest ? latest.timestamp : '')),
       'DATE RECEIVED': receivedAt || (latest ? latest.timestamp : '')
     });
   }
@@ -630,6 +640,112 @@ function buildDepartmentRowsMapFromAllRows(allRows) {
 
 function getDepartmentRowsMap() {
   return buildDepartmentRowsMapFromAllRows(buildDepartmentRows('ALL'));
+}
+
+// Returns rows for a single dept including forwarded-away completed copies.
+function getDeptPageData(deptName) {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  ensureCoreSheets(ss);
+  var dept = normalizeDepartmentName(deptName);
+  var allRows = buildDepartmentRows('ALL');
+  var histRows = getHistoryRows(ss);
+
+  var histByTracking = {};
+  for (var i = 0; i < histRows.length; i++) {
+    var hh = histRows[i];
+    histByTracking[hh.trackingNo] = histByTracking[hh.trackingNo] || [];
+    histByTracking[hh.trackingNo].push(hh);
+  }
+
+  var rows = allRows.filter(function(row) { return normalizeDepartmentName(row['CURRENT DEPT']) === dept; });
+
+  for (var j = 0; j < allRows.length; j++) {
+    var row = allRows[j];
+    var trackingNo = String(row['TRACKING NO.'] || '').trim();
+    if (!trackingNo) continue;
+    if (normalizeDepartmentName(row['CURRENT DEPT']) === dept) continue;
+
+    var history = histByTracking[trackingNo] || [];
+    var lastForwardAt = '';
+    for (var k = history.length - 1; k >= 0; k--) {
+      var entry = history[k];
+      if (String(entry.action || '').toUpperCase() !== 'FORWARD') continue;
+      if (normalizeDepartmentName(entry.fromDept) !== dept) continue;
+      lastForwardAt = entry.timestamp || '';
+      break;
+    }
+    if (!lastForwardAt) continue;
+
+    var copy = Object.assign({}, row);
+    copy['COMPLETED AT'] = lastForwardAt;
+    copy['IS NOTIFIED'] = '';
+    copy['IS NEW'] = '';
+    copy['RETURNED DATE'] = '';
+    copy['RETURN RECEIVED DATE'] = '';
+    copy['RETURN TO'] = '';
+    rows.push(copy);
+  }
+
+  return rows;
+}
+
+// Returns page-data for all depts in a single pass (efficient for dashboard bundle).
+function getDeptPageDataAll() {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  ensureCoreSheets(ss);
+  var allRows = buildDepartmentRows('ALL');
+  var histRows = getHistoryRows(ss);
+
+  var histByTracking = {};
+  for (var i = 0; i < histRows.length; i++) {
+    var hh = histRows[i];
+    histByTracking[hh.trackingNo] = histByTracking[hh.trackingNo] || [];
+    histByTracking[hh.trackingNo].push(hh);
+  }
+
+  var DEPT_KEYS = { 'BAC': 'bac', 'SUPPLY': 'supply', 'BUDGET': 'budget', 'ACCOUNTING': 'accounting', 'CASH': 'cash', 'RCAO': 'rcao', 'ARDA': 'arda', 'END USER': 'enduser' };
+  var map = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[], enduser:[] };
+
+  // Step 1: bucket current rows by dept
+  (allRows || []).forEach(function(row) {
+    var key = DEPT_KEYS[normalizeDepartmentName(row['CURRENT DEPT'])];
+    if (key) map[key].push(row);
+  });
+
+  // Step 2: add forwarded-away completed copies for each past dept
+  (allRows || []).forEach(function(row) {
+    var trackingNo = String(row['TRACKING NO.'] || '').trim();
+    if (!trackingNo) return;
+    var currentKey = DEPT_KEYS[normalizeDepartmentName(row['CURRENT DEPT'])];
+    var history = histByTracking[trackingNo] || [];
+
+    // Find last forward entry per source dept
+    var lastForwardEntry = {};
+    for (var k = 0; k < history.length; k++) {
+      var hz = history[k];
+      if (String(hz.action || '').toUpperCase() !== 'FORWARD') continue;
+      var fromKey = DEPT_KEYS[normalizeDepartmentName(hz.fromDept)];
+      if (!fromKey || fromKey === 'enduser') continue;
+      lastForwardEntry[fromKey] = hz;
+    }
+
+    var fromKeys = Object.keys(lastForwardEntry);
+    for (var fi = 0; fi < fromKeys.length; fi++) {
+      var fromKey = fromKeys[fi];
+      if (fromKey === currentKey) continue;
+      var hz2 = lastForwardEntry[fromKey];
+      var copy = Object.assign({}, row);
+      copy['COMPLETED AT'] = hz2.timestamp || copy['COMPLETED AT'] || '';
+      copy['IS NOTIFIED'] = '';
+      copy['IS NEW'] = '';
+      copy['RETURNED DATE'] = '';
+      copy['RETURN RECEIVED DATE'] = '';
+      copy['RETURN TO'] = '';
+      map[fromKey].push(copy);
+    }
+  });
+
+  return map;
 }
 
 function loginUser(username, password) {
@@ -728,6 +844,14 @@ function getAccountingData() { return buildDepartmentRows('ACCOUNTING'); }
 function getCashData()       { return buildDepartmentRows('CASH'); }
 function getRCAOData()       { return buildDepartmentRows('RCAO'); }
 function getARDAData()       { return buildDepartmentRows('ARDA'); }
+
+// Page-data variants include forwarded-away completed copies (for done tab).
+function getSupplyPageData()     { return getDeptPageData('SUPPLY'); }
+function getBudgetPageData()     { return getDeptPageData('BUDGET'); }
+function getAccountingPageData() { return getDeptPageData('ACCOUNTING'); }
+function getCashPageData()       { return getDeptPageData('CASH'); }
+function getRCAOPageData()       { return getDeptPageData('RCAO'); }
+function getARDAPageData()       { return getDeptPageData('ARDA'); }
 function getEndUserData()    { return []; }
 
 function getDepartmentPageCounts() {
@@ -873,7 +997,8 @@ function getMyRequestDepartmentBundle(role) {
     'ACCOUNTING': 'accounting',
     'CASH': 'cash',
     'RCAO': 'rcao',
-    'ARDA': 'arda'
+    'ARDA': 'arda',
+    'END USER': 'enduser'
   };
 
   var historyByTracking = {};
@@ -934,7 +1059,7 @@ function getMyRequestDepartmentBundle(role) {
     return null;
   }
 
-  var departmentRows = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[] };
+  var departmentRows = { bac:[], supply:[], budget:[], accounting:[], cash:[], rcao:[], arda:[], enduser:[] };
   for (var r = 0; r < allRows.length; r++) {
     var row = allRows[r];
     var trackingNo = String(row['TRACKING NO.'] || '').trim();
@@ -955,14 +1080,37 @@ function getMyRequestDepartmentBundle(role) {
       addedPastDepts[directDeptKey] = true;
       for (var h2 = 0; h2 < txHistory.length; h2++) {
         var hItem = txHistory[h2];
-        if (String(hItem.action || '').toUpperCase() !== 'FORWARD') continue;
-        var pastKey = workflowDeptMap[normalizeDepartmentName(hItem.fromDept)];
+        var hAct = String(hItem.action || '').toUpperCase();
+        var hFrom = normalizeDepartmentName(hItem.fromDept || '');
+        if (hAct !== 'FORWARD' && !(hAct === 'RETURNED' && hFrom === 'END USER')) continue;
+        var pastKey = workflowDeptMap[hFrom];
         if (!pastKey || addedPastDepts[pastKey]) continue;
         addedPastDepts[pastKey] = true;
         departmentRows[pastKey].push(Object.assign({}, row, {
           'IS NOTIFIED': '',
           'IS NEW': '',
           'COMPLETED AT': hItem.timestamp || ''
+        }));
+      }
+      continue;
+    }
+
+    // Fully completed transactions (CURRENT DEPT = COMPLETED): add done copies to past depts
+    if (currentDept === 'COMPLETED') {
+      var txHistC = historyByTracking[trackingNo] || [];
+      var addedCompletedDepts = {};
+      for (var hc = 0; hc < txHistC.length; hc++) {
+        var hItemC = txHistC[hc];
+        var hActC = String(hItemC.action || '').toUpperCase();
+        var hFromC = normalizeDepartmentName(hItemC.fromDept || '');
+        if (hActC !== 'FORWARD' && !(hActC === 'RETURNED' && hFromC === 'END USER')) continue;
+        var completedPastKey = workflowDeptMap[hFromC];
+        if (!completedPastKey || addedCompletedDepts[completedPastKey]) continue;
+        addedCompletedDepts[completedPastKey] = true;
+        departmentRows[completedPastKey].push(Object.assign({}, row, {
+          'IS NOTIFIED': '',
+          'IS NEW': '',
+          'COMPLETED AT': hItemC.timestamp || ''
         }));
       }
       continue;
@@ -1005,7 +1153,7 @@ function getMyRequestDepartmentBundle(role) {
 }
 
 function getDashboardLoadBundle() {
-  var deptMap = getDepartmentRowsMap();
+  var deptMap = getDeptPageDataAll();
   return {
     bac: deptMap.bac,
     supply: deptMap.supply,
@@ -1134,7 +1282,7 @@ function forwardTransaction(sheetName, rowNum, targetSheetName, extraData, usern
 
     var fromDept = normalizeDepartmentName(sheetName);
     var toDept = normalizeDepartmentName(targetSheetName);
-    if (!toDept || toDept === 'END USER') throw new Error('Invalid forward target.');
+    if (!toDept) throw new Error('Invalid forward target.');
 
     var forwardedStatus = 'FORWARDED TO ' + displayDepartmentName(toDept).toUpperCase();
     var status = String((extraData && extraData['STATUS']) || forwardedStatus).trim() || forwardedStatus;
@@ -1160,6 +1308,32 @@ function forwardTransaction(sheetName, rowNum, targetSheetName, extraData, usern
     return {success:true, trackingNo:trackingNo};
   } catch (e) {
     return {success:false, message:e.message};
+  }
+}
+
+function smartForwardTransaction(sheetName, rowNum, targetSheetName, extraData, username) {
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    ensureCoreSheets(ss);
+
+    var trackingNo = getTrackingNoByRowNum(ss, rowNum);
+    if (!trackingNo) throw new Error('Transaction row not found.');
+
+    var toDept = normalizeDepartmentName(targetSheetName);
+    if (!toDept) throw new Error('Invalid forward target.');
+
+    // END USER is always a return; for all other depts check if they've received it before
+    var history = getHistoryRows(ss).filter(function(r) { return r.trackingNo === trackingNo; });
+    var isReturn = toDept === 'END USER' || history.some(function(h) { return normalizeDepartmentName(h.toDept) === toDept; });
+
+    if (isReturn) {
+      var remarks = String((extraData && extraData['FORWARD REMARKS']) || '').trim();
+      return returnTransaction(sheetName, rowNum, targetSheetName, remarks, username);
+    } else {
+      return forwardTransaction(sheetName, rowNum, targetSheetName, extraData, username);
+    }
+  } catch (e) {
+    return {success: false, message: e.message};
   }
 }
 

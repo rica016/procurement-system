@@ -195,7 +195,7 @@ function renderPageData(page, rows){
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ROW BUILDERS
 // ═══════════════════════════════════════════════════════════════════════════════
-var SHEET_NAMES={bac:'BAC',supply:'SUPPLY AND PROPERTY',budget:'BUDGET',accounting:'ACCOUNTING',cash:'CASH',rcao:'RCAO',arda:'ARDA'};
+var SHEET_NAMES={bac:'BAC',supply:'SUPPLY AND PROPERTY',budget:'BUDGET',accounting:'ACCOUNTING',cash:'CASH',rcao:'RCAO',arda:'ARDA',enduser:'END USER'};
 
 function isAdmin(){ return currentUser&&currentUser.role==='ADMIN'; }
 function canEdit(dept){
@@ -209,10 +209,7 @@ function canEdit(dept){
 function trackingPrCell(r, showPr, noPrCell){
   var tracking = r['TRACKING NO.'] || '—';
   var pr = r['P.R NO.'] || r['P.R #'] || '';
-  if (showPr === undefined) {
-    var dept = String(r['CURRENT DEPT'] || '').trim().toUpperCase();
-    showPr = dept === 'BAC';
-  }
+  if (showPr === undefined) showPr = true;
   var trackingCell = '<td><span class="td-tracking" tabindex="0">'+esc2(tracking)+'</span></td>';
   if (noPrCell) return trackingCell;
   return trackingCell + '<td><span class="td-pr">'+esc2(showPr && pr ? pr : '—')+'</span></td>';
@@ -231,7 +228,7 @@ function openViewModal(page, rowNum){
   var row=getRowFromCache(page, rowNum);
   if(!row){ showToast('Row data unavailable. Please refresh.','error'); return; }
 
-  var titleMap={bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA'};
+  var titleMap={bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA',enduser:'Requesting Office'};
   var pr = row['P.R NO.'] || row['P.R #'] || '';
   var showPr = page === 'bac';
   var idMeta=(row['TRACKING NO.']?('Tracking: '+row['TRACKING NO.']):'')+(showPr && pr ? (' · P.R NO.: '+pr) : '');
@@ -243,6 +240,38 @@ function openViewModal(page, rowNum){
   document.getElementById('main-modal-save').style.display='none';
   document.getElementById('main-modal-cancel').textContent='Close';
   document.getElementById('main-modal').classList.add('open');
+  if (page === 'enduser') {
+    var pr = row['P.R NO.'] || row['P.R #'] || '—';
+    var returnedBy = row['RETURNED FROM'] || row['FORWARDED FROM'] || '—';
+    var remarks    = row['RETURN REMARKS'] || row['FORWARD REMARKS'] || '—';
+    var dateTime   = row['RETURNED DATE'] || '—';
+    document.getElementById('main-modal-body').innerHTML =
+      '<div class="view-summary">'+
+        '<div class="view-card">'+
+          '<div class="view-label">Tracking No.</div>'+
+          '<div class="view-value"><span class="td-tracking">'+esc2(row['TRACKING NO.']||'—')+'</span></div>'+
+        '</div>'+
+        '<div class="view-card">'+
+          '<div class="view-label">P.R No.</div>'+
+          '<div class="view-value"><span class="td-pr">'+esc2(pr)+'</span></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="view-grid">'+
+        '<div class="view-field">'+
+          '<div class="view-label">Returned By</div>'+
+          '<div class="view-value">'+esc2(returnedBy)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">Date &amp; Time</div>'+
+          '<div class="view-value">'+esc2(dateTime)+'</div>'+
+        '</div>'+
+        '<div class="view-field full">'+
+          '<div class="view-label">Remarks</div>'+
+          '<div class="view-value">'+esc2(remarks)+'</div>'+
+        '</div>'+
+      '</div>';
+    return;
+  }
   if (isNew && forwardedFrom) {
     document.getElementById('main-modal-body').innerHTML='<div class="loading"><div class="spinner"></div> Loading forwarded data…</div>';
     var tn = String(row['TRACKING NO.']||'').trim();
