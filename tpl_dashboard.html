@@ -33,8 +33,7 @@
 
   <!-- ── STATUS + DEPT TABS ── -->
   <div class="tab-nav">
-    <button class="tab-btn active" id="tab-dashboard-all" onclick="switchDashboardTab('all')">All <span id="dashboard-count-all" class="badge badge-grey" style="margin-left:4px;"></span></button>
-    <button class="tab-btn" id="tab-dashboard-active" onclick="switchDashboardTab('active')">In Progress <span id="dashboard-count-active" class="badge badge-blue" style="margin-left:4px;"></span></button>
+    <button class="tab-btn active" id="tab-dashboard-active" onclick="switchDashboardTab('active')">In Progress <span id="dashboard-count-active" class="badge badge-blue" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-returned" onclick="switchDashboardTab('returned')">Returned <span id="dashboard-count-returned" class="badge badge-warn" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-completed" onclick="switchDashboardTab('completed')">Completed <span id="dashboard-count-completed" class="badge badge-op" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-cancelled" onclick="switchDashboardTab('cancelled')">Cancelled <span id="dashboard-count-cancelled" class="badge badge-down" style="margin-left:4px;"></span></button>
@@ -56,7 +55,7 @@
   </div>
   <div class="panel">
     <div class="panel-header">
-      <div><div class="panel-title" id="dashboard-panel-title">All Transactions</div><div class="panel-sub" id="dashboard-sub"></div></div>
+      <div><div class="panel-title" id="dashboard-panel-title">In Progress Transactions</div><div class="panel-sub" id="dashboard-sub"></div></div>
       <div class="panel-actions">
         <div class="search-wrap"><span class="search-icon">🔍</span><input id="dashboard-search" placeholder="Search tracking no., office, P.R #…" oninput="filterDashboard()"/></div>
         <select class="form-select" id="dashboard-cat-filter" onchange="onDashboardCatFilterChange()" style="font-size:12.5px;padding:6px 10px;height:32px;min-width:140px;">

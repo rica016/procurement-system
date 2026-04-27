@@ -102,6 +102,8 @@ function renderPageData(page, rows){
   }
 
   function isReturnPending(r){
+    var status = String(r['STATUS']||'').trim().toUpperCase();
+    if (status === 'PROCESSING') return false;
     return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()==='';
   }
   function isReturnResolved(r){
@@ -118,10 +120,9 @@ function renderPageData(page, rows){
   var returnRows = rows.filter(function(r){
     // Forwarded back to this dept after it previously processed the transaction
     if (isReturnBackRow(r)) return true;
-    // Returned to this dept, pending receipt
-    if (!isReturnPending(r)) return false;
-    var rt = String(r['RETURN TO']||'').trim();
-    return rt === returnTargetLabel;
+    // Any pending return where CURRENT DEPT = this dept is a return TO this dept
+    // (RETURN TO field is not populated, so we match all isPendingReturn rows)
+    return isReturnPending(r);
   });
   var returnHistoryRows = rows.filter(function(r){
     if (!isReturnPending(r)) return false;

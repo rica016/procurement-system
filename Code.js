@@ -666,18 +666,20 @@ function getDeptPageData(deptName) {
     if (normalizeDepartmentName(row['CURRENT DEPT']) === dept) continue;
 
     var history = histByTracking[trackingNo] || [];
-    var lastForwardAt = '';
+    var completedAt = '';
     for (var k = history.length - 1; k >= 0; k--) {
       var entry = history[k];
-      if (String(entry.action || '').toUpperCase() !== 'FORWARD') continue;
+      var actionUpper = String(entry.action || '').toUpperCase();
       if (normalizeDepartmentName(entry.fromDept) !== dept) continue;
-      lastForwardAt = entry.timestamp || '';
-      break;
+      if (actionUpper === 'FORWARD' || actionUpper === 'COMPLETED') {
+        completedAt = entry.timestamp || '';
+        break;
+      }
     }
-    if (!lastForwardAt) continue;
+    if (!completedAt) continue;
 
     var copy = Object.assign({}, row);
-    copy['COMPLETED AT'] = lastForwardAt;
+    copy['COMPLETED AT'] = completedAt;
     copy['IS NOTIFIED'] = '';
     copy['IS NEW'] = '';
     copy['RETURNED DATE'] = '';
@@ -719,21 +721,28 @@ function getDeptPageDataAll() {
     var currentKey = DEPT_KEYS[normalizeDepartmentName(row['CURRENT DEPT'])];
     var history = histByTracking[trackingNo] || [];
 
-    // Find last forward entry per source dept
-    var lastForwardEntry = {};
+    // Find last completion-causing entry per source dept.
+    // FORWARD keeps the old behavior, RETURNED from enduser keeps enduser behavior,
+    // and COMPLETED supports cashier-paid rows appearing in cashier done tab.
+    var lastCompletionEntry = {};
     for (var k = 0; k < history.length; k++) {
       var hz = history[k];
-      if (String(hz.action || '').toUpperCase() !== 'FORWARD') continue;
+      var hzAction = String(hz.action || '').toUpperCase();
       var fromKey = DEPT_KEYS[normalizeDepartmentName(hz.fromDept)];
-      if (!fromKey || fromKey === 'enduser') continue;
-      lastForwardEntry[fromKey] = hz;
+      // Include FORWARD from any dept, and RETURNED from END USER (end users use "Returned" to send transactions on)
+      var isEnduserReturn = hzAction === 'RETURNED' && fromKey === 'enduser';
+      var isCompleted = hzAction === 'COMPLETED';
+      if (hzAction !== 'FORWARD' && !isEnduserReturn && !isCompleted) continue;
+      // Allow enduser entries unless the transaction is still at END USER (to avoid duplicates with Step 1)
+      if (!fromKey || (fromKey === 'enduser' && currentKey === 'enduser')) continue;
+      lastCompletionEntry[fromKey] = hz;
     }
 
-    var fromKeys = Object.keys(lastForwardEntry);
+    var fromKeys = Object.keys(lastCompletionEntry);
     for (var fi = 0; fi < fromKeys.length; fi++) {
       var fromKey = fromKeys[fi];
       if (fromKey === currentKey) continue;
-      var hz2 = lastForwardEntry[fromKey];
+      var hz2 = lastCompletionEntry[fromKey];
       var copy = Object.assign({}, row);
       copy['COMPLETED AT'] = hz2.timestamp || copy['COMPLETED AT'] || '';
       copy['IS NOTIFIED'] = '';
@@ -741,6 +750,10 @@ function getDeptPageDataAll() {
       copy['RETURNED DATE'] = '';
       copy['RETURN RECEIVED DATE'] = '';
       copy['RETURN TO'] = '';
+      if (fromKey === 'enduser') {
+        copy['COMPLETED TO'] = displayDepartmentName(hz2.toDept || '') || '—';
+        copy['FORWARD REMARKS'] = hz2.remarks || '';
+      }
       map[fromKey].push(copy);
     }
   });
@@ -1086,11 +1099,16 @@ function getMyRequestDepartmentBundle(role) {
         var pastKey = workflowDeptMap[hFrom];
         if (!pastKey || addedPastDepts[pastKey]) continue;
         addedPastDepts[pastKey] = true;
-        departmentRows[pastKey].push(Object.assign({}, row, {
+        var pastCopy = Object.assign({}, row, {
           'IS NOTIFIED': '',
           'IS NEW': '',
           'COMPLETED AT': hItem.timestamp || ''
-        }));
+        });
+        if (pastKey === 'enduser') {
+          pastCopy['COMPLETED TO'] = displayDepartmentName(hItem.toDept || '') || '—';
+          pastCopy['FORWARD REMARKS'] = hItem.remarks || '';
+        }
+        departmentRows[pastKey].push(pastCopy);
       }
       continue;
     }
@@ -1107,11 +1125,16 @@ function getMyRequestDepartmentBundle(role) {
         var completedPastKey = workflowDeptMap[hFromC];
         if (!completedPastKey || addedCompletedDepts[completedPastKey]) continue;
         addedCompletedDepts[completedPastKey] = true;
-        departmentRows[completedPastKey].push(Object.assign({}, row, {
+        var completedCopy = Object.assign({}, row, {
           'IS NOTIFIED': '',
           'IS NEW': '',
           'COMPLETED AT': hItemC.timestamp || ''
-        }));
+        });
+        if (completedPastKey === 'enduser') {
+          completedCopy['COMPLETED TO'] = displayDepartmentName(hItemC.toDept || '') || '—';
+          completedCopy['FORWARD REMARKS'] = hItemC.remarks || '';
+        }
+        departmentRows[completedPastKey].push(completedCopy);
       }
       continue;
     }
@@ -1365,7 +1388,7 @@ function receiveTransaction(sheetName, rowNum, remarks, username) {
 }
 
 function returnTransaction(sheetName, rowNum, returnTo, remarks, username, markCompleted) {
-  var _ = markCompleted;
+  var shouldMarkCompleted = markCompleted === true || String(markCompleted || '').toLowerCase() === 'true';
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     ensureCoreSheets(ss);
@@ -1386,6 +1409,21 @@ function returnTransaction(sheetName, rowNum, returnTo, remarks, username, markC
       remarks: String(remarks || '').trim(),
       processedBy: username || 'SYSTEM'
     });
+
+    if (shouldMarkCompleted) {
+      appendHistoryLog(ss, {
+        trackingNo: trackingNo,
+        fromDept: toDept,
+        toDept: 'COMPLETED',
+        action: 'Completed',
+        status: 'COMPLETED',
+        remarks: '',
+        processedBy: username || 'SYSTEM'
+      });
+      upsertTransactionSummary(ss, trackingNo, 'COMPLETED', 'COMPLETED');
+      logAudit(username || 'SYSTEM', 'RETURN+COMPLETE', fromDept, trackingNo + ' -> ' + toDept);
+      return {success:true, target:'COMPLETED', completed:true};
+    }
 
     upsertTransactionSummary(ss, trackingNo, toDept, 'RETURNED');
     logAudit(username || 'SYSTEM', 'RETURN', fromDept, trackingNo + ' -> ' + toDept);
@@ -1415,11 +1453,17 @@ function markCompleted(rowNum, username) {
 
     var txRows = getTransactionsRows(ss);
     var currentDept = '';
+    var currentStatus = '';
     for (var i = 0; i < txRows.length; i++) {
       if (txRows[i].trackingNo === trackingNo) {
         currentDept = txRows[i].currentDept;
+        currentStatus = txRows[i].currentStatus;
         break;
       }
+    }
+
+    if (normalizeDepartmentName(currentDept) === 'COMPLETED' || String(currentStatus || '').trim().toUpperCase() === 'COMPLETED') {
+      return {success:true, alreadyCompleted:true};
     }
 
     appendHistoryLog(ss, {

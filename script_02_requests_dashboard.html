@@ -21,6 +21,10 @@ var DASHBOARD_ALL_TX_COLUMNS = [
 var MYREQS_ALL_TX_COLUMNS = DASHBOARD_ALL_TX_COLUMNS.filter(function(col) {
   return col !== 'END-USER / REQUESTED BY';
 });
+var DASHBOARD_ALL_TX_COLUMNS_COMPLETED = DASHBOARD_ALL_TX_COLUMNS.filter(function(col) {
+  return col !== 'CURRENT STATUS';
+});
+var MYREQS_ALL_COMPLETED_COLUMNS = ['TRACKING NO.','P.R NO.','FORWARDED TO','REMARKS','DATE & TIME'];
 var DASHBOARD_ALL_TX_CURRENCY = {'APPROVED ABC':1,'P.O. AMOUNT':1,'ORS AMOUNT':1,'NET AMOUNT':1,'TAX AMOUNT':1};
 
 var MYREQS_DEPT_META = {
@@ -28,6 +32,8 @@ var MYREQS_DEPT_META = {
     title:'All Departments',
     allHeader:'<tr>'+MYREQS_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'</tr>',
     allCols:MYREQS_ALL_TX_COLUMNS.length,
+    allDoneHeader:'<tr>'+MYREQS_ALL_COMPLETED_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    allDoneCols:MYREQS_ALL_COMPLETED_COLUMNS.length + 1,
     returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     returnedCols:6
   },
@@ -138,8 +144,6 @@ function shouldShowDashboardBacCategoryFilter() {
 function syncBacCategoryFilterVisibility() {
   var catSel = document.getElementById('myreqs-cat-filter');
   if (catSel) catSel.style.display = shouldShowMyReqsBacCategoryFilter() ? '' : 'none';
-  var deptSel = document.getElementById('myreqs-dept-filter');
-  if (deptSel) deptSel.style.display = '';
   var activeCat = getActiveBacCategoryFilter();
   document.querySelectorAll('select[id$="-cat-filter"]').forEach(function(sel) {
     sel.value = activeCat;
@@ -202,9 +206,9 @@ function ensureTransactionCategoryIndex(onReady) {
 function classifyMyReqDeptRow(r) {
   var status = String(r['STATUS']||'').trim().toUpperCase();
   if (r._myReqDept === 'enduser') {
-    if (status === 'RETURNED') return 'returned';
     if (status === 'CANCELLED') return 'cancelled';
     if (r['COMPLETED AT'] && String(r['COMPLETED AT']).trim() !== '') return 'done';
+    if (status === 'RETURNED') return 'returned';
     return 'active';
   }
   var isNew = String(r['IS NOTIFIED']||r['IS NEW']||'').trim().toUpperCase() === 'TRUE';
@@ -366,12 +370,12 @@ function renderMyReqsTable(reqs) {
       cols = euMeta.activeCols;
       theadHtml = euMeta.activeHeader;
     }
+  } else if (myReqsDeptTab === 'all') {
+    cols = isDoneTab ? meta.allDoneCols : meta.allCols;
+    theadHtml = isDoneTab ? meta.allDoneHeader : meta.allHeader;
   } else if (isDoneTab || isCancelledTab) {
     cols = euMeta.otherCols;
     theadHtml = euMeta.otherHeader;
-  } else if (myReqsDeptTab === 'all') {
-    cols = meta.allCols || meta.activeCols;
-    theadHtml = meta.allHeader || meta.activeHeader;
   } else if (myReqsDeptTab === 'enduser') {
     cols = euMeta.otherCols;
     theadHtml = euMeta.otherHeader;
@@ -409,14 +413,33 @@ function renderMyReqsTable(reqs) {
   tb.innerHTML = deptRows.map(function(r) {
     if (myReqsDeptTab === 'all' && !isReturnTab) {
       var allActCell = '';
+      var rd = String(r._myReqDept || '').toLowerCase();
       if (isActiveTab) {
-        var rd = String(r._myReqDept || '').toLowerCase();
         allActCell = rd === 'enduser'
           ? '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
             '<button class="btn-sm view" onclick="openViewModal(\'enduser\','+r._rowNum+')">👁 View</button>'+
             '<button class="btn-sm forward" onclick="openForwardModal(\'END USER\','+r._rowNum+')">Forward</button>'+
             '</div></div></td>'
           : '<td></td>';
+      }
+      if (isDoneTab) {
+        allActCell = '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
+          '<button class="btn-sm view" onclick="openViewModal(\''+rd+'\','+r._rowNum+')">👁 View</button>'+
+          (rd === 'enduser' ? '<button class="btn-sm warn" onclick="reopenEndUserCompleted('+r._rowNum+', this)">↺ Undo</button>' : '')+
+          '</div></div></td>';
+        var forwardedTo = String(r['TO DEPT'] || r['FORWARDED TO'] || r['COMPLETED TO'] || '').trim();
+        if (!forwardedTo) {
+          var statusText = String(r['STATUS'] || '').trim();
+          var forwardedMatch = statusText.match(/^FORWARDED TO\s+(.+)$/i);
+          if (forwardedMatch && forwardedMatch[1]) forwardedTo = forwardedMatch[1].trim();
+        }
+        return '<tr class="completed-row">'+
+          myReqsTrackingPrCell(r)+
+          '<td>'+esc2(forwardedTo || '—')+'</td>'+
+          '<td class="td-wrap">'+esc2(r['RETURN REMARKS'] || r['FORWARD REMARKS'] || r['RETURN RECEIVED REMARKS'] || '—')+'</td>'+
+          '<td class="td-mono">'+esc2(r['COMPLETED AT'] || r['RETURNED DATE'] || r['RETURN RECEIVED DATE'] || '—')+'</td>'+
+          allActCell+
+        '</tr>';
       }
       return '<tr class="'+doneCls+'">'+
         myReqsTrackingPrCell(r)+
@@ -813,8 +836,8 @@ function doTrackSearch(){
       }).join('');
       var histHTML = '';
       if (res.history && res.history.length) {
-        var evtCls  = {'CREATED':'evt-create','FORWARDED':'evt-forward','RETURNED':'evt-return','RETURN DONE':'evt-returndone','RETURN CONTINUE':'evt-returncont','PAID':'evt-paid','CANCELLED':'evt-cancel'};
-        var evtIcon = {'CREATED':'＋','FORWARDED':'→','RETURNED':'↩','RETURN DONE':'✔','RETURN CONTINUE':'▶','PAID':'✓','CANCELLED':'✗'};
+        var evtCls  = {'CREATED':'evt-create','FORWARDED':'evt-forward','RETURNED':'evt-return','RETURN DONE':'evt-returndone','RETURN CONTINUE':'evt-returncont','PAID':'evt-paid','COMPLETED':'evt-paid','CANCELLED':'evt-cancel'};
+        var evtIcon = {'CREATED':'＋','FORWARDED':'→','RETURNED':'↩','RETURN DONE':'✔','RETURN CONTINUE':'▶','PAID':'✓','COMPLETED':'✓','CANCELLED':'✗'};
         histHTML = '<div class="track-history">'+
           '<div class="track-history-title">Activity Log</div>'+
           res.history.map(function(h){
@@ -858,7 +881,7 @@ function doTrackSearch(){
     .searchTransaction(q);
 }
 
-var dashboardTab = 'all';
+var dashboardTab = 'active';
 var dashboardDeptTab = 'bac';
 var dashboardEnduserSubTab = 'nottaken';
 var cachedDashboardData = { bac:[], supply:[], budget:[], accounting:[], rcao:[], arda:[], cash:[], enduser:[] };
@@ -871,82 +894,82 @@ var DASHBOARD_DEPT_META = {
   bac: {
     title:'BAC Records',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:5
   },
   supply: {
     title:'Supply & Property Records',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:5
   },
   budget: {
     title:'Budget Records',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:5
   },
   accounting: {
     title:'Accounting Records',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:5
   },
   cash: {
     title:'Cashier Records',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:5
   },
   rcao: {
     title:'RCAO Records',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:5
   },
   arda: {
     title:'ARDA Records',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:5
   },
   enduser: {
     title:'Requesting Office Transactions',
     activeHeader:'<tr><th>Tracking No.</th><th>Requesting Office</th><th>Date Created</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>Tracking No.</th><th>Requesting Office</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Return Received Remarks</th><th>Return Received Date</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Forwarded To</th><th>Date &amp; Time</th><th>Remarks</th><th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>Requesting Office</th><th>Returned From</th><th>Return From Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:5,
-    otherCols:9,
+    otherCols:6,
     returnedCols:6
   },
   all: {
     title:'All Departments',
     activeHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
-    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
+    otherHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS_COMPLETED.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     returnedHeader:'<tr>'+DASHBOARD_ALL_TX_COLUMNS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+'<th>Actions</th></tr>',
     activeCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
-    otherCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1),
+    otherCols:(DASHBOARD_ALL_TX_COLUMNS_COMPLETED.length + 1),
     returnedCols:(DASHBOARD_ALL_TX_COLUMNS.length + 1)
   }
 };
@@ -973,6 +996,8 @@ function rebuildDashboardRequestingOfficeRows() {
 }
 
 function dashboardIsReturnPending(r) {
+  var status = String(r['STATUS']||'').trim().toUpperCase();
+  if (status === 'PROCESSING') return false;
   return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()==='';
 }
 
@@ -980,7 +1005,9 @@ function dashboardRowCategory(page, r) {
   var status = String(r['STATUS']||'').trim().toUpperCase();
   // Enduser rows are already filtered to CURRENT DEPT = END USER — classify by completion
   if (page === 'enduser') {
-    if ((r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') || status === 'PAID') return 'completed';
+    var hasCompletedAt = String(r['COMPLETED AT'] || '').trim() !== '';
+    var hasReturnReceived = String(r['RETURN RECEIVED DATE'] || '').trim() !== '';
+    if (hasCompletedAt || hasReturnReceived || status === 'PAID' || status === 'COMPLETED') return 'completed';
     return 'returned'; // "not taken" maps to 'returned' render tab
   }
   var isNotified = String(r['IS NOTIFIED']||r['IS NEW']||'').trim().toUpperCase() === 'TRUE';
@@ -991,8 +1018,8 @@ function dashboardRowCategory(page, r) {
   if (isReturnedToPage && isPendingReturn) return 'returned';
   if (isReturnedToPage && hasResolvedReturn) return 'completed';
   if (status === 'CANCELLED') return 'cancelled';
-  if (isPendingReturn) return 'locked';
-  if ((r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') || status === 'PAID') return 'completed';
+  if (isPendingReturn) return 'returned';
+  if ((r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') || status === 'PAID' || status === 'COMPLETED') return 'completed';
   if (isNotified) return 'active';
   return 'active';
 }
@@ -1006,23 +1033,23 @@ function dashboardRowsForTab(page, tab) {
 var DASHBOARD_DEPT_FIELD_LAYOUT = {
   bac: {
     active: ['DATE RECEIVED','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','BAC RESO STATUS','NOA','NTP','STATUS'],
-    other:  ['DATE RECEIVED','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','BAC RESO STATUS','NOA','NTP','STATUS','COMPLETED AT']
+    other:  ['DATE RECEIVED','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','BAC RESO STATUS','NOA','NTP','COMPLETED AT']
   },
   supply: {
     active: ['DATE RECEIVED','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','STATUS'],
-    other:  ['DATE RECEIVED','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','STATUS','COMPLETED AT']
+    other:  ['DATE RECEIVED','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','COMPLETED AT']
   },
   budget: {
     active: ['DATE RECEIVED','ORS NO.','BUPR NO.','ORS AMOUNT','STATUS'],
-    other:  ['DATE RECEIVED','ORS NO.','BUPR NO.','ORS AMOUNT','STATUS','COMPLETED AT']
+    other:  ['DATE RECEIVED','ORS NO.','BUPR NO.','ORS AMOUNT','COMPLETED AT']
   },
   accounting: {
     active: ['DATE RECEIVED','DV NO.','NET AMOUNT','TAX AMOUNT','STATUS'],
-    other:  ['DATE RECEIVED','DV NO.','NET AMOUNT','TAX AMOUNT','STATUS','COMPLETED AT']
+    other:  ['DATE RECEIVED','DV NO.','NET AMOUNT','TAX AMOUNT','COMPLETED AT']
   },
   cash: {
     active: ['DATE RECEIVED','CHEQUE NO. / LDDAP','DATE OF CHEQUE','STATUS'],
-    other:  ['DATE RECEIVED','CHEQUE NO. / LDDAP','DATE OF CHEQUE','STATUS','COMPLETED AT']
+    other:  ['DATE RECEIVED','CHEQUE NO. / LDDAP','DATE OF CHEQUE','COMPLETED AT']
   },
   rcao: {
     active: ['DATE RECEIVED','RCAO'],
@@ -1179,7 +1206,7 @@ function switchDashboardDeptTab(tab) {
 
 function switchDashboardTab(tab) {
   dashboardTab = tab;
-  ['all','active','returned','completed','cancelled'].forEach(function(t){
+  ['active','returned','completed','cancelled'].forEach(function(t){
     var el = document.getElementById('tab-dashboard-'+t);
     if (el) el.classList.toggle('active', t === tab);
   });
@@ -1198,7 +1225,10 @@ function renderDashboardAnalytics() {
   var csh = cachedDashboardData.cash || [];
 
   function isRP(r){ return String(r['RETURNED DATE']||'').trim()!==''&&String(r['RETURN RECEIVED DATE']||'').trim()===''; }
-  function isComp(r){ return !!(r['COMPLETED AT']&&r['COMPLETED AT'].trim()!=='')||String(r['STATUS']||'').toUpperCase()==='PAID'; }
+  function isComp(r){
+    var st = String(r['STATUS'] || '').toUpperCase();
+    return !!(r['COMPLETED AT'] && r['COMPLETED AT'].trim() !== '') || st === 'PAID' || st === 'COMPLETED';
+  }
 
   // ── Global cross-dept stats ──
   var uniqueTN={}, cancelledTN={}, returnedTN={}, paidTN={};
@@ -1207,7 +1237,8 @@ function renderDashboardAnalytics() {
       var tn=r['TRACKING NO.']; if(!tn) return;
       uniqueTN[tn]=true;
       if(String(r['STATUS']||'').toUpperCase()==='CANCELLED') cancelledTN[tn]=true;
-      if(String(r['STATUS']||'').toUpperCase()==='PAID') paidTN[tn]=true;
+      var st = String(r['STATUS'] || '').toUpperCase();
+      if (st === 'PAID' || st === 'COMPLETED') paidTN[tn]=true;
       if(isRP(r)) returnedTN[tn]=true;
     });
   });
@@ -1222,10 +1253,10 @@ function renderDashboardAnalytics() {
   var sgEl = document.getElementById('dashboard-stat-grid');
   if(sgEl){
     var cards=[
-      {cls:'s-blue',  icon:'📁', label:'Total Transactions', val:total,     hint:'Unique tracking numbers',        tab:'all'},
+      {cls:'s-blue',  icon:'📁', label:'Total Transactions', val:total,     hint:'Unique tracking numbers',        tab:'active'},
       {cls:'s-amber', icon:'⚙', label:'In Progress',        val:inProg,    hint:'Excluding paid &amp; cancelled', tab:'active'},
       {cls:'s-orange',icon:'↩', label:'Returned',           val:returned,  hint:'Pending return — all depts',     tab:'returned'},
-      {cls:'s-green', icon:'✅', label:'Paid / Completed',   val:paid,      hint:'Marked PAID by Cashier',         tab:'completed'},
+      {cls:'s-green', icon:'✅', label:'Completed',          val:paid,      hint:'Marked completed by Cashier',    tab:'completed'},
       {cls:'s-red',   icon:'✕', label:'Cancelled',          val:cancelled, hint:'Cancelled transactions',          tab:'cancelled'}
     ];
     sgEl.innerHTML=cards.map(function(c){
@@ -1388,10 +1419,19 @@ function renderDashboardTable() {
   var display;
   if (dashboardDeptTab === 'all') {
     display = [];
-    allDepts.forEach(function(dept){ 
+    var _seenTracking = {};
+    allDepts.forEach(function(dept){
       var deptRows = rowsFor(dept, dashboardTab);
       deptRows.forEach(function(r){ r._dashDept = dept; });
-      display = display.concat(deptRows); 
+      if (dashboardTab === 'completed' || dashboardTab === 'cancelled') {
+        deptRows = deptRows.filter(function(r) {
+          var tn = String(r['TRACKING NO.'] || '').trim();
+          if (!tn || _seenTracking[tn]) return false;
+          _seenTracking[tn] = true;
+          return true;
+        });
+      }
+      display = display.concat(deptRows);
     });
   } else if (dashboardDeptTab === 'enduser') {
     display = rowsFor('enduser', dashboardRenderTab);
@@ -1402,12 +1442,23 @@ function renderDashboardTable() {
   var meta = DASHBOARD_DEPT_META[dashboardDeptTab] || DASHBOARD_DEPT_META.bac;
   function selectedDeptCount(tab) {
     if (dashboardDeptTab === 'all') {
+      // Deduplicate by tracking number for completed/cancelled to avoid counting the same transaction multiple times
+      if (tab === 'completed' || tab === 'cancelled') {
+        var _seen = {};
+        var count = 0;
+        allDepts.forEach(function(dept) {
+          rowsFor(dept, tab).forEach(function(r) {
+            var tn = String(r['TRACKING NO.'] || '').trim();
+            if (tn && !_seen[tn]) { _seen[tn] = true; count++; }
+          });
+        });
+        return count;
+      }
       return rowsFor('bac', tab).length + rowsFor('supply', tab).length + rowsFor('budget', tab).length + rowsFor('accounting', tab).length + rowsFor('rcao', tab).length + rowsFor('arda', tab).length + rowsFor('cash', tab).length + rowsFor('enduser', tab).length;
     }
     return rowsFor(dashboardDeptTab, tab).length;
   }
   var counts = {
-    all:selectedDeptCount('all'),
     active:selectedDeptCount('active'),
     returned:selectedDeptCount('returned'),
     completed:selectedDeptCount('completed'),
@@ -1428,10 +1479,10 @@ function renderDashboardTable() {
     }
   });
 
-  var titleMap = { all:'All Transactions', active:'In Progress', returned:'Returned', completed:'Completed', cancelled:'Cancelled' };
+  var titleMap = { active:'In Progress', returned:'Returned', completed:'Completed', cancelled:'Cancelled' };
   var displayTabLabel = (dashboardDeptTab === 'enduser')
     ? (dashboardEnduserSubTab === 'done' ? 'Completed' : 'Not Taken')
-    : (titleMap[dashboardTab] || 'All Transactions');
+    : (titleMap[dashboardTab] || 'In Progress');
   var titleEl = document.getElementById('dashboard-panel-title');
   if (titleEl) titleEl.textContent = displayTabLabel;
   if (sub) sub.textContent = display.length + ' transaction' + (display.length !== 1 ? 's' : '');
@@ -1476,8 +1527,8 @@ function renderDashboardTable() {
       if (!isCompleted && !isForwarded) {
         actions += '<button class="btn-sm warn" onclick="openReturnModal(\''+SHEET_NAMES[actionDept]+'\','+r._rowNum+')">Return</button>';
       }
-      if (actionDept === 'cash' && status !== 'PAID' && status !== 'CANCELLED') {
-        actions += '<button class="btn-sm paid" onclick="doMarkPaid('+r._rowNum+')">Mark Paid</button>';
+      if (actionDept === 'cash' && status !== 'PAID' && status !== 'COMPLETED' && status !== 'CANCELLED') {
+        actions += '<button class="btn-sm paid" onclick="doMarkPaid('+r._rowNum+')">Mark Completed</button>';
       }
       if (!isCompleted && ['bac','supply','budget'].indexOf(actionDept) !== -1) {
         actions += '<button class="btn-sm cancel" onclick="doCancelTransaction(\''+SHEET_NAMES[actionDept]+'\','+r._rowNum+')">Cancel</button>';
@@ -1486,7 +1537,8 @@ function renderDashboardTable() {
     actions += '</div></div>';
 
     if (dashboardDeptTab === 'all') {
-      var allCells = DASHBOARD_ALL_TX_COLUMNS.map(function(col){
+      var _allColsForTab = (dashboardRenderTab === 'completed' || dashboardRenderTab === 'cancelled') ? DASHBOARD_ALL_TX_COLUMNS_COMPLETED : DASHBOARD_ALL_TX_COLUMNS;
+      var allCells = _allColsForTab.map(function(col){
         var rawVal = r[col] || '';
         if (col === 'CURRENT DEPT') return '<td>'+esc2(String(rawVal || deptForRow).toUpperCase() || '—')+'</td>';
         if (col === 'CURRENT STATUS') return '<td>'+statusBadge(rawVal || r['STATUS'] || '—')+'</td>';
@@ -1530,6 +1582,15 @@ function renderDashboardTable() {
     }
 
     if (deptForRow === 'enduser') {
+      if (dashboardRenderTab === 'completed') {
+        return '<tr class="completed-row">'+
+          trackingPrCell(r)+
+          '<td>'+esc2(r['COMPLETED TO']||'—')+'</td>'+
+          '<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>'+
+          '<td>'+esc2(r['FORWARD REMARKS']||'—')+'</td>'+
+          '<td>'+actions+'</td>'+
+          '</tr>';
+      }
       return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+
         trackingPrCell(r, undefined, true)+
         '<td>'+esc2(r['REQUESTING OFFICE']||r['END-USER / REQUESTED BY']||r['END USER']||'—')+'</td>'+
