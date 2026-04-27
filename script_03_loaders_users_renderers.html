@@ -225,18 +225,20 @@ function getRowFromCache(page, rowNum){
   return dRows.find(function(r){ return Number(r._rowNum) === target; }) || null;
 }
 
-function openViewModal(page, rowNum){
+function openViewModal(page, rowNum, viewMode){
   var row=getRowFromCache(page, rowNum);
   if(!row){ showToast('Row data unavailable. Please refresh.','error'); return; }
 
   var titleMap={bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA',enduser:'Requesting Office'};
   var pr = row['P.R NO.'] || row['P.R #'] || '';
-  var showPr = page === 'bac';
-  var idMeta=(row['TRACKING NO.']?('Tracking: '+row['TRACKING NO.']):'')+(showPr && pr ? (' · P.R NO.: '+pr) : '');
   var isNew = String(row['IS NOTIFIED']||row['IS NEW']||'').trim().toUpperCase() === 'TRUE';
+  var isWorkflowDept = ['bac','supply','budget','accounting','cash'].indexOf(String(page||'').toLowerCase()) !== -1;
+  var forceAllView = String(viewMode || '').toLowerCase() === 'all' || (isNew && isWorkflowDept);
+  var showPr = forceAllView || page === 'bac';
+  var idMeta=(row['TRACKING NO.']?('Tracking: '+row['TRACKING NO.']):'')+(showPr && pr ? (' · P.R NO.: '+pr) : '');
   var forwardedFrom = String(row['FORWARDED FROM']||'').trim();
   modalState={mode:'view'};
-  document.getElementById('main-modal-title').textContent=(isNew && forwardedFrom ? '🔔 Incoming — ' : 'View ')+(titleMap[page]||'Transaction')+' Record';
+  document.getElementById('main-modal-title').textContent=(isNew && forwardedFrom ? '🔔 Incoming — ' : 'View ')+(forceAllView ? 'Transaction' : (titleMap[page]||'Transaction'))+' Record';
   document.getElementById('main-modal-meta').textContent=(idMeta?idMeta+' · ':'')+(isNew && forwardedFrom ? 'Forwarded from '+esc2(forwardedFrom) : 'Read-only view');
   document.getElementById('main-modal-save').style.display='none';
   document.getElementById('main-modal-cancel').textContent='Close';
@@ -273,6 +275,21 @@ function openViewModal(page, rowNum){
       '</div>';
     return;
   }
+  if (forceAllView) {
+    var allViewHtml = buildRowViewHTML('all', row);
+    if (isNew && forwardedFrom) {
+      var incomingBanner = '<div class="new-view-banner">'+
+        '<div class="nvb-icon">📥</div>'+
+        '<div class="nvb-content">'+
+          '<div class="nvb-from">Forwarded from <strong>'+esc2(forwardedFrom)+'</strong></div>'+
+          (String(row['FORWARD REMARKS']||'').trim() ? '<div class="nvb-remarks">'+esc2(row['FORWARD REMARKS'])+'</div>' : '')+
+        '</div>'+
+      '</div>';
+      allViewHtml = incomingBanner + allViewHtml;
+    }
+    document.getElementById('main-modal-body').innerHTML = allViewHtml;
+    return;
+  }
   if (isNew && forwardedFrom) {
     document.getElementById('main-modal-body').innerHTML='<div class="loading"><div class="spinner"></div> Loading forwarded data…</div>';
     var tn = String(row['TRACKING NO.']||'').trim();
@@ -293,6 +310,7 @@ function openViewModal(page, rowNum){
 
 function buildRowViewHTML(page,row){
   var fieldOrder={
+    all:['DATE RECEIVED','P.R NO.','END-USER / REQUESTED BY','END USER','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','BAC RESO STATUS','NOA','NTP','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','ORS NO.','BUPR NO.','ORS AMOUNT','DV NO.','NET AMOUNT','TAX AMOUNT','CHEQUE NO. / LDDAP','DATE OF CHEQUE','RCAO','ARDA','CURRENT DEPT','CURRENT STATUS','FORWARDED FROM','FORWARD REMARKS','COMPLETED AT','RETURN TO','RETURNED FROM','RETURN REMARKS','RETURNED DATE','RETURN RECEIVED DATE','RETURN RECEIVED REMARKS'],
     bac:['DATE RECEIVED','P.R NO.','END-USER / REQUESTED BY','CATEGORY','PHIGEPS POSTED','APPROVED ABC','RFQ','COMPLETE RFQ RETURNED','RFQ DATE OF COMPLETION','ABSTRACT OF AWARD','AWARDED TO','DATE OF AWARD','MODE OF PROCUREMENT','BAC RESO','BAC RESO STATUS','NOA','NTP','STATUS','COMPLETED AT'],
     supply:['DATE RECEIVED','P.R NO.','END USER','P.O. NO.','P.O. DATE','DOCUMENT TYPE','SUPPLIER','PARTICULARS','P.O. AMOUNT','DATE TRANSMITTED TO SUPPLIER','DATE RECEIVED BY SUPPLIER','COA DATE RECEIVED','I.A.R  NO.','INVOICE  NO.','STATUS','COMPLETED AT'],
     budget:['DATE RECEIVED','P.R NO.','ORS NO.','BUPR NO.','ORS AMOUNT','STATUS','COMPLETED AT'],
@@ -311,7 +329,7 @@ function buildRowViewHTML(page,row){
 
   var isReturnedRecord = String(row['RETURNED DATE'] || '').trim() !== '';
 
-  if (isReturnedRecord) {
+  if (isReturnedRecord && page !== 'all') {
     var returnedFrom = esc2(row['RETURNED FROM'] || '—');
     var returnedToLabel = (typeof returnedToDisplay === 'function') ? returnedToDisplay(row) : String(row['RETURN TO'] || '—');
     var returnedTo = esc2(returnedToLabel || '—');
@@ -353,7 +371,7 @@ function buildRowViewHTML(page,row){
     '';
   }
 
-  var showPr = page === 'bac' && String(row['P.R NO.'] || row['P.R #'] || '').trim() !== '';
+  var showPr = (page === 'bac' || page === 'all') && String(row['P.R NO.'] || row['P.R #'] || '').trim() !== '';
   var summary=''+
     '<div class="view-summary">'+
       '<div class="view-card">'+
@@ -369,7 +387,8 @@ function buildRowViewHTML(page,row){
   var RETURN_FIELDS={'RETURN TO':1,'RETURNED FROM':1,'RETURN REMARKS':1,'RETURNED DATE':1,'RETURN RECEIVED DATE':1,'RETURN RECEIVED REMARKS':1};
   var FIELD_LABELS={'RETURN REMARKS':'Remarks','RETURN RECEIVED REMARKS':'Forward Remarks'};
   var fields=(fieldOrder[page]||Object.keys(row)).filter(function(k){
-    if(k==='TRACKING NO.'||k==='P.R #'||k==='_rowNum'||k==='IS NOTIFIED'||k==='IS NEW'||k==='STATUS'||k==='COMPLETED AT'||k==='FORWARD REMARKS') return false;
+    if(k==='TRACKING NO.'||k==='P.R #'||k==='_rowNum'||k==='IS NOTIFIED'||k==='IS NEW'||k==='STATUS') return false;
+    if(page!=='all' && (k==='COMPLETED AT'||k==='FORWARD REMARKS')) return false;
     if(RETURN_FIELDS[k] && !isReturnedRecord) return false;
     return true;
   });

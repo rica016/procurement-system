@@ -417,14 +417,14 @@ function renderMyReqsTable(reqs) {
       if (isActiveTab) {
         allActCell = rd === 'enduser'
           ? '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
-            '<button class="btn-sm view" onclick="openViewModal(\'enduser\','+r._rowNum+')">👁 View</button>'+
+            '<button class="btn-sm view" onclick="openViewModal(\'enduser\','+r._rowNum+',\'all\')">👁 View</button>'+
             '<button class="btn-sm forward" onclick="openForwardModal(\'END USER\','+r._rowNum+')">Forward</button>'+
             '</div></div></td>'
           : '<td></td>';
       }
       if (isDoneTab) {
         allActCell = '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
-          '<button class="btn-sm view" onclick="openViewModal(\''+rd+'\','+r._rowNum+')">👁 View</button>'+
+          '<button class="btn-sm view" onclick="openViewModal(\''+rd+'\','+r._rowNum+',\'all\')">👁 View</button>'+
           (rd === 'enduser' ? '<button class="btn-sm warn" onclick="reopenEndUserCompleted('+r._rowNum+', this)">↺ Undo</button>' : '')+
           '</div></div></td>';
         var forwardedTo = String(r['TO DEPT'] || r['FORWARDED TO'] || r['COMPLETED TO'] || '').trim();
@@ -457,7 +457,8 @@ function renderMyReqsTable(reqs) {
     }
 
     var rowDept = (myReqsDeptTab === 'all') ? String(r._myReqDept || '').toLowerCase() : myReqsDeptTab;
-    var viewBtn = '<button class="btn-sm view" onclick="openViewModal(\''+rowDept+'\','+r._rowNum+')">👁 View</button>';
+    var allModeArg = myReqsDeptTab === 'all' ? ',\'all\'' : '';
+    var viewBtn = '<button class="btn-sm view" onclick="openViewModal(\''+rowDept+'\','+r._rowNum+allModeArg+')">👁 View</button>';
     var actionMenu = '<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">';
 
     if (isReturnTab) {
@@ -1415,23 +1416,58 @@ function renderDashboardTable() {
     return dashboardRowsForTab(page, tab).filter(rowMatchesActiveBacCategory);
   }
 
+  function parseDashboardSortDate(raw) {
+    if (!raw) return null;
+    if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
+    if (typeof raw === 'object' && raw.timestamp) raw = raw.timestamp;
+    var s = String(raw || '').trim();
+    if (!s || s === '—') return null;
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) return d;
+    var iso = toDateInput(s);
+    if (!iso) return null;
+    d = new Date(iso + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function rowActivityMillis(r) {
+    var tn = String(r['TRACKING NO.'] || '').trim().toUpperCase();
+    var latest = tn ? dashboardLastActivityByTracking[tn] : null;
+    var d = parseDashboardSortDate(latest) ||
+            parseDashboardSortDate(r['COMPLETED AT']) ||
+            parseDashboardSortDate(r['RETURN RECEIVED DATE']) ||
+            parseDashboardSortDate(r['RETURNED DATE']) ||
+            parseDashboardSortDate(r['DATE RECEIVED']);
+    return d ? d.getTime() : 0;
+  }
+
   var allDepts = ['bac','supply','budget','accounting','rcao','arda','cash','enduser'];
   var display;
   if (dashboardDeptTab === 'all') {
-    display = [];
+    var allRows = [];
     var _seenTracking = {};
     allDepts.forEach(function(dept){
       var deptRows = rowsFor(dept, dashboardTab);
       deptRows.forEach(function(r){ r._dashDept = dept; });
-      if (dashboardTab === 'completed' || dashboardTab === 'cancelled') {
-        deptRows = deptRows.filter(function(r) {
-          var tn = String(r['TRACKING NO.'] || '').trim();
-          if (!tn || _seenTracking[tn]) return false;
-          _seenTracking[tn] = true;
-          return true;
-        });
-      }
-      display = display.concat(deptRows);
+      allRows = allRows.concat(deptRows);
+    });
+    display = allRows.filter(function(r) {
+      var tn = String(r['TRACKING NO.'] || '').trim();
+      if (!tn) return true;
+      if (_seenTracking[tn]) return false;
+      _seenTracking[tn] = true;
+      return true;
+    });
+    display.sort(function(a, b) {
+      var am = rowActivityMillis(a);
+      var bm = rowActivityMillis(b);
+      if (bm !== am) return bm - am;
+      var at = String(a['TRACKING NO.'] || '').trim();
+      var bt = String(b['TRACKING NO.'] || '').trim();
+      if (at !== bt) return at < bt ? -1 : 1;
+      var ad = String(a._dashDept || '').trim();
+      var bd = String(b._dashDept || '').trim();
+      return ad < bd ? -1 : (ad > bd ? 1 : 0);
     });
   } else if (dashboardDeptTab === 'enduser') {
     display = rowsFor('enduser', dashboardRenderTab);
@@ -1442,19 +1478,16 @@ function renderDashboardTable() {
   var meta = DASHBOARD_DEPT_META[dashboardDeptTab] || DASHBOARD_DEPT_META.bac;
   function selectedDeptCount(tab) {
     if (dashboardDeptTab === 'all') {
-      // Deduplicate by tracking number for completed/cancelled to avoid counting the same transaction multiple times
-      if (tab === 'completed' || tab === 'cancelled') {
-        var _seen = {};
-        var count = 0;
-        allDepts.forEach(function(dept) {
-          rowsFor(dept, tab).forEach(function(r) {
-            var tn = String(r['TRACKING NO.'] || '').trim();
-            if (tn && !_seen[tn]) { _seen[tn] = true; count++; }
-          });
+      var _seen = {};
+      var count = 0;
+      allDepts.forEach(function(dept) {
+        rowsFor(dept, tab).forEach(function(r) {
+          var tn = String(r['TRACKING NO.'] || '').trim();
+          if (!tn) { count++; return; }
+          if (!_seen[tn]) { _seen[tn] = true; count++; }
         });
-        return count;
-      }
-      return rowsFor('bac', tab).length + rowsFor('supply', tab).length + rowsFor('budget', tab).length + rowsFor('accounting', tab).length + rowsFor('rcao', tab).length + rowsFor('arda', tab).length + rowsFor('cash', tab).length + rowsFor('enduser', tab).length;
+      });
+      return count;
     }
     return rowsFor(dashboardDeptTab, tab).length;
   }
@@ -1472,7 +1505,7 @@ function renderDashboardTable() {
     var el = document.getElementById('dashboard-dept-count-'+key);
     if (el) {
       if (key === 'all') {
-        el.textContent = rowsFor('bac', dashboardTab).length + rowsFor('supply', dashboardTab).length + rowsFor('budget', dashboardTab).length + rowsFor('accounting', dashboardTab).length + rowsFor('rcao', dashboardTab).length + rowsFor('arda', dashboardTab).length + rowsFor('cash', dashboardTab).length + rowsFor('enduser', dashboardTab).length;
+        el.textContent = selectedDeptCount(dashboardTab);
       } else {
         el.textContent = rowsFor(key, dashboardTab).length;
       }
@@ -1515,8 +1548,9 @@ function renderDashboardTable() {
     var isCompleted = category === 'completed' || category === 'cancelled';
     var isForwarded = status.indexOf('FORWARDED TO') === 0;
     var canModify = ['bac','supply','budget','accounting','rcao','arda','cash'].indexOf(actionDept) !== -1;
+    var viewModeArg = dashboardDeptTab === 'all' ? ',\'all\'' : '';
     var actions = '<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
-      '<button class="btn-sm view" onclick="openViewModal(\''+actionDept+'\','+r._rowNum+')">View</button>';
+      '<button class="btn-sm view" onclick="openViewModal(\''+actionDept+'\','+r._rowNum+viewModeArg+')">View</button>';
     if (isReturnedTarget) {
       actions += '<button class="btn-sm success" onclick="completeReturnedDashboardItem(\''+actionDept+'\','+r._rowNum+')">Receive</button>';
     } else if (!isReturnLocked && canModify) {
