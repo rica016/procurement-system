@@ -817,6 +817,11 @@ function printTrackTimeline() {
   var w = window.open('', '_blank');
   if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
 
+  var now = new Date();
+  var exportedAt = formatPHTime(now);
+  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
+  var isCompleted = String(res.currentStatus || '').trim().toUpperCase() === 'COMPLETED';
+
   var timelineRows = (res.timeline || []).map(function(t){
     return '<tr>'+
       '<td>'+esc2(t.section || '')+'</td>'+
@@ -836,21 +841,37 @@ function printTrackTimeline() {
     '</tr>';
   }).join('');
 
-  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Timeline - '+esc2(res.trackingNo || '')+'</title>'+
-    '<style>body{font-family:Segoe UI,Arial,sans-serif;padding:24px;color:#1f2937;}h1{font-size:18px;margin:0 0 6px;}'+
-    '.meta{font-size:12px;color:#6b7280;margin-bottom:16px;}h2{font-size:13px;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;}'+
-    'table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #e5e7eb;padding:8px;vertical-align:top;}th{background:#f8fafc;text-align:left;}'+
-    '.status{display:inline-block;padding:3px 8px;border:1px solid #dbeafe;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-weight:700;font-size:11px;}</style></head><body>'+
-    '<h1>'+esc2(res.trackingNo || 'Transaction Timeline')+'</h1>'+
-    '<div class="meta">'+esc2(res.office || '—')+(res.item ? ' • '+esc2(res.item) : '')+'</div>'+
-    '<div><span class="status">'+esc2(res.currentStatus || '—')+'</span> &nbsp; Current Section: <strong>'+esc2(res.currentSection || '—')+'</strong></div>'+
+  var statusLineParts = [
+    '<span class="status">'+esc2(res.currentStatus || '—')+'</span>'
+  ];
+  if (!isCompleted) {
+    statusLineParts.push('Current Section: <strong>'+esc2(res.currentSection || '—')+'</strong>');
+  }
+  statusLineParts.push(esc2(res.office || '—'));
+  if (res.item) statusLineParts.push(esc2(res.item));
+
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Transaction Timeline — '+esc2(res.trackingNo || '')+'</title>'+
+    '<style>@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
+    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}h2{font-size:13px;font-weight:700;margin:22px 0 8px;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:6px;}'+
+    '.meta{font-size:11px;color:#6b7280;margin-bottom:16px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
+    '.statusline{margin-bottom:14px;font-size:12px;}'+
+    '.status{display:inline-block;padding:3px 8px;border:1px solid #dbeafe;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-weight:700;font-size:11px;}'+
+    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
+    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
+    'tr:nth-child(even) td{background:#fafafa;}'+
+    '.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}</style></head><body>'+
+    '<h1>Transaction Timeline</h1>'+
+    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; Tracking No: <strong>'+esc2(res.trackingNo || '—')+'</strong></div>'+
+    '<div class="statusline">'+statusLineParts.join(' &nbsp;·&nbsp; ')+'</div>'+
     '<h2>Timeline</h2><table><thead><tr><th>Section</th><th>Status</th><th>Date</th></tr></thead><tbody>'+(timelineRows || '<tr><td colspan="3">No timeline data.</td></tr>')+'</tbody></table>'+
     '<h2>Activity Log</h2><table><thead><tr><th>Action</th><th>Flow</th><th>User</th><th>Timestamp</th><th>Remarks</th></tr></thead><tbody>'+(historyRows || '<tr><td colspan="5">No activity log data.</td></tr>')+'</tbody></table>'+
+    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; Transaction Timeline &nbsp;·&nbsp; '+exportedAt+'</div>'+
     '</body></html>';
 
   w.document.open();
   w.document.write(html);
   w.document.close();
+  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
   w.focus();
   w.print();
 }
@@ -873,11 +894,40 @@ function doTrackSearch(){
       var labels={'BAC':'BAC','SUPPLY AND PROPERTY':'Supply & Property','BUDGET':'Budget','ACCOUNTING':'Accounting','CASH':'Cashier','RCAO':'RCAO','ARDA':'ARDA','END USER':'Requesting Office'};
 
       var timeline = Array.isArray(res.timeline) ? res.timeline : [];
+
+      // Prepend Requesting Office if the server didn't include it
+      var hasEndUser = timeline.some(function(t){ return t.section === 'END USER'; });
+      if (!hasEndUser) {
+        // displayDepartmentName converts END USER → 'Requesting Office', so match that
+        var euHist = (res.history || []).filter(function(h) {
+          return String(h['FROM']||'').toUpperCase() === 'REQUESTING OFFICE' ||
+                 String(h['TO']||'').toUpperCase()   === 'REQUESTING OFFICE';
+        });
+        var overallStatus = String(res.currentStatus || '').toUpperCase();
+        var euIsCompleted = overallStatus === 'COMPLETED' || overallStatus === 'PAID';
+        var euIsProcessing = String(res.currentSection || '').toUpperCase() === 'END USER';
+        var euIsReceived = euHist.some(function(h){
+          return String(h['TO']||'').toUpperCase() === 'REQUESTING OFFICE';
+        });
+
+        var euStep;
+        if (euIsCompleted) {
+          euStep = { section:'END USER', reached:true, completed:true,  status:'Completed' };
+        } else if (euIsProcessing) {
+          euStep = { section:'END USER', reached:true, completed:false, status:'Processing' };
+        } else if (euIsReceived) {
+          euStep = { section:'END USER', reached:true, completed:false, status:'Received' };
+        } else {
+          euStep = { section:'END USER', reached:true, completed:true,  status:'Request Submitted' };
+        }
+        timeline = [euStep].concat(timeline);
+      }
+
       var reachedCount = timeline.filter(function(t){ return !!t.reached; }).length;
       var completedCount = timeline.filter(function(t){ return !!t.completed; }).length;
       var pendingCount = Math.max(0, timeline.length - reachedCount);
 
-      var tlHTML = res.timeline.map(function(t){
+      var tlHTML = timeline.map(function(t){
         var cls = t.completed ? 'done' : (t.reached ? 'active' : 'pending');
         return '<div class="tl-item tl-'+cls+'">'+
           '<div class="tl-icon '+cls+'">'+(t.completed?'✓':(t.reached?'●':'○'))+'</div>'+
@@ -897,8 +947,8 @@ function doTrackSearch(){
 
       var histHTML = '';
       if (res.history && res.history.length) {
-        var evtCls  = {'CREATED':'evt-create','FORWARDED':'evt-forward','RETURNED':'evt-return','RETURN DONE':'evt-returndone','RETURN CONTINUE':'evt-returncont','PAID':'evt-paid','COMPLETED':'evt-paid','CANCELLED':'evt-cancel'};
-        var evtIcon = {'CREATED':'＋','FORWARDED':'→','RETURNED':'↩','RETURN DONE':'✔','RETURN CONTINUE':'▶','PAID':'✓','COMPLETED':'✓','CANCELLED':'✗'};
+        var evtCls  = {'CREATED':'evt-create','FORWARDED':'evt-forward','RECEIVED':'evt-received','RETURNED':'evt-return','RETURN DONE':'evt-returndone','RETURN CONTINUE':'evt-returncont','PAID':'evt-paid','COMPLETED':'evt-paid','CANCELLED':'evt-cancel'};
+        var evtIcon = {'CREATED':'＋','FORWARDED':'→','RECEIVED':'📥','RETURNED':'↩','RETURN DONE':'✔','RETURN CONTINUE':'▶','PAID':'✓','COMPLETED':'✓','CANCELLED':'✗'};
         histHTML = '<div class="track-history">'+
           '<div class="track-history-title">Activity Log</div>'+
           res.history.map(function(h){
@@ -934,9 +984,6 @@ function doTrackSearch(){
               '<div class="track-meta">'+headerMeta+'</div>'+
             '</div>'+
             '<div class="track-header-right">'+
-              '<div class="track-header-actions">'+
-                '<button class="tb-btn" onclick="printTrackTimeline()">Print Timeline</button>'+
-              '</div>'+
               '<div class="track-header-status">'+statusBadge(res.currentStatus||'—')+'</div>'+
             '</div>'+
           '</div>'+
@@ -1897,7 +1944,10 @@ var PAGE_LOADERS={
   cash:       function(){ loadSheet('cash',       'cash-tbody',    7, 'getCashPageData');       },
   rcao:       function(){ loadSheet('rcao',       'rcao-tbody',    6, 'getRCAOPageData');       },
   arda:       function(){ loadSheet('arda',       'arda-tbody',    6, 'getARDAPageData');       },
-  track:      function(){ /* interactive */ },
+  track: function(){
+    var btn = document.getElementById('btn-print-timeline');
+    if (btn) btn.style.display = isAdmin() ? '' : 'none';
+  },
 
   users: function(){
     var staffTb = document.getElementById('staff-tbody'); if(!staffTb) return;
@@ -2006,6 +2056,48 @@ function filterEndUsersUsersTable(){
   tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
 }
 
+function printUsersTable(){
+  var rows = cachedRows['users'] || [];
+  if (!rows.length) { showToast('No user data to export.','info'); return; }
+  var staffRows = rows.filter(function(r){ return !r.isEndUser; });
+  var euRows    = rows.filter(function(r){ return !!r.isEndUser; });
+  var now = new Date();
+  var exportedAt = formatPHTime(now);
+  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
+  var css = '@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
+    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}h2{font-size:13px;font-weight:700;margin:24px 0 8px;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:6px;}'+
+    '.meta{font-size:11px;color:#6b7280;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:8px;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
+    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
+    'tr:nth-child(even) td{background:#fafafa;}.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}';
+  function buildTbodyRows(list){
+    if (!list.length) return '<tr><td colspan="5" style="color:#9ca3af;text-align:center;padding:14px;">No records found.</td></tr>';
+    return list.map(function(r){
+      return '<tr><td>'+esc2(r.firstName||'—')+'</td><td>'+esc2(r.lastName||'—')+'</td>'+
+        '<td><strong>'+esc2(r.username||'—')+'</strong></td><td>'+esc2(r.role||'—')+'</td>'+
+        '<td style="color:'+(r.isActive?'#15803d':'#6b7280')+';">'+esc2(r.isActive?'Active':'Inactive')+'</td></tr>';
+    }).join('');
+  }
+  var theadCols = '<tr><th>First Name</th><th>Last Name</th><th>Username</th><th>Role</th><th>Status</th></tr>';
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>User Management — '+exportedAt+'</title><style>'+css+'</style></head><body>'+
+    '<h1>User Management</h1>'+
+    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; '+rows.length+' total user'+(rows.length!==1?'s':'')+'</div>'+
+    '<h2>Department Staff &nbsp;('+staffRows.length+')</h2>'+
+    '<table><thead>'+theadCols+'</thead><tbody>'+buildTbodyRows(staffRows)+'</tbody></table>'+
+    '<h2>End Users &nbsp;('+euRows.length+')</h2>'+
+    '<table><thead>'+theadCols+'</thead><tbody>'+buildTbodyRows(euRows)+'</tbody></table>'+
+    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; User Management &nbsp;·&nbsp; '+exportedAt+'</div>'+
+    '</body></html>';
+  var w = window.open('','_blank');
+  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
+  w.focus();
+  w.print();
+}
+
 function renderSuppliersTable(rows){
   var tb  = document.getElementById('suppliers-tbody');
   var sub = document.getElementById('suppliers-panel-sub');
@@ -2030,6 +2122,41 @@ function filterSuppliersTable(){
   var tb = document.getElementById('suppliers-tbody');
   if (!tb) return;
   tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+function printSuppliersTable(){
+  var rows = cachedRows['suppliers'] || [];
+  if (!rows.length) { showToast('No supplier data to export.','info'); return; }
+  var sorted = rows.slice().sort(function(a,b){ return (a.supplierName||'').localeCompare(b.supplierName||''); });
+  var now = new Date();
+  var exportedAt = formatPHTime(now);
+  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
+  var css = '@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
+    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}'+
+    '.meta{font-size:11px;color:#6b7280;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
+    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
+    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
+    'tr:nth-child(even) td{background:#fafafa;}.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}';
+  var tbodyRows = sorted.map(function(r){
+    var s = String(r.status||'ACTIVE').toUpperCase();
+    var color = s==='BLOCKED'?'#b91c1c':s==='INACTIVE'?'#6b7280':'#15803d';
+    return '<tr><td><strong>'+esc2(r.supplierName||'—')+'</strong></td>'+
+      '<td style="color:'+color+';">'+esc2(s)+'</td></tr>';
+  }).join('');
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Supplier Directory — '+exportedAt+'</title><style>'+css+'</style></head><body>'+
+    '<h1>Supplier Directory</h1>'+
+    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; '+sorted.length+' supplier'+(sorted.length!==1?'s':'')+'</div>'+
+    '<table><thead><tr><th>Supplier Name</th><th>Status</th></tr></thead><tbody>'+tbodyRows+'</tbody></table>'+
+    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; Supplier Directory &nbsp;·&nbsp; '+exportedAt+'</div>'+
+    '</body></html>';
+  var w = window.open('','_blank');
+  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
+  w.focus();
+  w.print();
 }
 
 function supplierStatusBadge(status){
@@ -2177,14 +2304,19 @@ function saveUserModal(){
 }
 
 function doDeleteUser(rowNum, username){
-  if (!confirm('Delete user "'+username+'"? This cannot be undone.')) return;
-  google.script.run
-    .withSuccessHandler(function(res){
-      if (res&&res.success) { showToast('User "'+username+'" deleted.','info'); loadData(); }
-      else showToast('Error: '+(res&&res.message||'Unknown'),'error');
-    })
-    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
-    .deleteUser(rowNum, username, currentUser.username);
+  showConfirm({
+    type:'danger', icon:'🗑', title:'Delete User',
+    message:'Delete user "'+username+'"? This cannot be undone.',
+    ok:'Delete'
+  }, function(){
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (res&&res.success) { showToast('User "'+username+'" deleted.','info'); loadData(); }
+        else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      })
+      .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+      .deleteUser(rowNum, username, currentUser.username);
+  });
 }
 
 function closeUserModal(e){
@@ -2219,6 +2351,40 @@ function filterEndUsersTable(){
   var tb = document.getElementById('endusers-tbody');
   if (!tb) return;
   tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q)?'':'none'; });
+}
+
+function printEndUsersTable(){
+  var rows = cachedRows['endusers'] || [];
+  if (!rows.length) { showToast('No end user role data to export.','info'); return; }
+  var sorted = rows.slice().sort(function(a,b){ return (a.endUserRole||'').localeCompare(b.endUserRole||''); });
+  var now = new Date();
+  var exportedAt = formatPHTime(now);
+  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
+  var css = '@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
+    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}'+
+    '.meta{font-size:11px;color:#6b7280;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
+    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
+    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
+    'tr:nth-child(even) td{background:#fafafa;}.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}';
+  var tbodyRows = sorted.map(function(r){
+    var s = String(r.status||'ACTIVE').toUpperCase();
+    return '<tr><td><strong>'+esc2(r.endUserRole||'—')+'</strong></td>'+
+      '<td style="color:'+(s==='INACTIVE'?'#6b7280':'#15803d')+';">'+esc2(s)+'</td></tr>';
+  }).join('');
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>End User Roles — '+exportedAt+'</title><style>'+css+'</style></head><body>'+
+    '<h1>End User Roles</h1>'+
+    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; '+sorted.length+' role'+(sorted.length!==1?'s':'')+'</div>'+
+    '<table><thead><tr><th>End User Role</th><th>Status</th></tr></thead><tbody>'+tbodyRows+'</tbody></table>'+
+    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; End User Roles &nbsp;·&nbsp; '+exportedAt+'</div>'+
+    '</body></html>';
+  var w = window.open('','_blank');
+  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
+  w.focus();
+  w.print();
 }
 
 function endUserStatusBadge(status){
@@ -2297,14 +2463,19 @@ function saveEndUserModal(){
 }
 
 function doDeleteEndUser(rowNum, endUserRole){
-  if (!confirm('Delete end user role "'+endUserRole+'"? This cannot be undone.')) return;
-  google.script.run
-    .withSuccessHandler(function(res){
-      if (res&&res.success) { showToast('End User Role "'+endUserRole+'" deleted.','info'); loadData(); refreshEndUserDatalist(); }
-      else showToast('Error: '+(res&&res.message||'Unknown'),'error');
-    })
-    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
-    .deleteEndUser(rowNum, endUserRole, currentUser.username);
+  showConfirm({
+    type:'danger', icon:'🗑', title:'Delete End User Role',
+    message:'Delete end user role "'+endUserRole+'"? This cannot be undone.',
+    ok:'Delete'
+  }, function(){
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (res&&res.success) { showToast('End User Role "'+endUserRole+'" deleted.','info'); loadData(); refreshEndUserDatalist(); }
+        else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      })
+      .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+      .deleteEndUser(rowNum, endUserRole, currentUser.username);
+  });
 }
 
 function closeEndUserModal(e){
@@ -2389,17 +2560,22 @@ function saveSupplierModal(){
 }
 
 function doDeleteSupplier(rowNum, supplierName){
-  if (!confirm('Delete supplier "'+supplierName+'"? This cannot be undone.')) return;
-  google.script.run
-    .withSuccessHandler(function(res){
-      if (res&&res.success) {
-        showToast('Supplier "'+supplierName+'" deleted.','info');
-        refreshSupplierDatalist();
-        loadData();
-      } else showToast('Error: '+(res&&res.message||'Unknown'),'error');
-    })
-    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
-    .deleteSupplier(rowNum, supplierName, currentUser.username);
+  showConfirm({
+    type:'danger', icon:'🗑', title:'Delete Supplier',
+    message:'Delete supplier "'+supplierName+'"? This cannot be undone.',
+    ok:'Delete'
+  }, function(){
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (res&&res.success) {
+          showToast('Supplier "'+supplierName+'" deleted.','info');
+          refreshSupplierDatalist();
+          loadData();
+        } else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      })
+      .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+      .deleteSupplier(rowNum, supplierName, currentUser.username);
+  });
 }
 
 function closeSupplierModal(e){

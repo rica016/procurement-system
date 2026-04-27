@@ -2035,6 +2035,8 @@ function getAuditLogs(limitRows) {
       var rawUser = String(data[i][1] || '');
       var fullName = nameMap[rawUser.toLowerCase()] || rawUser;
       out.push({
+        rowNum: i + 1,
+        _rowNum: i + 1,
         timestamp: formatCellForClient('TIMESTAMP', data[i][0]),
         username: rawUser,
         fullName: fullName,
@@ -2046,6 +2048,60 @@ function getAuditLogs(limitRows) {
     return out;
   } catch (e) {
     return [];
+  }
+}
+
+function deleteAuditLogs(keys) {
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    ensureCoreSheets(ss);
+    var sheet = ss.getSheetByName(SHEETS.AUDIT);
+    if (!sheet || sheet.getLastRow() < 2) return {success:true, deletedCount:0};
+
+    var keyList = Array.isArray(keys) ? keys : [];
+    if (!keyList.length) return {success:false, message:'No audit keys provided.'};
+
+    var numericRows = keyList
+      .map(function(k){ return parseInt(k, 10); })
+      .filter(function(n){ return !isNaN(n) && n >= 2; });
+
+    var deleted = 0;
+
+    if (numericRows.length) {
+      var seen = {};
+      var rows = numericRows.filter(function(n){
+        if (seen[n]) return false;
+        seen[n] = true;
+        return true;
+      }).sort(function(a,b){ return b-a; });
+
+      for (var i = 0; i < rows.length; i++) {
+        var rn = rows[i];
+        if (rn <= sheet.getLastRow()) {
+          sheet.deleteRow(rn);
+          deleted++;
+        }
+      }
+      return {success:true, deletedCount:deleted};
+    }
+
+    // Fallback: match by timestamp string if row numbers are not provided.
+    var wantedTs = {};
+    keyList.forEach(function(k){ wantedTs[String(k || '').trim()] = true; });
+    var data = sheet.getDataRange().getValues();
+    var rowsToDelete = [];
+    for (var r = 1; r < data.length; r++) {
+      var ts = formatCellForClient('TIMESTAMP', data[r][0]);
+      if (wantedTs[ts]) rowsToDelete.push(r + 1);
+    }
+    rowsToDelete.sort(function(a,b){ return b-a; }).forEach(function(rn){
+      sheet.deleteRow(rn);
+      deleted++;
+    });
+
+    return {success:true, deletedCount:deleted};
+  } catch (e) {
+    return {success:false, message:e.message};
   }
 }
 

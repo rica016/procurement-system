@@ -69,6 +69,126 @@ function _applyAuditFilter(){
 
 function filterAuditTable(){ _applyAuditFilter(); }
 
+function printAndClearAuditLogs(){
+  // Collect the currently filtered (visible) rows
+  var q    = (document.getElementById('audit-search').value||'').toLowerCase();
+  var from = (document.getElementById('audit-date-from').value||'');
+  var to   = (document.getElementById('audit-date-to').value||'');
+
+  var filtered = _auditRows.filter(function(r){
+    if (q) {
+      var hay = [r.timestamp,r.username,r.action,r.department,r.recordId].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (from || to) {
+      var ts = String(r.timestamp||'').trim();
+      var datePart = ts.slice(0,10);
+      if (!/^\d{4}-\d{2}-\d{2}/.test(datePart)) {
+        var d = new Date(ts); if (!isNaN(d))
+          datePart = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      }
+      if (from && datePart < from) return false;
+      if (to   && datePart > to)   return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) { showToast('No records to export.','info'); return; }
+
+  var filterDesc = [];
+  if (q)    filterDesc.push('keyword "'+q+'"');
+  if (from) filterDesc.push('from '+from);
+  if (to)   filterDesc.push('to '+to);
+  var filterNote = filterDesc.length ? 'Filtered by: '+filterDesc.join(', ')+'. ' : '';
+  var confirmMsg = filterNote + filtered.length+' audit record'+(filtered.length!==1?'s':'')+' will be exported as PDF and permanently deleted. This cannot be undone.';
+
+  showConfirm({
+    type:'danger', icon:'🗑', title:'Export & Clear Audit Logs',
+    message: confirmMsg,
+    ok:'Export & Delete'
+  }, function(){
+
+  // Build print window
+  var w = window.open('', '_blank');
+  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
+
+  var tableRows = filtered.map(function(r){
+    var a = String(r.action||'').toUpperCase();
+    var color = a.includes('CREATE')?'#15803d':a.includes('DELETE')?'#b91c1c':a.includes('LOGIN')?'#1d4ed8':'#92400e';
+    var mainUser = esc2(r.fullName||r.username||'—');
+    var subUser = (r.username&&r.fullName) ? '<span style="font-size:9.5px;color:#9ca3af;font-weight:500;"> ('+esc2(r.username)+')</span>' : '';
+    return '<tr>'+
+      '<td style="white-space:nowrap;color:#6b7280;">'+esc2(r.timestamp||'—')+'</td>'+
+      '<td><strong>'+mainUser+'</strong>'+subUser+'</td>'+
+      '<td style="font-weight:700;color:'+color+';">'+esc2(r.action||'—')+'</td>'+
+      '<td>'+esc2(r.department||'—')+'</td>'+
+      '<td style="font-family:monospace;font-size:10.5px;">'+esc2(r.recordId||'—')+'</td>'+
+    '</tr>';
+  }).join('');
+
+  var now = new Date();
+  var exportedAt = formatPHTime(now);
+  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
+
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Audit Log Export — '+exportedAt+'</title>'+
+    '<style>@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:11.5px;color:#111827;padding:28px 32px;}'+
+    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}'+
+    '.meta{font-size:11px;color:#6b7280;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
+    '.warn{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 12px;font-size:11px;color:#b91c1c;font-weight:600;margin-bottom:16px;}'+
+    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:4px 6px;text-align:left;vertical-align:top;line-height:1.2;}'+
+    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
+    'tr:nth-child(even) td{background:#fafafa;}'+
+    '.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}'+
+    '@media print{.warn{display:none;}}</style></head><body>'+
+    '<h1>Audit Log Export</h1>'+
+    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; '+filtered.length+' record'+(filtered.length!==1?'s':'')+
+      (filterDesc.length?' &nbsp;·&nbsp; Filtered by: '+filterDesc.map(esc2).join(', '):'')+'</div>'+
+    '<div class="warn">⚠ These records have been permanently deleted from the system after this export.</div>'+
+    '<table><thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Department</th><th>Record / Detail</th></tr></thead>'+
+    '<tbody>'+tableRows+'</tbody></table>'+
+    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; Audit Log &nbsp;·&nbsp; '+exportedAt+'</div>'+
+    '</body></html>';
+
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  var rowNums = filtered.map(function(r){ return r.rowNum || r._rowNum; }).filter(function(n){ return !!n; });
+  var timestamps = filtered.map(function(r){ return r.timestamp||''; });
+
+  function runDeleteAfterExport() {
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (res && res.success) {
+          showToast('Deleted '+filtered.length+' audit record'+(filtered.length!==1?'s':'')+'.','success');
+          loadData();
+        } else {
+          showToast('Deletion failed: '+(res&&res.message||'Unknown error')+'.','error');
+          loadData();
+        }
+      })
+      .withFailureHandler(function(e){
+        showToast('Server error during deletion: '+e.message+'.','error');
+        loadData();
+      })
+      .deleteAuditLogs(rowNums.length ? rowNums : timestamps);
+  }
+
+  w.addEventListener('afterprint', function(){
+    try { w.close(); } catch (e) {}
+    showConfirm({
+      type:'danger',
+      icon:'🗑',
+      title:'Delete Exported Audit Records?',
+      message:'If you printed successfully, click Delete Now. If you canceled printing, click Cancel to keep the logs.',
+      ok:'Delete Now'
+    }, runDeleteAfterExport);
+  });
+  w.focus();
+  w.print();
+
+  }); // end showConfirm callback
+}
+
 function clearAuditDateFilter(){
   var f = document.getElementById('audit-date-from');
   var t = document.getElementById('audit-date-to');

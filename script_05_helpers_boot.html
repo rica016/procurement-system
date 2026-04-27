@@ -53,6 +53,40 @@ function breakdownPanel(title,rows){
   });
   return html+'</div></div></div>';
 }
+function formatPHTime(d){
+  var ph = new Date((d||new Date()).toLocaleString('en-US',{timeZone:'Asia/Manila'}));
+  var mm = String(ph.getMonth()+1).padStart(2,'0');
+  var dd = String(ph.getDate()).padStart(2,'0');
+  var yr = ph.getFullYear();
+  var h  = ph.getHours();
+  var mn = String(ph.getMinutes()).padStart(2,'0');
+  var ap = h>=12?'PM':'AM';
+  h = h%12||12;
+  return yr+'-'+mm+'-'+dd+' '+h+':'+mn+' '+ap;
+}
+var _confirmCb = null;
+function showConfirm(opts, cb){
+  _confirmCb = cb || null;
+  var type = opts.type || 'danger';
+  var iconEl = document.getElementById('confm-icon');
+  iconEl.className = 'confm-icon ci-' + type;
+  iconEl.textContent = opts.icon || (type==='danger'?'🗑':type==='warn'?'⚠':'ℹ');
+  document.getElementById('confm-title').textContent = opts.title || 'Confirm Action';
+  document.getElementById('confm-msg').textContent = opts.message || '';
+  var okBtn = document.getElementById('confm-ok');
+  okBtn.textContent = opts.ok || 'Confirm';
+  okBtn.className = 'tb-btn ' + (type==='danger'?'danger':type==='warn'?'':'primary');
+  document.getElementById('confm-cancel').textContent = opts.cancel || 'Cancel';
+  document.getElementById('confm-overlay').classList.add('open');
+}
+function hideConfirm(){
+  document.getElementById('confm-overlay').classList.remove('open');
+  _confirmCb = null;
+}
+function doConfirm(){
+  document.getElementById('confm-overlay').classList.remove('open');
+  if(_confirmCb){ var cb=_confirmCb; _confirmCb=null; cb(); }
+}
 function showToast(msg,type){
   type=type||'info';
   var tc=document.getElementById('toast');

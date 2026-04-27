@@ -1083,6 +1083,13 @@ function saveMainModal(){
   var savedPrNo    = (savedPage === 'bac') ? (editData['P.R NO.'] || editData['P.R #'] || '') : null;
   var savedTracking= (savedPage === 'bac') ? ((getRowFromCache('bac', savedRowNum)||{})['TRACKING NO.'] || '') : '';
 
+  // Log RECEIVED event for non-BAC depts when acknowledging a new incoming transaction
+  if (savedIsNew && savedPage !== 'bac') {
+    google.script.run
+      .withFailureHandler(function(){})
+      .receiveTransaction(SHEET_NAMES[savedPage], savedRowNum, '', currentUser.username);
+  }
+
   google.script.run
     .withSuccessHandler(function(res){
       btn.textContent='Save Updates'; btn.disabled=false;
@@ -1269,23 +1276,33 @@ function completeReturnedItem(sheetName, rowNum){
 //  MARK COMPLETED / CANCEL
 // ═══════════════════════════════════════════════════════════════════════════════
 function doMarkPaid(rowNum){
-  if(!confirm('Mark this transaction as COMPLETED? This cannot be undone.')) return;
-  google.script.run
-    .withSuccessHandler(function(res){
-      if(res&&res.success){
-        showToast(res.alreadyCompleted ? 'Already marked as completed.' : 'Marked as completed!','success');
-        loadData();
-      } else showToast('Error: '+(res&&res.message||'Unknown'),'error');
-    })
-    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
-    .markCompleted(rowNum, currentUser.username);
+  showConfirm({
+    type:'warn', icon:'✔', title:'Mark as Completed',
+    message:'Mark this transaction as COMPLETED? This cannot be undone.',
+    ok:'Mark Completed'
+  }, function(){
+    google.script.run
+      .withSuccessHandler(function(res){
+        if(res&&res.success){
+          showToast(res.alreadyCompleted ? 'Already marked as completed.' : 'Marked as completed!','success');
+          loadData();
+        } else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      })
+      .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+      .markCompleted(rowNum, currentUser.username);
+  });
 }
 function doCancelTransaction(sheetName, rowNum){
-  if(!confirm('Cancel this transaction? This cannot be undone.')) return;
-  google.script.run
-    .withSuccessHandler(function(res){ if(res&&res.success){ showToast('Transaction cancelled.','info'); loadData(); } else showToast('Error: '+(res&&res.message||'Unknown'),'error'); })
-    .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
-    .cancelTransaction(sheetName, rowNum, currentUser.username);
+  showConfirm({
+    type:'danger', icon:'✕', title:'Cancel Transaction',
+    message:'Cancel this transaction? This cannot be undone.',
+    ok:'Yes, Cancel'
+  }, function(){
+    google.script.run
+      .withSuccessHandler(function(res){ if(res&&res.success){ showToast('Transaction cancelled.','info'); loadData(); } else showToast('Error: '+(res&&res.message||'Unknown'),'error'); })
+      .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+      .cancelTransaction(sheetName, rowNum, currentUser.username);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

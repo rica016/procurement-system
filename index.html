@@ -432,15 +432,16 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 /* ── TRACK PAGE ── */
 .track-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
 .track-input{flex:1;min-width:260px;max-width:520px;}
+.btn-track-print{margin-left:auto;border:1.5px solid var(--blue);color:var(--blue);background:var(--blue-light);font-weight:700;border-radius:9px;}
+.btn-track-print:hover{background:var(--blue-mid)!important;border-color:var(--blue-2);}
+.btn-track-print svg{flex-shrink:0;}
 .track-result{margin-top:16px;}
 .track-shell{display:block;}
 .track-card{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm);}
-.track-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 20px;background:linear-gradient(135deg,var(--blue-light),#eef5ff);border-bottom:1px solid var(--border);}
+.track-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;background:linear-gradient(135deg,var(--blue-light),#eef5ff);border-bottom:1px solid var(--border);}
 .track-title{font-size:16px;font-weight:800;color:var(--blue);letter-spacing:.02em;}
 .track-meta{font-size:11.5px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px;}
-.track-header-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
-.track-header-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
-.track-header-actions .tb-btn{height:30px;padding:0 10px;font-size:11px;}
+.track-header-right{display:flex;align-items:center;gap:10px;}
 .track-header-status .badge{font-size:11px;}
 .track-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--surface3);}
 .track-kpi{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:9px 10px;}
@@ -479,10 +480,12 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .track-evt{display:flex;gap:12px;padding:12px 14px;border-radius:11px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--border);align-items:flex-start;}
 .evt-dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;margin-top:1px;background:var(--surface3);color:var(--muted);}
 .track-evt.evt-create,.track-evt.evt-forward{border-left-color:var(--blue);}
+.track-evt.evt-received{border-left-color:var(--teal);}
 .track-evt.evt-return{border-left-color:var(--amber);}
 .track-evt.evt-returndone,.track-evt.evt-returncont,.track-evt.evt-paid{border-left-color:var(--green);}
 .track-evt.evt-cancel{border-left-color:var(--red);}
 .track-evt.evt-create .evt-dot,.track-evt.evt-forward .evt-dot{background:var(--blue-light);color:var(--blue);}
+.track-evt.evt-received .evt-dot{background:var(--teal-light);color:var(--teal);}
 .track-evt.evt-return .evt-dot{background:var(--amber-light);color:var(--amber);}
 .track-evt.evt-returndone .evt-dot,.track-evt.evt-returncont .evt-dot,.track-evt.evt-paid .evt-dot{background:var(--green-light);color:var(--green);}
 .track-evt.evt-cancel .evt-dot{background:var(--red-light);color:var(--red);}
@@ -490,6 +493,7 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .evt-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;line-height:1.35;}
 .evt-action{font-size:13.5px;font-weight:800;color:var(--text);}
 .track-evt.evt-create .evt-action,.track-evt.evt-forward .evt-action{color:var(--blue);}
+.track-evt.evt-received .evt-action{color:var(--teal);}
 .track-evt.evt-return .evt-action{color:var(--amber);}
 .track-evt.evt-returndone .evt-action,.track-evt.evt-returncont .evt-action,.track-evt.evt-paid .evt-action{color:var(--green);}
 .track-evt.evt-cancel .evt-action{color:var(--red);}
@@ -512,9 +516,9 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 @media (max-width: 640px){
   .track-toolbar{gap:8px;}
   .track-input{max-width:100%;min-width:unset;}
-  .track-header{padding:14px 14px;}
-  .track-header-right{align-items:flex-start;width:100%;}
-  .track-header-actions{justify-content:flex-start;}
+  .btn-track-print{margin-left:0;}
+  .track-header{padding:14px 14px;flex-wrap:wrap;}
+  .track-header-right{flex-wrap:wrap;}
   .track-kpis{padding:10px 14px;gap:8px;}
   .track-body{padding:12px 14px;}
   .tl-top{flex-direction:column;align-items:flex-start;}
@@ -544,7 +548,26 @@ td{padding:10px 14px;font-size:13px;vertical-align:middle;border:1px solid var(-
 .audit-action-delete{color:var(--red);}
 .audit-action-login {color:var(--muted);}
 .audit-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.btn-audit-export{border:1.5px solid var(--red);color:var(--red);background:var(--red-light);font-weight:700;border-radius:9px;margin-left:auto;}
+.btn-audit-export:hover{background:var(--red-mid)!important;border-color:var(--red);}
+.btn-audit-export svg{flex-shrink:0;}
+.btn-mgmt-export{border:1.5px solid var(--blue);color:var(--blue);background:var(--blue-light);font-weight:700;border-radius:9px;}
+.btn-mgmt-export:hover{background:var(--blue-mid)!important;border-color:var(--blue-2);}
+.btn-mgmt-export svg{flex-shrink:0;}
 .audit-date-label{font-size:11.5px;font-weight:700;color:var(--muted);white-space:nowrap;}
+
+/* ── CONFIRM MODAL ── */
+.confm-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,40,.55);z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.confm-overlay.open{display:flex;}
+.confm-card{background:var(--surface);border-radius:18px;width:90%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.06);animation:fadeUp .22s ease both;padding:30px 28px 22px;text-align:center;}
+.confm-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px;}
+.confm-icon.ci-danger{background:var(--red-light);}
+.confm-icon.ci-warn{background:var(--amber-light);}
+.confm-icon.ci-info{background:var(--blue-light);}
+.confm-title{font-size:16px;font-weight:800;letter-spacing:-.3px;margin-bottom:8px;}
+.confm-msg{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:24px;}
+.confm-actions{display:flex;gap:8px;justify-content:center;}
+.confm-actions .tb-btn{flex:1;justify-content:center;}
 .audit-date-input{padding:7px 10px;font-size:12.5px;width:140px;cursor:pointer;color-scheme:light;}
 .audit-date-input::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.6;padding:2px;border-radius:4px;transition:opacity .15s;}
 .audit-date-input::-webkit-calendar-picker-indicator:hover{opacity:1;background:var(--blue-light);}
@@ -842,6 +865,18 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
     <div class="modal-footer">
       <button class="tb-btn" onclick="closeProfileModal()">Cancel</button>
       <button class="tb-btn primary" id="profile-modal-save" onclick="saveProfileModal()">Save Profile</button>
+    </div>
+  </div>
+</div>
+
+<div class="confm-overlay" id="confm-overlay" onclick="hideConfirm()">
+  <div class="confm-card" onclick="event.stopPropagation()">
+    <div class="confm-icon ci-danger" id="confm-icon">🗑</div>
+    <div class="confm-title" id="confm-title">Confirm Action</div>
+    <div class="confm-msg" id="confm-msg"></div>
+    <div class="confm-actions">
+      <button class="tb-btn" id="confm-cancel" onclick="hideConfirm()">Cancel</button>
+      <button class="tb-btn danger" id="confm-ok" onclick="doConfirm()">Confirm</button>
     </div>
   </div>
 </div>
