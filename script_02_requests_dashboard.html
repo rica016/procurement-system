@@ -809,32 +809,92 @@ function openMyReqViewModal(trackingNo) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  TRACK SEARCH
 // ═══════════════════════════════════════════════════════════════════════════════
+var lastTrackSearchResult = null;
+
+function printTrackTimeline() {
+  if (!lastTrackSearchResult) { showToast('Search a transaction first.','info'); return; }
+  var res = lastTrackSearchResult;
+  var w = window.open('', '_blank');
+  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
+
+  var timelineRows = (res.timeline || []).map(function(t){
+    return '<tr>'+
+      '<td>'+esc2(t.section || '')+'</td>'+
+      '<td>'+esc2(t.status || (t.reached ? 'Reached' : 'Pending'))+'</td>'+
+      '<td>'+esc2(t.completedAt || t.returnedDate || '—')+'</td>'+
+    '</tr>';
+  }).join('');
+
+  var historyRows = (res.history || []).map(function(h){
+    var flow = (h['FROM'] || h['TO']) ? (String(h['FROM']||'') + (h['TO'] ? ' -> ' + h['TO'] : '')) : '—';
+    return '<tr>'+
+      '<td>'+esc2(h['ACTION'] || '')+'</td>'+
+      '<td>'+esc2(flow)+'</td>'+
+      '<td>'+esc2(h['USER'] || '—')+'</td>'+
+      '<td>'+esc2(h['TIMESTAMP'] || '')+'</td>'+
+      '<td>'+esc2(h['REMARKS'] || '—')+'</td>'+
+    '</tr>';
+  }).join('');
+
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Timeline - '+esc2(res.trackingNo || '')+'</title>'+
+    '<style>body{font-family:Segoe UI,Arial,sans-serif;padding:24px;color:#1f2937;}h1{font-size:18px;margin:0 0 6px;}'+
+    '.meta{font-size:12px;color:#6b7280;margin-bottom:16px;}h2{font-size:13px;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563;}'+
+    'table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #e5e7eb;padding:8px;vertical-align:top;}th{background:#f8fafc;text-align:left;}'+
+    '.status{display:inline-block;padding:3px 8px;border:1px solid #dbeafe;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-weight:700;font-size:11px;}</style></head><body>'+
+    '<h1>'+esc2(res.trackingNo || 'Transaction Timeline')+'</h1>'+
+    '<div class="meta">'+esc2(res.office || '—')+(res.item ? ' • '+esc2(res.item) : '')+'</div>'+
+    '<div><span class="status">'+esc2(res.currentStatus || '—')+'</span> &nbsp; Current Section: <strong>'+esc2(res.currentSection || '—')+'</strong></div>'+
+    '<h2>Timeline</h2><table><thead><tr><th>Section</th><th>Status</th><th>Date</th></tr></thead><tbody>'+(timelineRows || '<tr><td colspan="3">No timeline data.</td></tr>')+'</tbody></table>'+
+    '<h2>Activity Log</h2><table><thead><tr><th>Action</th><th>Flow</th><th>User</th><th>Timestamp</th><th>Remarks</th></tr></thead><tbody>'+(historyRows || '<tr><td colspan="5">No activity log data.</td></tr>')+'</tbody></table>'+
+    '</body></html>';
+
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
 function doTrackSearch(){
   var q   = (document.getElementById('track-input').value||'').trim();
   var out = document.getElementById('track-result');
-  if (!q){ out.innerHTML=''; return; }
+  if (!q){ lastTrackSearchResult = null; out.innerHTML=''; return; }
   out.innerHTML='<div class="loading"><div class="spinner"></div> Searching…</div>';
   google.script.run
     .withSuccessHandler(function(res){
       if (!res){
-        out.innerHTML='<div style="padding:28px;text-align:center;color:var(--muted);font-size:13px;"><div style="font-size:36px;margin-bottom:10px;">🔎</div>No transaction found for <strong>"'+esc2(q)+'"</strong>.</div>';
+        lastTrackSearchResult = null;
+        out.innerHTML='<div class="track-empty"><div class="track-empty-icon">🔎</div><div class="track-empty-title">No transaction found</div><div class="track-empty-sub">No match for <strong>"'+esc2(q)+'"</strong>.</div></div>';
         return;
       }
-      if (res.error){ out.innerHTML='<div style="color:var(--red);padding:12px;">⚠ '+esc2(res.error)+'</div>'; return; }
-      var icons ={'BAC':'📋','SUPPLY AND PROPERTY':'📦','BUDGET':'💰','ACCOUNTING':'🧾','CASH':'💳'};
-      var labels={'BAC':'BAC','SUPPLY AND PROPERTY':'Supply & Property','BUDGET':'Budget','ACCOUNTING':'Accounting','CASH':'Cashier'};
+      if (res.error){ lastTrackSearchResult = null; out.innerHTML='<div class="track-error">⚠ '+esc2(res.error)+'</div>'; return; }
+      lastTrackSearchResult = res;
+      var icons ={'BAC':'📋','SUPPLY AND PROPERTY':'📦','BUDGET':'💰','ACCOUNTING':'🧾','CASH':'💳','RCAO':'🗂️','ARDA':'🛡️','END USER':'🏢'};
+      var labels={'BAC':'BAC','SUPPLY AND PROPERTY':'Supply & Property','BUDGET':'Budget','ACCOUNTING':'Accounting','CASH':'Cashier','RCAO':'RCAO','ARDA':'ARDA','END USER':'Requesting Office'};
+
+      var timeline = Array.isArray(res.timeline) ? res.timeline : [];
+      var reachedCount = timeline.filter(function(t){ return !!t.reached; }).length;
+      var completedCount = timeline.filter(function(t){ return !!t.completed; }).length;
+      var pendingCount = Math.max(0, timeline.length - reachedCount);
+
       var tlHTML = res.timeline.map(function(t){
         var cls = t.completed ? 'done' : (t.reached ? 'active' : 'pending');
-        return '<div class="tl-item"><div class="tl-icon '+cls+'">'+(t.completed?'✓':(t.reached?'●':'○'))+'</div>'+
-          '<div class="tl-content"><div class="tl-section">'+(icons[t.section]||'')+(labels[t.section]||t.section)+'</div>'+
-          '<div class="tl-status '+cls+'">'+(t.reached?(t.status||'—'):'Not yet reached')+'</div>'+
-          (t.returnedFrom?'<div class="tl-time">Returned From: '+esc2(t.returnedFrom)+'</div>':'')+
-          (t.returnRemarks?'<div class="tl-time">Return From Remarks: '+esc2(t.returnRemarks)+'</div>':'')+
-          (t.returnReceivedRemarks?'<div class="tl-time">Return To Remarks: '+esc2(t.returnReceivedRemarks)+'</div>':'')+
-          (t.completedAt?'<div class="tl-time">Completed: '+esc2(t.completedAt)+'</div>':'')+
-          (t.returnedDate?'<div class="tl-time">Returned: '+esc2(t.returnedDate)+'</div>':'')+
-          '</div></div>';
+        return '<div class="tl-item tl-'+cls+'">'+
+          '<div class="tl-icon '+cls+'">'+(t.completed?'✓':(t.reached?'●':'○'))+'</div>'+
+          '<div class="tl-content">'+
+            '<div class="tl-top"><div class="tl-section">'+(icons[t.section]||'📝')+' '+(labels[t.section]||t.section)+'</div><span class="tl-chip '+cls+'">'+(t.completed?'Completed':(t.reached?'In Progress':'Pending'))+'</span></div>'+
+            '<div class="tl-status '+cls+'">'+(t.reached?(t.status||'—'):'Not yet reached')+'</div>'+
+            '<div class="tl-meta-stack">'+
+              (t.returnedFrom?'<div class="tl-time">Returned From: '+esc2(t.returnedFrom)+'</div>':'')+
+              (t.returnRemarks?'<div class="tl-time">Return From Remarks: '+esc2(t.returnRemarks)+'</div>':'')+
+              (t.returnReceivedRemarks?'<div class="tl-time">Return To Remarks: '+esc2(t.returnReceivedRemarks)+'</div>':'')+
+              (t.completedAt?'<div class="tl-time">Completed: '+esc2(t.completedAt)+'</div>':'')+
+              (t.returnedDate?'<div class="tl-time">Returned: '+esc2(t.returnedDate)+'</div>':'')+
+            '</div>'+
+          '</div>'+
+        '</div>';
       }).join('');
+
       var histHTML = '';
       if (res.history && res.history.length) {
         var evtCls  = {'CREATED':'evt-create','FORWARDED':'evt-forward','RETURNED':'evt-return','RETURN DONE':'evt-returndone','RETURN CONTINUE':'evt-returncont','PAID':'evt-paid','COMPLETED':'evt-paid','CANCELLED':'evt-cancel'};
@@ -863,22 +923,47 @@ function doTrackSearch(){
           }).join('')+
         '</div>';
       }
-      out.innerHTML='<div class="track-card">'+
-        '<div class="track-header"><div class="track-title">'+(res.trackingNo||'—')+'</div>'+ 
-        '<div class="track-meta">'+esc2(res.office)+(res.item?' &nbsp;·&nbsp; '+esc2(res.item):'')+
-        '</div></div>'+
-        '<div class="track-body">'+
-          '<div class="track-current"><div><div class="track-current-label">Current Location</div>'+
-          '<div class="track-current-val">'+(icons[res.currentSection]||'📝')+' '+(labels[res.currentSection]||res.currentSection)+'</div>'+
-          (res.currentReturnRemarks?'<div class="track-current-label" style="margin-top:8px;">Return From Remarks</div><div class="track-meta">'+esc2(res.currentReturnRemarks)+'</div>':'')+
-          (res.currentReturnReceivedRemarks?'<div class="track-current-label" style="margin-top:8px;">Return To Remarks</div><div class="track-meta">'+esc2(res.currentReturnReceivedRemarks)+'</div>':'')+
+
+      var headerMeta = esc2(res.office||'—') + (res.item ? ' · ' + esc2(res.item) : '');
+      var currentSection = labels[res.currentSection] || res.currentSection || '—';
+      out.innerHTML='<div class="track-shell">'+
+        '<div class="track-card">'+
+          '<div class="track-header">'+
+            '<div>'+ 
+              '<div class="track-title">'+(res.trackingNo||'—')+'</div>'+ 
+              '<div class="track-meta">'+headerMeta+'</div>'+
+            '</div>'+
+            '<div class="track-header-right">'+
+              '<div class="track-header-actions">'+
+                '<button class="tb-btn" onclick="printTrackTimeline()">Print Timeline</button>'+
+              '</div>'+
+              '<div class="track-header-status">'+statusBadge(res.currentStatus||'—')+'</div>'+
+            '</div>'+
           '</div>'+
-          '<div class="track-current-status">'+statusBadge(res.currentStatus)+'</div></div>'+
-          '<div class="timeline">'+tlHTML+'</div>'+
-          histHTML+
-        '</div></div>';
+          '<div class="track-kpis">'+
+            '<div class="track-kpi"><div class="track-kpi-label">Steps</div><div class="track-kpi-value">'+timeline.length+'</div></div>'+
+            '<div class="track-kpi"><div class="track-kpi-label">Reached</div><div class="track-kpi-value">'+reachedCount+'</div></div>'+
+            '<div class="track-kpi"><div class="track-kpi-label">Completed</div><div class="track-kpi-value">'+completedCount+'</div></div>'+
+            '<div class="track-kpi"><div class="track-kpi-label">Pending</div><div class="track-kpi-value">'+pendingCount+'</div></div>'+
+          '</div>'+
+          '<div class="track-body">'+
+            '<div class="track-current">'+
+              '<div class="track-current-block">'+
+                '<div class="track-current-label">Current Location</div>'+
+                '<div class="track-current-val">'+(icons[res.currentSection]||'📝')+' '+currentSection+'</div>'+
+              '</div>'+
+              '<div class="track-current-notes">'+
+                (res.currentReturnRemarks?'<div class="track-note"><div class="track-note-label">Return From Remarks</div><div class="track-note-text">'+esc2(res.currentReturnRemarks)+'</div></div>':'')+
+                (res.currentReturnReceivedRemarks?'<div class="track-note"><div class="track-note-label">Return To Remarks</div><div class="track-note-text">'+esc2(res.currentReturnReceivedRemarks)+'</div></div>':'')+
+              '</div>'+
+            '</div>'+
+            '<div class="timeline">'+tlHTML+'</div>'+
+            histHTML+
+          '</div>'+
+        '</div>'+
+      '</div>';
     })
-    .withFailureHandler(function(e){ out.innerHTML='<div style="color:var(--red);padding:12px;">Error: '+esc2(e.message)+'</div>'; })
+    .withFailureHandler(function(e){ lastTrackSearchResult = null; out.innerHTML='<div class="track-error">Error: '+esc2(e.message)+'</div>'; })
     .searchTransaction(q);
 }
 

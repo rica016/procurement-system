@@ -1,13 +1,13 @@
 <template id="tpl-track">
   <div class="panel">
-    <div class="panel-header"><div><div class="panel-title">🔍 Transaction Search</div><div class="panel-sub">Enter a Tracking No. (e.g. DAR-2026-03-0001)</div></div></div>
+    <div class="panel-header"><div><div class="panel-title">🔍 Transaction Tracking</div><div class="panel-sub">Search by Tracking No. to view live progress, current location, and activity history.</div></div></div>
     <div class="panel-body">
-      <div style="display:flex;gap:10px;margin-bottom:8px;">
-        <input class="form-input" id="track-input" style="flex:1;max-width:480px;" placeholder="DAR-YYYY-MM-XXXX" onkeydown="if(event.key==='Enter') doTrackSearch()"/>
+      <div class="track-toolbar">
+        <input class="form-input track-input" id="track-input" placeholder="DAR-YYYY-MM-XXXX" onkeydown="if(event.key==='Enter') doTrackSearch()"/>
         <button class="tb-btn primary" onclick="doTrackSearch()">Search</button>
         <button class="tb-btn" onclick="document.getElementById('track-input').value='';document.getElementById('track-result').innerHTML='';">Clear</button>
       </div>
-      <div id="track-result" style="margin-top:16px;"></div>
+      <div id="track-result" class="track-result"></div>
     </div>
   </div>
 </template>

@@ -1552,7 +1552,7 @@ function searchTransaction(query) {
     if (!match) return null;
 
     var history = getHistoryRows(ss).filter(function(r){ return r.trackingNo === match.trackingNo; });
-    var timeline = ['BAC','SUPPLY','BUDGET','ACCOUNTING','CASH'].map(function(d){
+    var timeline = ['BAC','SUPPLY','BUDGET','ACCOUNTING','CASH','RCAO','ARDA'].map(function(d){
       var reached = history.some(function(h){ return h.toDept === d || h.fromDept === d; });
       var last = null;
       for (var k = history.length - 1; k >= 0; k--) {
