@@ -671,7 +671,7 @@ function getDeptPageData(deptName) {
       var entry = history[k];
       var actionUpper = String(entry.action || '').toUpperCase();
       if (normalizeDepartmentName(entry.fromDept) !== dept) continue;
-      if (actionUpper === 'FORWARD' || actionUpper === 'COMPLETED') {
+      if (actionUpper === 'FORWARD' || actionUpper === 'RETURNED' || actionUpper === 'COMPLETED') {
         completedAt = entry.timestamp || '';
         break;
       }
@@ -729,10 +729,9 @@ function getDeptPageDataAll() {
       var hz = history[k];
       var hzAction = String(hz.action || '').toUpperCase();
       var fromKey = DEPT_KEYS[normalizeDepartmentName(hz.fromDept)];
-      // Include FORWARD from any dept, and RETURNED from END USER (end users use "Returned" to send transactions on)
-      var isEnduserReturn = hzAction === 'RETURNED' && fromKey === 'enduser';
+      // FORWARD, RETURNED, and COMPLETED all mean the fromDept sent the transaction away = completion for that dept
       var isCompleted = hzAction === 'COMPLETED';
-      if (hzAction !== 'FORWARD' && !isEnduserReturn && !isCompleted) continue;
+      if (hzAction !== 'FORWARD' && hzAction !== 'RETURNED' && !isCompleted) continue;
       // Allow enduser entries unless the transaction is still at END USER (to avoid duplicates with Step 1)
       if (!fromKey || (fromKey === 'enduser' && currentKey === 'enduser')) continue;
       lastCompletionEntry[fromKey] = hz;
@@ -835,7 +834,8 @@ function getBACPageData()    {
     var forwardedFromBac = false;
     for (var k = history.length - 1; k >= 0; k--) {
       var entry = history[k];
-      if (String(entry.action || '').toUpperCase() !== 'FORWARD') continue;
+      var entryAction = String(entry.action || '').toUpperCase();
+      if (entryAction !== 'FORWARD' && entryAction !== 'RETURNED' && entryAction !== 'COMPLETED') continue;
       if (normalizeDepartmentName(entry.fromDept) !== 'BAC') continue;
       forwardedFromBac = true;
       forwardedAt = entry.timestamp || '';
@@ -1095,7 +1095,7 @@ function getMyRequestDepartmentBundle(role) {
         var hItem = txHistory[h2];
         var hAct = String(hItem.action || '').toUpperCase();
         var hFrom = normalizeDepartmentName(hItem.fromDept || '');
-        if (hAct !== 'FORWARD' && !(hAct === 'RETURNED' && hFrom === 'END USER')) continue;
+        if (hAct !== 'FORWARD' && hAct !== 'RETURNED' && hAct !== 'COMPLETED') continue;
         var pastKey = workflowDeptMap[hFrom];
         if (!pastKey || addedPastDepts[pastKey]) continue;
         addedPastDepts[pastKey] = true;
@@ -1121,7 +1121,7 @@ function getMyRequestDepartmentBundle(role) {
         var hItemC = txHistC[hc];
         var hActC = String(hItemC.action || '').toUpperCase();
         var hFromC = normalizeDepartmentName(hItemC.fromDept || '');
-        if (hActC !== 'FORWARD' && !(hActC === 'RETURNED' && hFromC === 'END USER')) continue;
+        if (hActC !== 'FORWARD' && hActC !== 'RETURNED' && hActC !== 'COMPLETED') continue;
         var completedPastKey = workflowDeptMap[hFromC];
         if (!completedPastKey || addedCompletedDepts[completedPastKey]) continue;
         addedCompletedDepts[completedPastKey] = true;

@@ -39,8 +39,8 @@
     <button class="tab-btn" id="tab-dashboard-cancelled" onclick="switchDashboardTab('cancelled')">Cancelled <span id="dashboard-count-cancelled" class="badge badge-down" style="margin-left:4px;"></span></button>
   </div>
   <div class="tab-nav" style="margin-top:-8px;">
-    <button class="tab-btn" id="tab-dashboard-dept-all" onclick="switchDashboardDeptTab('all')">All Departments <span id="dashboard-dept-count-all" class="badge badge-grey" style="margin-left:4px;"></span></button>
-    <button class="tab-btn active" id="tab-dashboard-dept-bac" onclick="switchDashboardDeptTab('bac')">BAC <span id="dashboard-dept-count-bac" class="badge badge-amber" style="margin-left:4px;"></span></button>
+    <button class="tab-btn active" id="tab-dashboard-dept-all" onclick="switchDashboardDeptTab('all')">All Departments <span id="dashboard-dept-count-all" class="badge badge-grey" style="margin-left:4px;"></span></button>
+    <button class="tab-btn" id="tab-dashboard-dept-bac" onclick="switchDashboardDeptTab('bac')">BAC <span id="dashboard-dept-count-bac" class="badge badge-amber" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-dept-supply" onclick="switchDashboardDeptTab('supply')">Supply <span id="dashboard-dept-count-supply" class="badge badge-teal" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-dept-budget" onclick="switchDashboardDeptTab('budget')">Budget <span id="dashboard-dept-count-budget" class="badge badge-violet" style="margin-left:4px;"></span></button>
     <button class="tab-btn" id="tab-dashboard-dept-rcao" onclick="switchDashboardDeptTab('rcao')">RCAO <span id="dashboard-dept-count-rcao" class="badge badge-op" style="margin-left:4px;"></span></button>
@@ -65,6 +65,10 @@
           <option value="Agri-Agra">Agri-Agra</option>
           <option value="IPARC">IPARC</option>
         </select>
+        <button class="tb-btn btn-track-print" onclick="showExportChoice(this,printDashboardTable,csvExportDashboardTable)" title="Export current table view">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Export ▾
+        </button>
         <button class="tb-btn" onclick="loadData()">↺ Refresh</button>
       </div>
     </div>

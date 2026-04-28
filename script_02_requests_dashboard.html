@@ -746,6 +746,84 @@ function filterAllTx() {
   tb.querySelectorAll('tr').forEach(function(r){ r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
 }
 
+function _getAllTxExportSpec() {
+  var fullRowByTn = {};
+  ['bac','supply','budget','accounting','cash','rcao','arda','enduser'].forEach(function(k) {
+    (cachedMyReqDeptRows[k] || []).forEach(function(r) {
+      var tn = String(r['TRACKING NO.'] || '').trim();
+      if (tn && !fullRowByTn[tn]) fullRowByTn[tn] = r;
+    });
+  });
+  var catFilter = ((document.getElementById('alltx-cat-filter') || {}).value) || 'All';
+  var tab = (typeof allTxTab !== 'undefined') ? allTxTab : 'active';
+
+  var rows = (cachedMyReqs || []).filter(function(r) {
+    var st = String(r.currentStatus||'').trim().toUpperCase();
+    var sc = String(r.currentSection||'').trim().toUpperCase();
+    if (catFilter !== 'All') {
+      var cat = String(transactionCategoryByTracking[r.trackingNo] || '').trim();
+      if (normalizeBacCategoryValue(cat) !== normalizeBacCategoryValue(catFilter)) return false;
+    }
+    if (tab === 'active')    return st !== 'COMPLETED' && st !== 'CANCELLED' && sc !== 'COMPLETED';
+    if (tab === 'done')      return st === 'COMPLETED' || sc === 'COMPLETED';
+    if (tab === 'cancelled') return st === 'CANCELLED';
+    return false;
+  });
+
+  var qEl = document.getElementById('alltx-search');
+  var q = (qEl ? qEl.value : '').toLowerCase();
+  if (q) {
+    rows = rows.filter(function(r) {
+      var tn = String(r.trackingNo||'');
+      var fullRow = fullRowByTn[tn] || {};
+      var text = [tn, r.prNo||''].concat(Object.keys(fullRow).map(function(k){ return String(fullRow[k]||''); })).join(' ').toLowerCase();
+      return text.indexOf(q) !== -1;
+    });
+  }
+
+  var TAB_LABELS = {active:'Active', done:'Completed', cancelled:'Cancelled'};
+  var title = 'All My Transactions — ' + (TAB_LABELS[tab] || 'Active');
+
+  var headers = MYREQS_ALL_TX_COLUMNS.map(function(c) {
+    if (c === 'CURRENT DEPT')   return 'Current Department';
+    if (c === 'CURRENT STATUS') return 'Status';
+    return c.split(' ').map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase(); }).join(' ');
+  });
+
+  var getCells = function(r) {
+    var tn = String(r.trackingNo||'').trim();
+    var fullRow = fullRowByTn[tn] || {};
+    return MYREQS_ALL_TX_COLUMNS.map(function(col) {
+      if (col === 'TRACKING NO.')  return tn || '—';
+      if (col === 'P.R NO.')       return r.prNo || fullRow[col] || '—';
+      if (col === 'CURRENT DEPT') {
+        var dept = String(r.currentSection || fullRow[col] || '').trim();
+        return dept.toUpperCase() === 'END USER' ? 'Requesting Office' : (dept || '—');
+      }
+      if (col === 'CURRENT STATUS') return r.currentStatus || fullRow['STATUS'] || '—';
+      return fullRow[col] || '—';
+    });
+  };
+
+  return { title: title, headers: headers, rows: rows, getCells: getCells };
+}
+
+function printAllTxTable() {
+  var spec = _getAllTxExportSpec();
+  if (!spec.rows.length) { showToast('No data to export.','info'); return; }
+  _openPrintDoc(spec.title, _buildPrintTable(spec.headers, spec.rows, spec.getCells), {
+    colCount: spec.headers.length,
+    meta: [spec.rows.length+' record'+(spec.rows.length!==1?'s':'')]
+  });
+}
+
+function csvExportAllTxTable() {
+  var spec = _getAllTxExportSpec();
+  if (!spec.rows.length) { showToast('No data to export.','info'); return; }
+  var safeTitle = spec.title.replace(/[^A-Za-z0-9 ]/g,'').replace(/\s+/g,'-');
+  csvDownload('DAR-RO5-'+safeTitle+'.csv', spec.headers, spec.rows, spec.getCells);
+}
+
 // ── OPEN END-USER EDIT MODAL (Supply dates only) ──────────────────────────────
 function openEndUserEditModal(trackingNo) {
   var req = cachedMyReqs.find(function(r){ return r.trackingNo === trackingNo; });
@@ -814,66 +892,57 @@ var lastTrackSearchResult = null;
 function printTrackTimeline() {
   if (!lastTrackSearchResult) { showToast('Search a transaction first.','info'); return; }
   var res = lastTrackSearchResult;
-  var w = window.open('', '_blank');
-  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
+  var labels = {BAC:'BAC','SUPPLY AND PROPERTY':'Supply & Property',BUDGET:'Budget',ACCOUNTING:'Accounting',CASH:'Cashier',RCAO:'RCAO',ARDA:'ARDA','END USER':'Requesting Office'};
+  var isCompleted = String(res.currentStatus||'').trim().toUpperCase() === 'COMPLETED';
+  var currentSection = labels[res.currentSection] || res.currentSection || '—';
 
-  var now = new Date();
-  var exportedAt = formatPHTime(now);
-  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
-  var isCompleted = String(res.currentStatus || '').trim().toUpperCase() === 'COMPLETED';
-
-  var timelineRows = (res.timeline || []).map(function(t){
-    return '<tr>'+
-      '<td>'+esc2(t.section || '')+'</td>'+
-      '<td>'+esc2(t.status || (t.reached ? 'Reached' : 'Pending'))+'</td>'+
-      '<td>'+esc2(t.completedAt || t.returnedDate || '—')+'</td>'+
-    '</tr>';
-  }).join('');
-
-  var historyRows = (res.history || []).map(function(h){
-    var flow = (h['FROM'] || h['TO']) ? (String(h['FROM']||'') + (h['TO'] ? ' -> ' + h['TO'] : '')) : '—';
-    return '<tr>'+
-      '<td>'+esc2(h['ACTION'] || '')+'</td>'+
-      '<td>'+esc2(flow)+'</td>'+
-      '<td>'+esc2(h['USER'] || '—')+'</td>'+
-      '<td>'+esc2(h['TIMESTAMP'] || '')+'</td>'+
-      '<td>'+esc2(h['REMARKS'] || '—')+'</td>'+
-    '</tr>';
-  }).join('');
-
-  var statusLineParts = [
-    '<span class="status">'+esc2(res.currentStatus || '—')+'</span>'
+  var timelineTable = _buildPrintTable(
+    ['Section','Status','Date'],
+    res.timeline || [],
+    function(t){ return [labels[t.section]||t.section||'—', t.status||(t.reached?'Reached':'Pending'), t.completedAt||t.returnedDate||'—']; }
+  );
+  var historyTable = _buildPrintTable(
+    ['Action','From → To','User','Timestamp','Remarks'],
+    res.history || [],
+    function(h){
+      var flow = (h['FROM']&&h['TO']) ? h['FROM']+' → '+h['TO'] : (h['FROM']||h['TO']||'—');
+      return [h['ACTION']||'—', flow, h['USER']||'—', h['TIMESTAMP']||'—', h['REMARKS']||'—'];
+    }
+  );
+  var contentHtml = '<div class="ps">Timeline</div>'+timelineTable+'<div class="ps">Activity Log</div>'+historyTable;
+  var metaItems = [
+    'Tracking No. <strong>'+esc2(res.trackingNo||'—')+'</strong>',
+    'Status <strong>'+esc2(res.currentStatus||'—')+'</strong>'
   ];
-  if (!isCompleted) {
-    statusLineParts.push('Current Section: <strong>'+esc2(res.currentSection || '—')+'</strong>');
-  }
-  statusLineParts.push(esc2(res.office || '—'));
-  if (res.item) statusLineParts.push(esc2(res.item));
+  if (!isCompleted) metaItems.push('Current Location <strong>'+esc2(currentSection)+'</strong>');
+  if (res.office) metaItems.push(esc2(res.office));
+  _openPrintDoc('Transaction Timeline', contentHtml, {meta: metaItems});
+}
 
-  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Transaction Timeline — '+esc2(res.trackingNo || '')+'</title>'+
-    '<style>@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
-    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}h2{font-size:13px;font-weight:700;margin:22px 0 8px;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:6px;}'+
-    '.meta{font-size:11px;color:#6b7280;margin-bottom:16px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
-    '.statusline{margin-bottom:14px;font-size:12px;}'+
-    '.status{display:inline-block;padding:3px 8px;border:1px solid #dbeafe;background:#eff6ff;color:#1d4ed8;border-radius:999px;font-weight:700;font-size:11px;}'+
-    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
-    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
-    'tr:nth-child(even) td{background:#fafafa;}'+
-    '.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}</style></head><body>'+
-    '<h1>Transaction Timeline</h1>'+
-    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; Tracking No: <strong>'+esc2(res.trackingNo || '—')+'</strong></div>'+
-    '<div class="statusline">'+statusLineParts.join(' &nbsp;·&nbsp; ')+'</div>'+
-    '<h2>Timeline</h2><table><thead><tr><th>Section</th><th>Status</th><th>Date</th></tr></thead><tbody>'+(timelineRows || '<tr><td colspan="3">No timeline data.</td></tr>')+'</tbody></table>'+
-    '<h2>Activity Log</h2><table><thead><tr><th>Action</th><th>Flow</th><th>User</th><th>Timestamp</th><th>Remarks</th></tr></thead><tbody>'+(historyRows || '<tr><td colspan="5">No activity log data.</td></tr>')+'</tbody></table>'+
-    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; Transaction Timeline &nbsp;·&nbsp; '+exportedAt+'</div>'+
-    '</body></html>';
-
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
-  w.focus();
-  w.print();
+function csvExportTrackTimeline() {
+  if (!lastTrackSearchResult) { showToast('Search a transaction first.','info'); return; }
+  var res = lastTrackSearchResult;
+  var now = new Date();
+  var safeNo = String(res.trackingNo||'').replace(/[^A-Z0-9-]/gi,'');
+  var filename = 'DAR-RO5-Timeline-'+safeNo+'.csv';
+  var lines = [];
+  lines.push(['TIMELINE'].map(csvCell).join(','));
+  lines.push(['Section','Status','Date'].map(csvCell).join(','));
+  (res.timeline||[]).forEach(function(t){
+    lines.push([t.section||'', t.status||(t.reached?'Reached':'Pending'), t.completedAt||t.returnedDate||''].map(csvCell).join(','));
+  });
+  lines.push('');
+  lines.push(['ACTIVITY LOG'].map(csvCell).join(','));
+  lines.push(['Action','From','To','User','Timestamp','Remarks'].map(csvCell).join(','));
+  (res.history||[]).forEach(function(h){
+    lines.push([h['ACTION']||'',h['FROM']||'',h['TO']||'',h['USER']||'',h['TIMESTAMP']||'',h['REMARKS']||''].map(csvCell).join(','));
+  });
+  var blob = new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 function doTrackSearch(){
@@ -1015,8 +1084,9 @@ function doTrackSearch(){
 }
 
 var dashboardTab = 'active';
-var dashboardDeptTab = 'bac';
+var dashboardDeptTab = 'all';
 var dashboardEnduserSubTab = 'nottaken';
+var _lastDashboardDisplay = [];
 var cachedDashboardData = { bac:[], supply:[], budget:[], accounting:[], rcao:[], arda:[], cash:[], enduser:[] };
 var dashboardLastActivityByTracking = {};
 var dashboardAllReqs = [];
@@ -1606,6 +1676,7 @@ function renderDashboardTable() {
   } else {
     display = rowsFor(dashboardDeptTab, dashboardTab);
   }
+  _lastDashboardDisplay = display;
 
   var meta = DASHBOARD_DEPT_META[dashboardDeptTab] || DASHBOARD_DEPT_META.bac;
   function selectedDeptCount(tab) {
@@ -1946,7 +2017,7 @@ var PAGE_LOADERS={
   arda:       function(){ loadSheet('arda',       'arda-tbody',    6, 'getARDAPageData');       },
   track: function(){
     var btn = document.getElementById('btn-print-timeline');
-    if (btn) btn.style.display = isAdmin() ? '' : 'none';
+    if (btn) btn.style.display = '';
   },
 
   users: function(){
@@ -2061,41 +2132,21 @@ function printUsersTable(){
   if (!rows.length) { showToast('No user data to export.','info'); return; }
   var staffRows = rows.filter(function(r){ return !r.isEndUser; });
   var euRows    = rows.filter(function(r){ return !!r.isEndUser; });
+  var headers = ['First Name','Last Name','Username','Role','Status'];
+  function getCells(r){ return [r.firstName||'—', r.lastName||'—', r.username||'—', r.role||'—', r.isActive?'Active':'Inactive']; }
+  var contentHtml =
+    '<div class="ps">Department Staff ('+staffRows.length+')</div>'+_buildPrintTable(headers, staffRows, getCells)+
+    '<div class="ps">End Users ('+euRows.length+')</div>'+_buildPrintTable(headers, euRows, getCells);
+  _openPrintDoc('User Management', contentHtml, {meta:[rows.length+' total user'+(rows.length!==1?'s':'')]});
+}
+
+function csvExportUsersTable() {
+  var rows = cachedRows['users'] || [];
+  if (!rows.length) { showToast('No user data to export.','info'); return; }
   var now = new Date();
-  var exportedAt = formatPHTime(now);
-  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
-  var css = '@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
-    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}h2{font-size:13px;font-weight:700;margin:24px 0 8px;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:6px;}'+
-    '.meta{font-size:11px;color:#6b7280;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
-    'table{width:100%;border-collapse:collapse;margin-bottom:8px;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
-    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
-    'tr:nth-child(even) td{background:#fafafa;}.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}';
-  function buildTbodyRows(list){
-    if (!list.length) return '<tr><td colspan="5" style="color:#9ca3af;text-align:center;padding:14px;">No records found.</td></tr>';
-    return list.map(function(r){
-      return '<tr><td>'+esc2(r.firstName||'—')+'</td><td>'+esc2(r.lastName||'—')+'</td>'+
-        '<td><strong>'+esc2(r.username||'—')+'</strong></td><td>'+esc2(r.role||'—')+'</td>'+
-        '<td style="color:'+(r.isActive?'#15803d':'#6b7280')+';">'+esc2(r.isActive?'Active':'Inactive')+'</td></tr>';
-    }).join('');
-  }
-  var theadCols = '<tr><th>First Name</th><th>Last Name</th><th>Username</th><th>Role</th><th>Status</th></tr>';
-  var html = '<!doctype html><html><head><meta charset="utf-8"><title>User Management — '+exportedAt+'</title><style>'+css+'</style></head><body>'+
-    '<h1>User Management</h1>'+
-    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; '+rows.length+' total user'+(rows.length!==1?'s':'')+'</div>'+
-    '<h2>Department Staff &nbsp;('+staffRows.length+')</h2>'+
-    '<table><thead>'+theadCols+'</thead><tbody>'+buildTbodyRows(staffRows)+'</tbody></table>'+
-    '<h2>End Users &nbsp;('+euRows.length+')</h2>'+
-    '<table><thead>'+theadCols+'</thead><tbody>'+buildTbodyRows(euRows)+'</tbody></table>'+
-    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; User Management &nbsp;·&nbsp; '+exportedAt+'</div>'+
-    '</body></html>';
-  var w = window.open('','_blank');
-  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
-  w.focus();
-  w.print();
+  csvDownload('DAR-RO5-Users-'+formatPHTime(now).replace(/[: ]/g,'-')+'.csv',
+    ['Type','First Name','Last Name','Username','Role','Status'], rows,
+    function(r){ return [r.isEndUser?'End User':'Staff', r.firstName||'', r.lastName||'', r.username||'', r.role||'', r.isActive?'Active':'Inactive']; });
 }
 
 function renderSuppliersTable(rows){
@@ -2128,35 +2179,20 @@ function printSuppliersTable(){
   var rows = cachedRows['suppliers'] || [];
   if (!rows.length) { showToast('No supplier data to export.','info'); return; }
   var sorted = rows.slice().sort(function(a,b){ return (a.supplierName||'').localeCompare(b.supplierName||''); });
+  _openPrintDoc('Supplier Directory', _buildPrintTable(
+    ['Supplier Name','Status'], sorted,
+    function(r){ return [r.supplierName||'—', String(r.status||'ACTIVE').toUpperCase()]; }
+  ), {meta:[sorted.length+' supplier'+(sorted.length!==1?'s':'')]});
+}
+
+function csvExportSuppliersTable() {
+  var rows = cachedRows['suppliers'] || [];
+  if (!rows.length) { showToast('No supplier data to export.','info'); return; }
+  var sorted = rows.slice().sort(function(a,b){ return (a.supplierName||'').localeCompare(b.supplierName||''); });
   var now = new Date();
-  var exportedAt = formatPHTime(now);
-  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
-  var css = '@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
-    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}'+
-    '.meta{font-size:11px;color:#6b7280;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
-    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
-    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
-    'tr:nth-child(even) td{background:#fafafa;}.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}';
-  var tbodyRows = sorted.map(function(r){
-    var s = String(r.status||'ACTIVE').toUpperCase();
-    var color = s==='BLOCKED'?'#b91c1c':s==='INACTIVE'?'#6b7280':'#15803d';
-    return '<tr><td><strong>'+esc2(r.supplierName||'—')+'</strong></td>'+
-      '<td style="color:'+color+';">'+esc2(s)+'</td></tr>';
-  }).join('');
-  var html = '<!doctype html><html><head><meta charset="utf-8"><title>Supplier Directory — '+exportedAt+'</title><style>'+css+'</style></head><body>'+
-    '<h1>Supplier Directory</h1>'+
-    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; '+sorted.length+' supplier'+(sorted.length!==1?'s':'')+'</div>'+
-    '<table><thead><tr><th>Supplier Name</th><th>Status</th></tr></thead><tbody>'+tbodyRows+'</tbody></table>'+
-    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; Supplier Directory &nbsp;·&nbsp; '+exportedAt+'</div>'+
-    '</body></html>';
-  var w = window.open('','_blank');
-  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
-  w.focus();
-  w.print();
+  csvDownload('DAR-RO5-Suppliers-'+formatPHTime(now).replace(/[: ]/g,'-')+'.csv',
+    ['Supplier Name','Status'], sorted,
+    function(r){ return [r.supplierName||'', String(r.status||'ACTIVE').toUpperCase()]; });
 }
 
 function supplierStatusBadge(status){
@@ -2357,34 +2393,83 @@ function printEndUsersTable(){
   var rows = cachedRows['endusers'] || [];
   if (!rows.length) { showToast('No end user role data to export.','info'); return; }
   var sorted = rows.slice().sort(function(a,b){ return (a.endUserRole||'').localeCompare(b.endUserRole||''); });
+  _openPrintDoc('End User Roles', _buildPrintTable(
+    ['End User Role','Status'], sorted,
+    function(r){ return [r.endUserRole||'—', String(r.status||'ACTIVE').toUpperCase()]; }
+  ), {meta:[sorted.length+' role'+(sorted.length!==1?'s':'')]});
+}
+
+function _dashboardGetExportSpec() {
+  var rows = _lastDashboardDisplay;
+  var deptLabels = {bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA',enduser:'Requesting Office',all:'All Departments'};
+  var tabLabels  = {active:'In Progress',returned:'Returned',completed:'Completed',cancelled:'Cancelled'};
+  var deptLabel  = deptLabels[dashboardDeptTab] || dashboardDeptTab;
+  var tabLabel   = (dashboardDeptTab === 'enduser') ? (dashboardEnduserSubTab === 'done' ? 'Completed' : 'Not Taken') : (tabLabels[dashboardTab] || 'In Progress');
+  var title = deptLabel + ' — ' + tabLabel;
+  var renderTab = (dashboardDeptTab === 'enduser') ? (dashboardEnduserSubTab === 'done' ? 'completed' : 'returned') : dashboardTab;
+
+  function cur(row, key) {
+    var n = parseFloat(String(row[key]||row['AMOUNT']||'').replace(/[^0-9.-]/g,''));
+    return isNaN(n) ? '—' : '₱'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  }
+  var headers, getCells;
+
+  if (dashboardDeptTab === 'enduser') {
+    if (renderTab === 'completed') {
+      headers = ['Tracking No.','P.R No.','Forwarded To','Completed At','Remarks'];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R #']||r['P.R NO.']||'—',r['COMPLETED TO']||'—',r['COMPLETED AT']||'—',r['FORWARD REMARKS']||'—']; };
+    } else {
+      headers = ['Tracking No.','Requesting Office','Returned From','Return Remarks','Returned Date','Status'];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['REQUESTING OFFICE']||r['END-USER / REQUESTED BY']||r['END USER']||'—',r['RETURNED FROM']||'—',r['RETURN REMARKS']||'—',r['RETURNED DATE']||'—',r['STATUS']||'—']; };
+    }
+  } else if (renderTab === 'returned') {
+    if (dashboardDeptTab === 'all') {
+      headers = ['Tracking No.','P.R No.','Dept','Returned From','Returned Date'];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||r['P.R #']||'—',(r._dashDept||'').toUpperCase(),r['RETURNED FROM']||'—',r['RETURNED DATE']||'—']; };
+    } else {
+      var noPr = ['supply','budget','accounting','cash','rcao','arda'].indexOf(dashboardDeptTab) !== -1;
+      headers = ['Tracking No.'].concat(noPr?[]:['P.R No.']).concat(['Returned From','Return Remarks','Returned Date']);
+      getCells = function(r){ var b=[r['TRACKING NO.']||'—']; if(!noPr) b.push(r['P.R NO.']||r['P.R #']||'—'); return b.concat([r['RETURNED FROM']||'—',r['RETURN REMARKS']||'—',r['RETURNED DATE']||'—']); };
+    }
+  } else if (dashboardDeptTab === 'all') {
+    var allCols = (renderTab==='completed'||renderTab==='cancelled') ? DASHBOARD_ALL_TX_COLUMNS_COMPLETED : DASHBOARD_ALL_TX_COLUMNS;
+    headers = allCols.map(dashboardDeptColumnLabel);
+    getCells = function(r){ return allCols.map(function(c){ return c==='CURRENT STATUS'?(r['STATUS']||'—'):DASHBOARD_ALL_TX_CURRENCY[c]?cur(r,c):(r[c]||'—'); }); };
+  } else {
+    var layout = DASHBOARD_DEPT_FIELD_LAYOUT[dashboardDeptTab] || DASHBOARD_DEPT_FIELD_LAYOUT.bac;
+    var fields = renderTab==='active' ? layout.active : layout.other;
+    if (renderTab==='cancelled') fields = fields.map(function(f){ return f==='COMPLETED AT'?'CANCELLED AT':f; });
+    var isBAC = dashboardDeptTab === 'bac';
+    headers = ['Tracking No.'].concat(isBAC?['P.R No.']:[]).concat(fields.map(dashboardDeptColumnLabel));
+    getCells = function(r){ var b=[r['TRACKING NO.']||'—']; if(isBAC) b.push(r['P.R NO.']||r['P.R #']||'—'); return b.concat(fields.map(function(f){ return (DASHBOARD_ALL_TX_CURRENCY[f]||f==='P.O. AMOUNT'||f==='ORS AMOUNT'||f==='NET AMOUNT'||f==='TAX AMOUNT')?cur(r,f):(r[f]||'—'); })); };
+  }
+  return {title:title, headers:headers, rows:rows, getCells:getCells};
+}
+
+function printDashboardTable() {
+  var spec = _dashboardGetExportSpec();
+  if (!spec.rows.length) { showToast('No data to print.', 'info'); return; }
+  _openPrintDoc(spec.title, _buildPrintTable(spec.headers, spec.rows, spec.getCells), {
+    colCount: spec.headers.length,
+    meta: [spec.rows.length+' record'+(spec.rows.length!==1?'s':'')]
+  });
+}
+
+function csvExportDashboardTable() {
+  var spec = _dashboardGetExportSpec();
+  if (!spec.rows.length) { showToast('No data to export.','info'); return; }
+  var safeTitle = spec.title.replace(/[^A-Za-z0-9 ]/g,'').replace(/\s+/g,'-');
+  csvDownload('DAR-RO5-'+safeTitle+'.csv', spec.headers, spec.rows, spec.getCells);
+}
+
+function csvExportEndUsersTable() {
+  var rows = cachedRows['endusers'] || [];
+  if (!rows.length) { showToast('No end user data to export.','info'); return; }
+  var sorted = rows.slice().sort(function(a,b){ return (a.endUserRole||'').localeCompare(b.endUserRole||''); });
   var now = new Date();
-  var exportedAt = formatPHTime(now);
-  var exportedBy = (currentUser&&(currentUser.fullName||currentUser.username))||'Admin';
-  var css = '@page{margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Segoe UI,Arial,sans-serif;font-size:12px;color:#111827;padding:28px 32px;}'+
-    'h1{font-size:17px;font-weight:800;margin-bottom:4px;}'+
-    '.meta{font-size:11px;color:#6b7280;margin-bottom:20px;border-bottom:1px solid #e5e7eb;padding-bottom:12px;}'+
-    'table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:7px 9px;text-align:left;vertical-align:top;}'+
-    'th{background:#f8fafc;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}'+
-    'tr:nth-child(even) td{background:#fafafa;}.footer{margin-top:18px;font-size:10px;color:#9ca3af;text-align:right;}';
-  var tbodyRows = sorted.map(function(r){
-    var s = String(r.status||'ACTIVE').toUpperCase();
-    return '<tr><td><strong>'+esc2(r.endUserRole||'—')+'</strong></td>'+
-      '<td style="color:'+(s==='INACTIVE'?'#6b7280':'#15803d')+';">'+esc2(s)+'</td></tr>';
-  }).join('');
-  var html = '<!doctype html><html><head><meta charset="utf-8"><title>End User Roles — '+exportedAt+'</title><style>'+css+'</style></head><body>'+
-    '<h1>End User Roles</h1>'+
-    '<div class="meta">Exported by <strong>'+esc2(exportedBy)+'</strong> on <strong>'+exportedAt+'</strong> &nbsp;·&nbsp; '+sorted.length+' role'+(sorted.length!==1?'s':'')+'</div>'+
-    '<table><thead><tr><th>End User Role</th><th>Status</th></tr></thead><tbody>'+tbodyRows+'</tbody></table>'+
-    '<div class="footer">DAR RO V — Procurement Monitoring System &nbsp;·&nbsp; End User Roles &nbsp;·&nbsp; '+exportedAt+'</div>'+
-    '</body></html>';
-  var w = window.open('','_blank');
-  if (!w) { showToast('Please allow pop-ups to print.','error'); return; }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.addEventListener('afterprint', function(){ try { w.close(); } catch (e) {} });
-  w.focus();
-  w.print();
+  csvDownload('DAR-RO5-EndUsers-'+formatPHTime(now).replace(/[: ]/g,'-')+'.csv',
+    ['End User Role','Status'], sorted,
+    function(r){ return [r.endUserRole||'', String(r.status||'ACTIVE').toUpperCase()]; });
 }
 
 function endUserStatusBadge(status){
@@ -2581,5 +2666,207 @@ function doDeleteSupplier(rowNum, supplierName){
 function closeSupplierModal(e){
   if(e&&e.target!==document.getElementById('supplier-modal')) return;
   document.getElementById('supplier-modal').classList.remove('open'); supplierModalState={};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DEPT PAGE EXPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+function _getDeptExportSpec(page) {
+  var rows = (cachedRows[page] || []).filter(function(r){
+    return (typeof rowMatchesActiveBacCategory === 'function') ? rowMatchesActiveBacCategory(r) : true;
+  });
+
+  var tab = (typeof tabState !== 'undefined' && tabState[page]) || 'active';
+  var newSub = (typeof newSubTabState !== 'undefined' && newSubTabState[page]) ? newSubTabState[page] : 'incoming';
+  var renderTab = tab;
+  if (tab === 'new' && newSub === 'returns') renderTab = 'returned';
+
+  function isNotifiedRow(r){ return String(r['IS NOTIFIED']||r['IS NEW']||'').trim().toUpperCase()==='TRUE'; }
+  function isReturnBackRow(r){ return String(r['IS RETURN BACK']||'').trim().toUpperCase()==='TRUE'; }
+  function isReturnPending(r){
+    if (String(r['STATUS']||'').trim().toUpperCase()==='PROCESSING') return false;
+    return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()==='';
+  }
+  function isReturnResolved(r){
+    return String(r['RETURNED DATE']||'').trim()!=='' && String(r['RETURN RECEIVED DATE']||'').trim()!=='';
+  }
+
+  var displayRows;
+  if (renderTab === 'new') {
+    displayRows = rows.filter(function(r){
+      return isNotifiedRow(r) && !isReturnBackRow(r) && !isReturnPending(r) &&
+             String(r['STATUS']||'').trim().toUpperCase()!=='CANCELLED' &&
+             (!r['COMPLETED AT']||String(r['COMPLETED AT']).trim()==='');
+    });
+  } else if (renderTab === 'returned') {
+    if (tab === 'new') {
+      displayRows = rows.filter(function(r){ return isReturnBackRow(r) || isReturnPending(r); });
+    } else {
+      var rtLabel = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page]||'';
+      displayRows = rows.filter(function(r){
+        if (!isReturnPending(r)) return false;
+        return String(r['RETURNED FROM']||'').trim() === rtLabel;
+      });
+    }
+  } else if (renderTab === 'returndone') {
+    var rtLabelD = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page]||'';
+    displayRows = rows.filter(function(r){
+      if (!isReturnResolved(r)) return false;
+      return String(r['RETURNED FROM']||'').trim() === rtLabelD;
+    });
+  } else if (renderTab === 'done') {
+    displayRows = rows.filter(function(r){
+      return r['COMPLETED AT'] && String(r['COMPLETED AT']).trim()!=='' &&
+             String(r['STATUS']||'').trim().toUpperCase()!=='CANCELLED' && !isReturnPending(r);
+    });
+  } else if (renderTab === 'cancelled') {
+    displayRows = rows.filter(function(r){
+      return String(r['STATUS']||'').trim().toUpperCase()==='CANCELLED' && !isReturnPending(r);
+    });
+  } else {
+    displayRows = rows.filter(function(r){
+      var s = String(r['STATUS']||'').trim().toUpperCase();
+      return (!r['COMPLETED AT']||String(r['COMPLETED AT']).trim()==='') && s!=='CANCELLED' &&
+             !isNotifiedRow(r) && !isReturnPending(r) && !isReturnResolved(r);
+    });
+  }
+
+  var searchIds = {bac:'bac-search',supply:'supply-search',budget:'budget-search',accounting:'acctg-search',cash:'cash-search',rcao:'rcao-search',arda:'arda-search'};
+  var qEl = document.getElementById(searchIds[page]||(page+'-search'));
+  var q = (qEl ? qEl.value : '').toLowerCase();
+  if (q) {
+    displayRows = displayRows.filter(function(r){
+      return Object.keys(r).some(function(k){ return String(r[k]||'').toLowerCase().indexOf(q)!==-1; });
+    });
+  }
+
+  var DEPT_TITLES = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA'};
+  var TAB_LABELS  = {active:'Active',done:'Completed',cancelled:'Cancelled',returned:'Returned',returndone:'Return Done',new:'New'};
+  var title = (DEPT_TITLES[page]||page) + ' — ' + (TAB_LABELS[renderTab]||'Active') + ' Transactions';
+
+  var isReturned = renderTab==='returned' || renderTab==='returndone';
+  var isDone = renderTab==='done';
+  var isRcaoArda = page==='rcao' || page==='arda';
+
+  var headers, getCells;
+
+  if (isReturned) {
+    var isResolved = renderTab==='returndone';
+    if (isRcaoArda) {
+      headers = isResolved
+        ? ['Tracking No.','Returned By','Remarks','Returned Date & Time','Return To Remarks','Return Received Date']
+        : ['Tracking No.','Returned By','Remarks','Returned Date & Time'];
+      getCells = isResolved
+        ? function(r){ return [r['TRACKING NO.']||'—',returnedFromDisplayValue(r),returnedRemarksDisplayValue(r),r['RETURNED DATE']||'—',r['RETURN RECEIVED REMARKS']||'—',r['RETURN RECEIVED DATE']||'—']; }
+        : function(r){ return [r['TRACKING NO.']||'—',returnedFromDisplayValue(r),returnedRemarksDisplayValue(r),r['RETURNED DATE']||'—']; };
+    } else {
+      headers = isResolved
+        ? ['Tracking No.','P.R No.','Returned By','Remarks','Returned Date & Time','Return To Remarks','Return Received Date']
+        : ['Tracking No.','P.R No.','Returned By','Remarks','Returned Date & Time'];
+      getCells = isResolved
+        ? function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',returnedFromDisplayValue(r),returnedRemarksDisplayValue(r),r['RETURNED DATE']||'—',r['RETURN RECEIVED REMARKS']||'—',r['RETURN RECEIVED DATE']||'—']; }
+        : function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',returnedFromDisplayValue(r),returnedRemarksDisplayValue(r),r['RETURNED DATE']||'—']; };
+    }
+  } else {
+    var lastCol = isDone ? 'Completed At' : 'Status';
+    if (page==='bac') {
+      headers = ['Tracking No.','P.R No.','Date Received','End User','Category','PHIGEPS Posted','Approved ABC','RFQ','Complete RFQ Returned','RFQ Date of Completion','Abstract of Award','Awarded To','Date of Award','Mode of Procurement','BAC Reso','BAC Reso Status','NOA','NTP',lastCol];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',r['DATE RECEIVED']||'—',r['END-USER / REQUESTED BY']||r['END USER']||'—',r['CATEGORY']||'—',r['PHIGEPS POSTED']||'—',r['APPROVED ABC']||'—',r['RFQ']||'—',r['COMPLETE RFQ RETURNED']||'—',r['RFQ DATE OF COMPLETION']||'—',r['ABSTRACT OF AWARD']||'—',r['AWARDED TO']||'—',r['DATE OF AWARD']||'—',r['MODE OF PROCUREMENT']||'—',r['BAC RESO']||'—',r['BAC RESO STATUS']||'—',r['NOA']||'—',r['NTP']||'—',(isDone?r['COMPLETED AT']:r['STATUS'])||'—']; };
+    } else if (page==='supply') {
+      headers = ['Tracking No.','P.R No.','Date Received','End User','P.O. No.','P.O. Date','Doc Type','Supplier','Particulars','P.O. Amount','Date Transmitted to Supplier','Date Received by Supplier','COA Date Received','I.A.R No.','Invoice No.','Date Returned to Supply',lastCol];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',r['DATE RECEIVED']||'—',r['END-USER / REQUESTED BY']||r['END USER']||'—',r['P.O. NO.']||'—',r['P.O. DATE']||'—',r['DOCUMENT TYPE']||'—',r['SUPPLIER']||'—',r['PARTICULARS']||'—',r['P.O. AMOUNT']||'—',r['DATE TRANSMITTED TO SUPPLIER']||'—',r['DATE RECEIVED BY SUPPLIER']||'—',r['COA DATE RECEIVED']||'—',r['I.A.R  NO.']||r['I.A.R NO.']||'—',r['INVOICE  NO.']||r['INVOICE NO.']||'—',r['DATE RETURNED TO SUPPLY']||'—',(isDone?r['COMPLETED AT']:r['STATUS'])||'—']; };
+    } else if (page==='budget') {
+      headers = ['Tracking No.','P.R No.','Date Received','ORS No.','BUPR No.','ORS Amount',lastCol];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',r['DATE RECEIVED']||'—',r['ORS NO.']||'—',r['BUPR NO.']||'—',r['ORS AMOUNT']||'—',(isDone?r['COMPLETED AT']:r['STATUS'])||'—']; };
+    } else if (page==='accounting') {
+      headers = ['Tracking No.','P.R No.','Date Received','DV No.','Net Amount','TAX Amount',lastCol];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',r['DATE RECEIVED']||'—',r['DV NO.']||'—',r['NET AMOUNT']||'—',r['TAX AMOUNT']||'—',(isDone?r['COMPLETED AT']:r['STATUS'])||'—']; };
+    } else if (page==='cash') {
+      headers = ['Tracking No.','P.R No.','Date Received','Cheque No. / LDDAP','Date of Cheque',lastCol];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',r['DATE RECEIVED']||'—',r['CHEQUE NO. / LDDAP']||'—',r['DATE OF CHEQUE']||'—',(isDone?r['COMPLETED AT']:r['STATUS'])||'—']; };
+    } else {
+      headers = ['Tracking No.','Date Received',lastCol];
+      getCells = function(r){ return [r['TRACKING NO.']||'—',r['DATE RECEIVED']||'—',(isDone?r['COMPLETED AT']:r['STATUS'])||'—']; };
+    }
+  }
+
+  return { title:title, headers:headers, rows:displayRows, getCells:getCells };
+}
+
+function printDeptTable(page) {
+  var spec = _getDeptExportSpec(page);
+  if (!spec.rows.length) { showToast('No data to export.','info'); return; }
+  _openPrintDoc(spec.title, _buildPrintTable(spec.headers, spec.rows, spec.getCells), {
+    colCount: spec.headers.length,
+    meta: [spec.rows.length+' record'+(spec.rows.length!==1?'s':'')]
+  });
+}
+
+function csvExportDeptTable(page) {
+  var spec = _getDeptExportSpec(page);
+  if (!spec.rows.length) { showToast('No data to export.','info'); return; }
+  var safeTitle = spec.title.replace(/[^A-Za-z0-9 ]/g,'').replace(/\s+/g,'-');
+  csvDownload('DAR-RO5-'+safeTitle+'.csv', spec.headers, spec.rows, spec.getCells);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MYREQS PAGE EXPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+function _getMyReqsExportSpec() {
+  var euRows = (cachedMyReqDeptRows['enduser'] || []).filter(function(r){
+    return (typeof rowMatchesActiveBacCategory === 'function') ? rowMatchesActiveBacCategory(r) : true;
+  });
+
+  var trackingSet = {};
+  (cachedMyReqs || []).forEach(function(r){ if (r.trackingNo) trackingSet[r.trackingNo] = true; });
+  euRows = euRows.filter(function(r){
+    r._myReqDept = 'enduser';
+    return r['TRACKING NO.'] && trackingSet[r['TRACKING NO.']];
+  });
+
+  var TAB_LABELS = { active:'Processing', returned:'Returned', done:'Completed', cancelled:'Cancelled' };
+  var tab = myReqsTab || 'active';
+  var title = 'My Requests — ' + (TAB_LABELS[tab]||'Active');
+
+  var displayRows = euRows.filter(function(r){
+    return (typeof classifyMyReqDeptRow === 'function') ? classifyMyReqDeptRow(r) === tab : true;
+  });
+
+  var qEl = document.getElementById('myreqs-search');
+  var q = (qEl ? qEl.value : '').toLowerCase();
+  if (q) {
+    displayRows = displayRows.filter(function(r){
+      return Object.keys(r).some(function(k){ return String(r[k]||'').toLowerCase().indexOf(q)!==-1; });
+    });
+  }
+
+  var headers, getCells;
+  if (tab === 'returned') {
+    headers = ['Tracking No.','P.R No.','Returned By','Remarks','Date & Time'];
+    getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',returnedFromDisplayValue(r),returnedRemarksDisplayValue(r),r['RETURNED DATE']||'—']; };
+  } else if (tab === 'done') {
+    headers = ['Tracking No.','P.R No.','Date Received','Completed At'];
+    getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',r['DATE RECEIVED']||'—',r['COMPLETED AT']||'—']; };
+  } else {
+    headers = ['Tracking No.','P.R No.','Date Received','Forwarded From','Remarks','Status'];
+    getCells = function(r){ return [r['TRACKING NO.']||'—',r['P.R NO.']||'—',r['DATE RECEIVED']||'—',String(r['FORWARDED FROM']||'—'),String(r['REMARKS']||r['FORWARD REMARKS']||'—'),r['STATUS']||'—']; };
+  }
+
+  return { title:title, headers:headers, rows:displayRows, getCells:getCells };
+}
+
+function printMyReqsTable() {
+  var spec = _getMyReqsExportSpec();
+  if (!spec.rows.length) { showToast('No data to export.','info'); return; }
+  _openPrintDoc(spec.title, _buildPrintTable(spec.headers, spec.rows, spec.getCells), {
+    meta: [spec.rows.length+' record'+(spec.rows.length!==1?'s':'')]
+  });
+}
+
+function csvExportMyReqsTable() {
+  var spec = _getMyReqsExportSpec();
+  if (!spec.rows.length) { showToast('No data to export.','info'); return; }
+  var safeTitle = spec.title.replace(/[^A-Za-z0-9 ]/g,'').replace(/\s+/g,'-');
+  csvDownload('DAR-RO5-'+safeTitle+'.csv', spec.headers, spec.rows, spec.getCells);
 }
 </script>
