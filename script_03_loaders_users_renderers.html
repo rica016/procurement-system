@@ -127,7 +127,6 @@ function printAndClearAuditLogs(){
   var w = _openPrintDoc('Audit Log Export', auditContent, {
     colCount: 5,
     meta: [filtered.length+' record'+(filtered.length!==1?'s':'')+(filterDesc.length?' &nbsp;&middot;&nbsp; Filtered by: '+filterDesc.map(esc2).join(', '):'')],
-    warnHtml: '⚠ These records have been permanently deleted from the system after this export.'
   });
   if (!w) return;
   var rowNums = filtered.map(function(r){ return r.rowNum || r._rowNum; }).filter(function(n){ return !!n; });
@@ -232,7 +231,7 @@ function renderPageData(page, rows){
   });
   var tab = tabState[page]||'active';
   var newSub = (typeof newSubTabState !== 'undefined' && newSubTabState[page]) ? newSubTabState[page] : 'incoming';
-  var returnTargetLabel = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page] || '';
+  var returnTargetLabel = {bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page] || '';
 
   function isNotifiedRow(r) {
     return String(r['IS NOTIFIED'] || r['IS NEW'] || '').trim().toUpperCase() === 'TRUE';

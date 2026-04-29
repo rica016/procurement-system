@@ -150,7 +150,7 @@ function ensureCoreSheets(ss) {
   ensureSheetHeaders(hist, HISTORY_HEADERS);
 
   var users = getOrCreateSheet(ss, SHEETS.USERS);
-  ensureSheetHeaders(users, ['FIRST NAME','LAST NAME','USERNAME','PASSWORD','ROLE','END USER','STATUS']);
+  ensureSheetHeaders(users, ['FIRST NAME','LAST NAME','EMAIL','ROLE','END USER','STATUS','PIN']);
 
   var suppliers = getOrCreateSheet(ss, SHEETS.SUPPLIERS);
   ensureSheetHeaders(suppliers, ['SUPPLIER NAME','STATUS']);
@@ -760,50 +760,240 @@ function getDeptPageDataAll() {
   return map;
 }
 
-function loginUser(username, password) {
-  try {
-    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    ensureCoreSheets(ss);
+// ── Google Workspace SSO auth ─────────────────────────────────────────────────
 
+/**
+ * Called on page load via google.script.run.checkAccess(selectedRole).
+ * Pass no argument on first load — if multiple active roles exist for the email,
+ * returns { needsRoleSelect: true, roles: [...] } so the client can show a picker.
+ * Pass the chosen role string on the second call to finalise login.
+ *
+ * @param {string=} selectedRole  Role chosen by the user (second call only).
+ * @returns {{granted:boolean, needsRoleSelect?:boolean, roles?:Array, email?:string, role?:string, isEndUser?:boolean, message?:string}}
+ */
+function checkAccess(selectedRole) {
+  try {
+    var email = Session.getActiveUser().getEmail();
+    if (!email) {
+      return { granted: false, message: 'Unable to identify your Google account. Please sign in with your organisational account.' };
+    }
+
+    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = ss.getSheetByName(SHEETS.USERS);
-    if (!sheet) return {success:false, message:'USERS sheet not found.'};
+    if (!sheet) {
+      return { granted: false, message: 'User registry (' + SHEETS.USERS + ' sheet) not found. Contact Admin.' };
+    }
 
     var data = sheet.getDataRange().getValues();
-    if (data.length < 2) return {success:false, message:'No users found.'};
+    if (data.length < 2) {
+      return { granted: false, message: 'No users registered in the system. Contact Admin.' };
+    }
 
-    var hdrs = data[0].map(function(h){ return String(h || '').trim().toUpperCase(); });
-    var hm = getHeaderMap(hdrs);
-
-    var uCol = hm['USERNAME'];
-    var pCol = hm['PASSWORD'];
-    var rCol = hm['ROLE'];
+    var hdrs  = data[0].map(function(h){ return String(h || '').trim().toUpperCase(); });
+    var hm    = getHeaderMap(hdrs);
+    var eCol  = hm['EMAIL'];
+    var rCol  = hm['ROLE'];
     var euCol = hm['END USER'];
     var stCol = hm['STATUS'];
+    var fnCol  = hm['FIRST NAME'];
+    var lnCol  = hm['LAST NAME'];
+    var pinCol = hm['PIN'];
 
-    if (uCol === undefined || pCol === undefined || rCol === undefined) {
-      return {success:false, message:'USERS sheet missing required columns.'};
+    if (eCol === undefined || rCol === undefined) {
+      return { granted: false, message: 'Users sheet is missing EMAIL or ROLE column. Contact Admin.' };
     }
+
+    // Collect all rows for this email, active ones only
+    var activeMatches = [];
+    var hasInactive   = false;
+    for (var i = 1; i < data.length; i++) {
+      var rowEmail = String(data[i][eCol] || '').trim().toLowerCase();
+      if (rowEmail !== email.toLowerCase()) continue;
+      var status = stCol !== undefined ? String(data[i][stCol] || '').trim().toLowerCase() : 'active';
+      if (status !== 'active') { hasInactive = true; continue; }
+      activeMatches.push({
+        role:      String(data[i][rCol]  || '').trim().toUpperCase(),
+        isEU:      euCol !== undefined ? String(data[i][euCol] || '').trim().toUpperCase() === 'TRUE' : false,
+        firstName: fnCol !== undefined ? String(data[i][fnCol] || '').trim() : '',
+        lastName:  lnCol !== undefined ? String(data[i][lnCol] || '').trim() : '',
+        pinSet:    pinCol !== undefined ? String(data[i][pinCol] || '').trim() !== '' : false
+      });
+    }
+
+    if (activeMatches.length === 0) {
+      var msg = hasInactive
+        ? 'Your account is inactive. Contact Admin to restore access.'
+        : 'Access denied. ' + email + ' is not registered in the system. Contact Admin.';
+      return { granted: false, message: msg };
+    }
+
+    // Multiple active roles — ask the user to pick (or validate the chosen one)
+    if (activeMatches.length > 1) {
+      if (!selectedRole) {
+        return {
+          granted: false,
+          needsRoleSelect: true,
+          roles: activeMatches.map(function(m){
+            return { role: m.role, isEndUser: m.isEU, firstName: m.firstName, lastName: m.lastName };
+          })
+        };
+      }
+      // Second call: find the chosen role
+      var chosen = null;
+      for (var j = 0; j < activeMatches.length; j++) {
+        if (activeMatches[j].role === String(selectedRole).trim().toUpperCase()) { chosen = activeMatches[j]; break; }
+      }
+      if (!chosen) {
+        return { granted: false, message: 'Selected role not found for your account. Please try again.' };
+      }
+      logAudit(email, 'LOGIN', chosen.role, '-');
+      return { granted: true, email: email, role: chosen.role, isEndUser: chosen.isEU, firstName: chosen.firstName, lastName: chosen.lastName, pinSet: chosen.pinSet };
+    }
+
+    // Single active role — grant directly (selectedRole is ignored)
+    var match = activeMatches[0];
+    logAudit(email, 'LOGIN', match.role || '-', '-');
+    return { granted: true, email: email, role: match.role, isEndUser: match.isEU, firstName: match.firstName, lastName: match.lastName, pinSet: match.pinSet };
+  } catch (e) {
+    return { granted: false, message: 'Auth error: ' + e.message };
+  }
+}
+
+/** Convenience alias. */
+function getUserInfo() {
+  return checkAccess();
+}
+
+/**
+ * Updates the FIRST NAME and LAST NAME of the currently signed-in user.
+ * Role is required when the user has multiple entries (multi-role accounts).
+ *
+ * @param {string} firstName
+ * @param {string} lastName
+ * @param {string} role  Current active role (used to locate the correct row).
+ * @returns {{success:boolean, firstName?:string, lastName?:string, message?:string}}
+ */
+function updateMyName(firstName, lastName, role) {
+  try {
+    var email = Session.getActiveUser().getEmail();
+    if (!email) return { success: false, message: 'Session expired. Please refresh.' };
+
+    firstName = String(firstName || '').trim();
+    lastName  = String(lastName  || '').trim();
+    role      = String(role      || '').trim().toUpperCase();
+
+    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(SHEETS.USERS);
+    if (!sheet) return { success: false, message: 'Users sheet not found.' };
+
+    var data  = sheet.getDataRange().getValues();
+    var hdrs  = data[0].map(function(h){ return String(h || '').trim().toUpperCase(); });
+    var hm    = getHeaderMap(hdrs);
+    var eCol  = hm['EMAIL'];
+    var rCol  = hm['ROLE'];
+    var fnCol = hm['FIRST NAME'];
+    var lnCol = hm['LAST NAME'];
+    var stCol = hm['STATUS'];
+
+    if (eCol === undefined) return { success: false, message: 'EMAIL column not found.' };
+    if (fnCol === undefined && lnCol === undefined) return { success: false, message: 'Name columns not found.' };
 
     for (var i = 1; i < data.length; i++) {
-      var uname = String(data[i][uCol] || '').trim();
-      var pwd = String(data[i][pCol] || '').trim();
-      var role = String(data[i][rCol] || '').trim().toUpperCase();
-      var isEU = euCol !== undefined ? String(data[i][euCol] || '').trim().toUpperCase() === 'TRUE' : false;
-      var status = stCol !== undefined ? String(data[i][stCol] || '').trim().toUpperCase() : 'ACTIVE';
+      var rowEmail  = String(data[i][eCol] || '').trim().toLowerCase();
+      var rowRole   = rCol  !== undefined ? String(data[i][rCol]  || '').trim().toUpperCase() : '';
+      var rowStatus = stCol !== undefined ? String(data[i][stCol] || '').trim().toLowerCase() : 'active';
 
-      if (uname.toLowerCase() !== String(username || '').trim().toLowerCase()) continue;
-      if (pwd !== String(password || '').trim()) continue;
-      if (status === 'INACTIVE' || status === 'FALSE' || status === 'BLOCKED') {
-        return {success:false, message:'Your account is inactive.'};
-      }
+      if (rowEmail !== email.toLowerCase()) continue;
+      if (role && rowRole !== role) continue;        // skip other roles for multi-role accounts
+      if (rowStatus !== 'active') continue;
 
-      logAudit(uname, 'LOGIN', role || '-', '-');
-      return {success:true, username:uname, role:role, isEndUser:isEU};
+      var rowNum = i + 1;
+      if (fnCol !== undefined) sheet.getRange(rowNum, fnCol + 1).setValue(firstName);
+      if (lnCol !== undefined) sheet.getRange(rowNum, lnCol + 1).setValue(lastName);
+
+      logAudit(email, 'UPDATE NAME', 'USERS', 'Row ' + rowNum);
+      return { success: true, firstName: firstName, lastName: lastName };
     }
 
-    return {success:false, message:'Invalid username or password.'};
+    return { success: false, message: 'Your account row was not found.' };
   } catch (e) {
-    return {success:false, message:'Login error: ' + e.message};
+    return { success: false, message: e.message };
+  }
+}
+
+function verifyPin(pin, role) {
+  try {
+    var email = Session.getActiveUser().getEmail();
+    if (!email) return { success: false, message: 'Session expired. Please refresh the page.' };
+    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(SHEETS.USERS);
+    if (!sheet) return { success: false, message: 'User registry not found.' };
+    var data  = sheet.getDataRange().getValues();
+    var hdrs  = data[0].map(function(h){ return String(h || '').trim().toUpperCase(); });
+    var hm    = getHeaderMap(hdrs);
+    var eCol  = hm['EMAIL'], rCol = hm['ROLE'], pinCol = hm['PIN'];
+    if (eCol === undefined || rCol === undefined) return { success: false, message: 'Sheet configuration error.' };
+    for (var i = 1; i < data.length; i++) {
+      var rowEmail = String(data[i][eCol] || '').trim().toLowerCase();
+      var rowRole  = String(data[i][rCol] || '').trim().toUpperCase();
+      if (rowEmail !== email.toLowerCase()) continue;
+      if (rowRole  !== String(role || '').trim().toUpperCase()) continue;
+      var stored = pinCol !== undefined ? String(data[i][pinCol] || '').trim() : '';
+      if (stored === String(pin || '').trim()) {
+        logAudit(email, 'PIN VERIFIED', rowRole, '-');
+        return { success: true };
+      }
+      return { success: false, message: 'Incorrect PIN.' };
+    }
+    return { success: false, message: 'User not found.' };
+  } catch (e) {
+    return { success: false, message: 'Error: ' + e.message };
+  }
+}
+
+function setMyPin(newPin, role) {
+  try {
+    var email = Session.getActiveUser().getEmail();
+    if (!email) return { success: false, message: 'Session expired. Please refresh the page.' };
+    var pin = String(newPin || '').trim();
+    if (!/^\d{6}$/.test(pin)) return { success: false, message: 'PIN must be exactly 6 digits.' };
+    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    ensureCoreSheets(ss);
+    var sheet = ss.getSheetByName(SHEETS.USERS);
+    var data  = sheet.getDataRange().getValues();
+    var hdrs  = data[0].map(function(h){ return String(h || '').trim().toUpperCase(); });
+    var hm    = getHeaderMap(hdrs);
+    var eCol  = hm['EMAIL'], rCol = hm['ROLE'], pinCol = hm['PIN'];
+    if (eCol === undefined || pinCol === undefined) return { success: false, message: 'Sheet configuration error.' };
+    for (var i = 1; i < data.length; i++) {
+      var rowEmail = String(data[i][eCol] || '').trim().toLowerCase();
+      var rowRole  = rCol !== undefined ? String(data[i][rCol] || '').trim().toUpperCase() : '';
+      if (rowEmail !== email.toLowerCase()) continue;
+      if (String(role || '').trim().toUpperCase() && rowRole !== String(role || '').trim().toUpperCase()) continue;
+      sheet.getRange(i + 1, pinCol + 1).setValue(pin);
+      logAudit(email, 'SET PIN', rowRole || '-', '-');
+      return { success: true };
+    }
+    return { success: false, message: 'User row not found.' };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+function resetUserPin(rowNum, adminUsername) {
+  try {
+    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(SHEETS.USERS);
+    if (!sheet) throw new Error('USERS sheet not found.');
+    var hdrs = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+                    .map(function(h){ return String(h || '').trim().toUpperCase(); });
+    var hm = getHeaderMap(hdrs);
+    if (hm['PIN'] === undefined) return { success: false, message: 'PIN column not found.' };
+    sheet.getRange(rowNum, hm['PIN'] + 1).setValue('');
+    logAudit(adminUsername || 'ADMIN', 'RESET PIN', 'USERS', 'Row ' + rowNum);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
   }
 }
 
@@ -1622,8 +1812,8 @@ function getUsers() {
 
     var out = [];
     for (var i = 1; i < data.length; i++) {
-      var username = String(data[i][hm['USERNAME']] || '').trim();
-      if (!username) continue;
+      var email = String(data[i][hm['EMAIL']] || '').trim();
+      if (!email) continue;
       var firstName = hm['FIRST NAME'] !== undefined ? String(data[i][hm['FIRST NAME']] || '').trim() : '';
       var lastName = hm['LAST NAME'] !== undefined ? String(data[i][hm['LAST NAME']] || '').trim() : '';
       var role = String(data[i][hm['ROLE']] || '').trim().toUpperCase();
@@ -1635,7 +1825,8 @@ function getUsers() {
         userId: 'USER' + zeroPad(i, 4),
         firstName: firstName,
         lastName: lastName,
-        username: username,
+        email: email,
+        username: email,   // kept for backwards compat with audit-trail references
         role: role,
         isEndUser: eu,
         isActive: status !== 'INACTIVE' && status !== 'FALSE' && status !== 'BLOCKED'
@@ -1658,8 +1849,8 @@ function addUser(userData, adminUsername) {
 
     var rows = getUsers();
     for (var i = 0; i < rows.length; i++) {
-      if (rows[i].username.toLowerCase() === String(userData.username || '').trim().toLowerCase()) {
-        return {success:false, message:'Username already exists.'};
+      if (rows[i].email.toLowerCase() === String(userData.email || '').trim().toLowerCase()) {
+        return {success:false, message:'Email already exists.'};
       }
     }
 
@@ -1667,14 +1858,13 @@ function addUser(userData, adminUsername) {
     for (var j = 0; j < row.length; j++) row[j] = '';
     if (hm['FIRST NAME'] !== undefined) row[hm['FIRST NAME']] = String(userData.firstName || '').trim();
     if (hm['LAST NAME'] !== undefined) row[hm['LAST NAME']] = String(userData.lastName || '').trim();
-    if (hm['USERNAME'] !== undefined) row[hm['USERNAME']] = String(userData.username || '').trim();
-    if (hm['PASSWORD'] !== undefined) row[hm['PASSWORD']] = String(userData.password || '1234').trim();
+    if (hm['EMAIL'] !== undefined) row[hm['EMAIL']] = String(userData.email || '').trim().toLowerCase();
     if (hm['ROLE'] !== undefined) row[hm['ROLE']] = String(userData.role || '').trim().toUpperCase();
     if (hm['END USER'] !== undefined) row[hm['END USER']] = userData.isEndUser ? 'TRUE' : '';
     if (hm['STATUS'] !== undefined) row[hm['STATUS']] = userData.isActive === false ? 'INACTIVE' : 'ACTIVE';
 
     sheet.appendRow(row);
-    logAudit(adminUsername || 'ADMIN', 'ADD USER', 'USERS', String(userData.username || ''));
+    logAudit(adminUsername || 'ADMIN', 'ADD USER', 'USERS', String(userData.email || ''));
     return {success:true};
   } catch (e) {
     return {success:false, message:e.message};
@@ -1696,8 +1886,7 @@ function updateUser(rowNum, userData, adminUsername) {
 
     if (userData.firstName !== undefined) set('FIRST NAME', String(userData.firstName || '').trim());
     if (userData.lastName !== undefined) set('LAST NAME', String(userData.lastName || '').trim());
-    if (userData.username !== undefined) set('USERNAME', String(userData.username || '').trim());
-    if (userData.password) set('PASSWORD', String(userData.password));
+    if (userData.email !== undefined) set('EMAIL', String(userData.email || '').trim().toLowerCase());
     if (userData.role !== undefined) set('ROLE', String(userData.role || '').trim().toUpperCase());
     if (userData.isEndUser !== undefined) set('END USER', userData.isEndUser ? 'TRUE' : '');
     if (userData.isActive !== undefined) set('STATUS', userData.isActive ? 'ACTIVE' : 'INACTIVE');
@@ -1725,60 +1914,6 @@ function deleteUser(rowNum, targetUsername, adminUsername) {
   }
 }
 
-function updateMyCredentials(currentUsername, currentPassword, profileData) {
-  try {
-    var username = String(currentUsername || '').trim();
-    var password = String(currentPassword || '').trim();
-    var requestedUsername = String((profileData && profileData.username) || '').trim();
-    var requestedNewPassword = String((profileData && profileData.newPassword) || '').trim();
-
-    if (!username) return {success:false, message:'Current user is required.'};
-    if (!requestedUsername) return {success:false, message:'Username is required.'};
-
-    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet = ss.getSheetByName(SHEETS.USERS);
-    if (!sheet) return {success:false, message:'USERS sheet not found.'};
-
-    var data = sheet.getDataRange().getValues();
-    var hdrs = data[0].map(function(h){ return String(h || '').trim().toUpperCase(); });
-    var hm = getHeaderMap(hdrs);
-
-    var uCol = hm['USERNAME'];
-    var pCol = hm['PASSWORD'];
-    var rCol = hm['ROLE'];
-    var eCol = hm['END USER'];
-
-    var targetRow = -1;
-    var role = '';
-    var isEU = false;
-
-    for (var i = 1; i < data.length; i++) {
-      var rowU = String(data[i][uCol] || '').trim();
-      if (rowU.toLowerCase() !== username.toLowerCase()) continue;
-      var rowP = String(data[i][pCol] || '').trim();
-      if (requestedNewPassword && rowP !== password) return {success:false, message:'Current password is incorrect.'};
-      targetRow = i + 1;
-      role = String(data[i][rCol] || '').trim().toUpperCase();
-      isEU = eCol !== undefined ? String(data[i][eCol] || '').trim().toUpperCase() === 'TRUE' : false;
-      break;
-    }
-
-    if (targetRow === -1) return {success:false, message:'User account was not found.'};
-
-    sheet.getRange(targetRow, uCol + 1).setValue(requestedUsername);
-    if (requestedNewPassword) sheet.getRange(targetRow, pCol + 1).setValue(requestedNewPassword);
-    
-    var fNameCol = hm['FIRST NAME'];
-    var lNameCol = hm['LAST NAME'];
-    if (fNameCol !== undefined && profileData && profileData.firstName) sheet.getRange(targetRow, fNameCol + 1).setValue(String(profileData.firstName).trim());
-    if (lNameCol !== undefined && profileData && profileData.lastName) sheet.getRange(targetRow, lNameCol + 1).setValue(String(profileData.lastName).trim());
-
-    logAudit(requestedUsername, 'UPDATE MY PROFILE', 'USERS', 'Row ' + targetRow);
-    return {success:true, username:requestedUsername, firstName:(profileData && profileData.firstName)||'', lastName:(profileData && profileData.lastName)||'', role:role, isEndUser:isEU};
-  } catch (e) {
-    return {success:false, message:e.message};
-  }
-}
 
 function getAllSuppliers() {
   try {
@@ -2015,7 +2150,7 @@ function getAuditLogs(limitRows) {
         var uHdrs = uData[0].map(function(h){ return String(h||'').trim().toUpperCase(); });
         var uHm = getHeaderMap(uHdrs);
         for (var u = 1; u < uData.length; u++) {
-          var uname = String(uData[u][uHm['USERNAME']] || '').trim().toLowerCase();
+          var uname = String(uData[u][uHm['EMAIL']] || '').trim().toLowerCase();
           if (!uname) continue;
           var fn = uHm['FIRST NAME'] !== undefined ? String(uData[u][uHm['FIRST NAME']] || '').trim() : '';
           var ln = uHm['LAST NAME']  !== undefined ? String(uData[u][uHm['LAST NAME']]  || '').trim() : '';

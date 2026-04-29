@@ -205,8 +205,162 @@ function _buildPrintTable(headers, rows, getCells) {
   return '<div class="tbl-wrap"><table><thead>'+thead+'</thead><tbody>'+tbody+'</tbody></table></div>';
 }
 
-// ── BOOT ──
-document.getElementById('login-screen').style.display='flex';
-document.getElementById('app-screen').style.display='none';
+// ── BOOT — auto-login via Google Workspace SSO ──
+document.getElementById('login-screen').style.display = 'flex';
+document.getElementById('app-screen').style.display   = 'none';
+
+var _pendingGrant  = null;
+var _pinAttempts   = 0;
+var MAX_PIN_ATTEMPTS = 3;
+
+function _allLoginPanels() {
+  return ['access-loading','access-role-select','access-denied','access-pin','access-pin-setup','access-signedout'];
+}
+function _hideAllPanels() {
+  _allLoginPanels().forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+function _showPanel(id) {
+  _hideAllPanels();
+  var el = document.getElementById(id);
+  if (el) el.style.display = 'block';
+}
+
+function _applyGranted(res) {
+  var fn = res.firstName || '';
+  var ln = res.lastName  || '';
+  currentUser = {
+    email:     res.email,
+    username:  res.email,
+    firstName: fn,
+    lastName:  ln,
+    fullName:  (fn + ' ' + ln).trim() || res.email,
+    role:      res.role,
+    isEndUser: !!res.isEndUser
+  };
+  document.getElementById('login-screen').style.display = 'none';
+  initApp();
+}
+
+function _showDenied(message) {
+  _showPanel('access-denied');
+  var msgEl = document.getElementById('access-denied-msg');
+  if (msgEl) msgEl.textContent = message || 'Access denied. Contact Admin.';
+}
+
+function _handleAccessResponse(res) {
+  if (res && res.granted) {
+    _pendingGrant = res;
+    _pinAttempts  = 0;
+    if (res.pinSet) {
+      _showPanel('access-pin');
+      var pinEl = document.getElementById('pin-entry');
+      if (pinEl) { pinEl.value = ''; pinEl.disabled = false; pinEl.focus(); }
+      document.getElementById('pin-attempts-msg').textContent = '';
+      var submitBtn = document.getElementById('pin-submit-btn');
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify PIN'; }
+    } else {
+      _showPanel('access-pin-setup');
+      document.getElementById('pin-new').value     = '';
+      document.getElementById('pin-confirm').value = '';
+      document.getElementById('pin-setup-msg').textContent = '';
+      document.getElementById('pin-new').focus();
+    }
+  } else if (res && res.needsRoleSelect) {
+    _showPanel('access-role-select');
+    var list = document.getElementById('role-select-list');
+    list.innerHTML = '';
+    res.roles.forEach(function(r) {
+      var btn = document.createElement('button');
+      btn.className   = 'login-btn';
+      btn.textContent = _roleLabel(r.role);
+      btn.onclick     = function() { selectRoleAndLogin(r.role); };
+      list.appendChild(btn);
+    });
+  } else {
+    _showDenied(res && res.message);
+  }
+}
+
+function submitPin() {
+  var pinEl = document.getElementById('pin-entry');
+  var pin   = (pinEl ? pinEl.value : '').trim();
+  var msgEl = document.getElementById('pin-attempts-msg');
+  if (!/^\d{6}$/.test(pin)) { msgEl.textContent = 'PIN must be exactly 6 digits.'; return; }
+  var btn = document.getElementById('pin-submit-btn');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.success) {
+        _applyGranted(_pendingGrant);
+      } else {
+        _pinAttempts++;
+        btn.disabled = false; btn.textContent = 'Verify PIN';
+        pinEl.value  = '';
+        var remaining = MAX_PIN_ATTEMPTS - _pinAttempts;
+        if (remaining <= 0) {
+          pinEl.disabled   = true;
+          btn.disabled     = true;
+          msgEl.textContent = 'Too many incorrect attempts. Please refresh the page to try again.';
+        } else {
+          msgEl.textContent = 'Incorrect PIN. ' + remaining + ' attempt' + (remaining !== 1 ? 's' : '') + ' remaining.';
+          pinEl.focus();
+        }
+      }
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false; btn.textContent = 'Verify PIN';
+      msgEl.textContent = 'System error: ' + err.message;
+    })
+    .verifyPin(pin, _pendingGrant.role);
+}
+
+function submitSetupPin() {
+  var newPin     = (document.getElementById('pin-new').value     || '').trim();
+  var confirmPin = (document.getElementById('pin-confirm').value || '').trim();
+  var msgEl      = document.getElementById('pin-setup-msg');
+  if (!/^\d{6}$/.test(newPin))  { msgEl.textContent = 'PIN must be exactly 6 digits.'; return; }
+  if (newPin !== confirmPin)     { msgEl.textContent = 'PINs do not match. Please try again.'; return; }
+  msgEl.textContent = '';
+  var btn = document.getElementById('pin-setup-btn');
+  btn.disabled = true; btn.textContent = 'Setting PIN…';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false; btn.textContent = 'Set PIN & Continue';
+      if (res && res.success) {
+        _applyGranted(_pendingGrant);
+      } else {
+        msgEl.textContent = (res && res.message) || 'Failed to set PIN. Please try again.';
+      }
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false; btn.textContent = 'Set PIN & Continue';
+      msgEl.textContent = 'System error: ' + err.message;
+    })
+    .setMyPin(newPin, _pendingGrant.role);
+}
+
+function doLoginAgain() {
+  _showPanel('access-loading');
+  google.script.run
+    .withSuccessHandler(_handleAccessResponse)
+    .withFailureHandler(function(err) { _showDenied('System error: ' + err.message); })
+    .checkAccess();
+}
+
+function selectRoleAndLogin(role) {
+  _showPanel('access-loading');
+  google.script.run
+    .withSuccessHandler(_handleAccessResponse)
+    .withFailureHandler(function(err) { _showDenied('System error: ' + err.message); })
+    .checkAccess(role);
+}
+
+google.script.run
+  .withSuccessHandler(_handleAccessResponse)
+  .withFailureHandler(function(err) { _showDenied('System error: ' + err.message); })
+  .checkAccess();
 </script>
 

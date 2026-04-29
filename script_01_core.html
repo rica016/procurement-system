@@ -6,6 +6,13 @@ var END_USER_ROLES_JS = ['HR','GSS','LTID','LEGAL','FINANCE','IT','ADMIN DIVISIO
 var DEPT_ROLES_JS     = ['BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER','RCAO','ARDA'];
 var ALL_ROLES_JS      = ['ADMIN','BAC','SUPPLY','BUDGET','ACCOUNTING','CASHIER','RCAO','ARDA'].concat(END_USER_ROLES_JS);
 
+// Maps raw role values (from the sheet) to UI display labels.
+var ROLE_LABELS = { 'SUPPLY':'SUPPLY & PROPERTY', 'CASH':'CASHIER' };
+function _roleLabel(role) {
+  var r = String(role || '').trim().toUpperCase();
+  return ROLE_LABELS[r] || r;
+}
+
 // Fields that BAC fills when creating a transaction
 var BAC_CREATE_FIELDS = [
   { key:'P.R #',                   label:'P.R #',                        type:'text',    required:true },
@@ -88,173 +95,162 @@ function fromDateInput(v) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  AUTH
+//  AUTH  —  Google Workspace SSO (no username / password)
 // ═══════════════════════════════════════════════════════════════════════════════
-function doLogin() {
-  var u   = (document.getElementById('login-username').value||'').trim();
-  var p   = (document.getElementById('login-password').value||'').trim();
-  var btn = document.getElementById('login-btn');
-  if (!u||!p) { showLoginErr('Please enter username and password.'); return; }
-  btn.textContent='Signing in…'; btn.disabled=true;
-  document.getElementById('login-err').classList.remove('show');
-  google.script.run
-    .withSuccessHandler(function(res){
-      btn.textContent='Sign In →'; btn.disabled=false;
-      if (res.success) {
-        currentUser = { username:res.username, role:res.role, isEndUser:res.isEndUser };
-        document.getElementById('login-screen').style.display='none';
-        initApp();
-      } else { showLoginErr(res.message||'Login failed.'); }
-    })
-    .withFailureHandler(function(e){ btn.textContent='Sign In →'; btn.disabled=false; showLoginErr('Server error: '+e.message); })
-    .loginUser(u, p);
-}
-function showLoginErr(m){ var el=document.getElementById('login-err'); el.textContent=m; el.classList.add('show'); }
-document.getElementById('login-password').addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
-document.getElementById('login-username').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('login-password').focus(); });
 
 function doLogout(){
-  currentUser=null; clearInterval(autoRefreshId); autoRefreshId=null; cachedRows={};
-  document.getElementById('app-screen').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  document.getElementById('login-username').value='';
-  document.getElementById('login-password').value='';
-  document.getElementById('login-err').classList.remove('show');
+  currentUser = null;
+  clearInterval(autoRefreshId);
+  autoRefreshId = null;
+  cachedRows = {};
+  document.getElementById('app-screen').style.display          = 'none';
+  document.getElementById('access-loading').style.display      = 'none';
+  document.getElementById('access-role-select').style.display  = 'none';
+  document.getElementById('access-denied').style.display       = 'none';
+  document.getElementById('access-pin').style.display          = 'none';
+  document.getElementById('access-pin-setup').style.display    = 'none';
+  document.getElementById('access-signedout').style.display    = 'block';
+  document.getElementById('login-screen').style.display        = 'flex';
 }
 
 function openProfileModal(){
   if (!currentUser) return;
-  profileModalState = { originalUsername: currentUser.username };
-
+  profileModalState = {};
   document.getElementById('profile-modal-title').textContent = 'My Profile';
-  document.getElementById('profile-modal-meta').textContent  = 'Update your name, username and password';
+  document.getElementById('profile-modal-meta').textContent  = currentUser.fullName || currentUser.email || '';
   document.getElementById('profile-modal-body').innerHTML =
     '<div class="form-grid">'+
-      '<div class="form-group"><label class="form-label">First Name</label><input class="form-input" id="pf-first-name" type="text" value="'+esc(currentUser.firstName||'')+'" placeholder="Enter first name"/></div>'+
-      '<div class="form-group"><label class="form-label">Last Name</label><input class="form-input" id="pf-last-name" type="text" value="'+esc(currentUser.lastName||'')+'" placeholder="Enter last name"/></div>'+
-      '<div class="form-group full"><label class="form-label">Current Role</label><input class="form-input" type="text" value="'+esc(currentUser.role||'')+'" readonly/></div>'+
-      '<div class="form-group full"><label class="form-label">Username <span class="req">*</span></label><input class="form-input" id="pf-username" type="text" value="'+esc(currentUser.username||'')+'" placeholder="Enter username" autocomplete="off"/></div>'+
-      '<div class="form-group full"><label class="checkbox-row"><input id="pf-change-password" type="checkbox" onchange="onProfileChangePasswordToggle()"/><label for="pf-change-password">Change password</label></label></div>'+
-      '<div class="form-group full" id="pf-current-password-wrap" style="display:none;"><label class="form-label">Current Password <span class="req">*</span></label><input class="form-input" id="pf-current-password" type="password" value="" placeholder="Enter current password" autocomplete="current-password" oninput="onProfileCurrentPasswordInput()"/></div>'+
-      '<div id="pf-password-fields" style="display:none;grid-column:1/-1;">'+
-        '<div class="form-grid">'+
-          '<div class="form-group"><label class="form-label">New Password</label><input class="form-input" id="pf-new-password" type="password" value="" placeholder="Enter new password" autocomplete="new-password" disabled/></div>'+
-          '<div class="form-group"><label class="form-label">Confirm New Password</label><input class="form-input" id="pf-confirm-password" type="password" value="" placeholder="Retype new password" autocomplete="new-password" disabled/></div>'+
+      '<div class="form-group"><label class="form-label">First Name</label>'+
+        '<input class="form-input" id="pf-first-name" type="text" value="'+esc(currentUser.firstName||'')+'" placeholder="Enter first name"/></div>'+
+      '<div class="form-group"><label class="form-label">Last Name</label>'+
+        '<input class="form-input" id="pf-last-name" type="text" value="'+esc(currentUser.lastName||'')+'" placeholder="Enter last name"/></div>'+
+      '<div class="form-group full"><label class="form-label">Email (Google Account)</label>'+
+        '<input class="form-input" type="text" value="'+esc(currentUser.email||currentUser.username||'')+'" readonly/></div>'+
+      '<div class="form-group full"><label class="form-label">Role</label>'+
+        '<input class="form-input" type="text" value="'+esc(_roleLabel(currentUser.role))+'" readonly/></div>'+
+      '<div class="form-group full"><div class="form-hint">Contact Admin to change your role or access level.</div></div>'+
+      '<div class="form-group full" style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">'+
+        '<label class="form-label">PIN Security</label>'+
+        '<button type="button" class="tb-btn" id="pf-change-pin-btn" onclick="toggleChangePinFields()" style="margin-top:6px;">🔒 Change PIN</button>'+
+        '<div id="pf-pin-fields" style="display:none;margin-top:14px;">'+
+          '<div class="form-grid">'+
+            '<div class="form-group"><label class="form-label">New PIN</label>'+
+              '<input class="form-input" id="pf-pin-new" type="password" maxlength="6" inputmode="numeric" placeholder="6 digits" style="text-align:center;font-size:18px;letter-spacing:4px;"/></div>'+
+            '<div class="form-group"><label class="form-label">Confirm PIN</label>'+
+              '<input class="form-input" id="pf-pin-confirm" type="password" maxlength="6" inputmode="numeric" placeholder="6 digits" style="text-align:center;font-size:18px;letter-spacing:4px;"/></div>'+
+          '</div>'+
+          '<div id="pf-pin-msg" style="font-size:12px;color:var(--red);font-weight:600;margin-top:6px;min-height:16px;"></div>'+
         '</div>'+
       '</div>'+
-      '<div class="form-group full"><div class="form-hint">Enable "Change password" only if you want to update your password.</div></div>'+
     '</div>';
-  document.getElementById('profile-modal-save').textContent='Save Profile';
-  document.getElementById('profile-modal-save').disabled=false;
+  document.getElementById('profile-modal-save').style.display = '';
+  document.getElementById('profile-modal-save').textContent   = 'Save';
+  document.getElementById('profile-modal-save').disabled      = false;
   document.getElementById('profile-modal').classList.add('open');
 }
 
-function onProfileChangePasswordToggle(){
-  var checked = !!((document.getElementById('pf-change-password')||{}).checked);
-  var curWrap = document.getElementById('pf-current-password-wrap');
-  var passWrap = document.getElementById('pf-password-fields');
-  var curEl = document.getElementById('pf-current-password');
-  var newEl = document.getElementById('pf-new-password');
-  var confirmEl = document.getElementById('pf-confirm-password');
-
-  if (curWrap) curWrap.style.display = checked ? '' : 'none';
-  if (passWrap) passWrap.style.display = checked ? '' : 'none';
-
-  if (!checked) {
-    if (curEl) curEl.value = '';
-    if (newEl) { newEl.value = ''; newEl.disabled = true; }
-    if (confirmEl) { confirmEl.value = ''; confirmEl.disabled = true; }
-    return;
-  }
-
-  onProfileCurrentPasswordInput();
-}
-
-function onProfileCurrentPasswordInput(){
-  var curVal = (document.getElementById('pf-current-password')||{}).value || '';
-  var canEditNew = curVal.trim() !== '';
-  var newEl = document.getElementById('pf-new-password');
-  var confirmEl = document.getElementById('pf-confirm-password');
-  if (newEl) {
-    newEl.disabled = !canEditNew;
-    if (!canEditNew) newEl.value = '';
-  }
-  if (confirmEl) {
-    confirmEl.disabled = !canEditNew;
-    if (!canEditNew) confirmEl.value = '';
+function toggleChangePinFields() {
+  var f   = document.getElementById('pf-pin-fields');
+  var btn = document.getElementById('pf-change-pin-btn');
+  if (f.style.display === 'none') {
+    f.style.display  = 'block';
+    btn.textContent  = '✕ Cancel PIN Change';
+    document.getElementById('pf-pin-new').focus();
+  } else {
+    f.style.display  = 'none';
+    btn.textContent  = '🔒 Change PIN';
+    document.getElementById('pf-pin-new').value    = '';
+    document.getElementById('pf-pin-confirm').value = '';
+    document.getElementById('pf-pin-msg').textContent = '';
   }
 }
 
-function closeProfileModal(e){
-  if(e&&e.target!==document.getElementById('profile-modal')) return;
+function closeProfileModal(){
   document.getElementById('profile-modal').classList.remove('open');
-  profileModalState={};
+  profileModalState = {};
 }
 
 function saveProfileModal(){
   if (!currentUser) return;
+  var firstName = (document.getElementById('pf-first-name').value || '').trim();
+  var lastName  = (document.getElementById('pf-last-name').value  || '').trim();
+
+  // Validate PIN fields if the change-PIN section is open
+  var pinFields  = document.getElementById('pf-pin-fields');
+  var changingPin = pinFields && pinFields.style.display !== 'none';
+  var newPin = '', confirmPin = '';
+  if (changingPin) {
+    newPin     = (document.getElementById('pf-pin-new').value     || '').trim();
+    confirmPin = (document.getElementById('pf-pin-confirm').value || '').trim();
+    var pinMsg = document.getElementById('pf-pin-msg');
+    if (!/^\d{6}$/.test(newPin))    { pinMsg.textContent = 'PIN must be exactly 6 digits.'; return; }
+    if (newPin !== confirmPin)       { pinMsg.textContent = 'PINs do not match. Please try again.'; return; }
+    pinMsg.textContent = '';
+  }
+
   var btn = document.getElementById('profile-modal-save');
-  var firstName = (document.getElementById('pf-first-name').value||'').trim();
-  var lastName = (document.getElementById('pf-last-name').value||'').trim();
-  var username = (document.getElementById('pf-username').value||'').trim();
-  var wantsPasswordChange = !!((document.getElementById('pf-change-password')||{}).checked);
-  var currentPassword = wantsPasswordChange ? (document.getElementById('pf-current-password').value||'').trim() : '';
-  var newPassword = wantsPasswordChange ? (document.getElementById('pf-new-password').value||'').trim() : '';
-  var confirmPassword = wantsPasswordChange ? (document.getElementById('pf-confirm-password').value||'').trim() : '';
+  btn.disabled    = true;
+  btn.textContent = 'Saving…';
 
-  if (!username) { showToast('Username is required.','error'); return; }
-  if (wantsPasswordChange && !currentPassword) { showToast('Current password is required to change password.','error'); return; }
-  if (wantsPasswordChange && !newPassword) { showToast('New password is required.','error'); return; }
-  if (wantsPasswordChange && newPassword !== confirmPassword) { showToast('New password and confirmation do not match.','error'); return; }
-
-  btn.disabled=true;
-  btn.textContent='Saving…';
   google.script.run
     .withSuccessHandler(function(res){
-      btn.disabled=false;
-      btn.textContent='Save Profile';
       if (!res || !res.success) {
-        showToast('Error: '+((res&&res.message)||'Unable to update profile.'),'error');
+        btn.disabled    = false;
+        btn.textContent = 'Save';
+        showToast('Error: ' + ((res && res.message) || 'Could not save name.'), 'error');
         return;
       }
-
-      currentUser.firstName = res.firstName || firstName;
-      currentUser.lastName = res.lastName || lastName;
-      currentUser.username = res.username || username;
-      currentUser.role = res.role || currentUser.role;
-      currentUser.isEndUser = res.isEndUser!==undefined ? !!res.isEndUser : currentUser.isEndUser;
-
-      document.getElementById('user-avatar').textContent = currentUser.username.charAt(0).toUpperCase();
-      document.getElementById('user-name').textContent   = currentUser.username;
-      document.getElementById('user-role').textContent   = currentUser.role;
-
-      closeProfileModal();
-      showToast('Profile updated successfully.','success');
+      currentUser.firstName = res.firstName;
+      currentUser.lastName  = res.lastName;
+      currentUser.fullName  = (res.firstName + ' ' + res.lastName).trim() || currentUser.email;
+      _refreshSidebarUser();
+      if (changingPin) {
+        google.script.run
+          .withSuccessHandler(function(pinRes){
+            btn.disabled    = false;
+            btn.textContent = 'Save';
+            if (!pinRes || !pinRes.success) { showToast('Name saved, but PIN error: ' + ((pinRes && pinRes.message) || ''), 'error'); return; }
+            closeProfileModal();
+            showToast('Profile and PIN updated successfully.', 'success');
+          })
+          .withFailureHandler(function(e){
+            btn.disabled    = false;
+            btn.textContent = 'Save';
+            showToast('Name saved, but PIN error: ' + e.message, 'error');
+          })
+          .setMyPin(newPin, currentUser.role);
+      } else {
+        btn.disabled    = false;
+        btn.textContent = 'Save';
+        closeProfileModal();
+        showToast('Name updated successfully.', 'success');
+      }
     })
     .withFailureHandler(function(e){
-      btn.disabled=false;
-      btn.textContent='Save Profile';
-      showToast('Error: '+e.message,'error');
+      btn.disabled    = false;
+      btn.textContent = 'Save';
+      showToast('Error: ' + e.message, 'error');
     })
-    .updateMyCredentials(currentUser.username, currentPassword, {
-      firstName: firstName,
-      lastName: lastName,
-      username: username,
-      newPassword: newPassword
-    });
+    .updateMyName(firstName, lastName, currentUser.role);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  APP INIT
 // ═══════════════════════════════════════════════════════════════════════════════
+function _refreshSidebarUser(){
+  var displayName = currentUser.fullName || currentUser.email || '';
+  var avatarLetter = (currentUser.firstName || currentUser.email || '?').charAt(0).toUpperCase();
+  document.getElementById('user-avatar').textContent = avatarLetter;
+  document.getElementById('user-name').textContent   = displayName;
+  document.getElementById('user-role').textContent   = _roleLabel(currentUser.role);
+}
+
 function initApp(){
   var role      = currentUser.role;
   var isEndUser = currentUser.isEndUser || END_USER_ROLES_JS.indexOf(role) !== -1;
   currentUser.isEndUser = isEndUser;
 
-  document.getElementById('user-avatar').textContent = currentUser.username.charAt(0).toUpperCase();
-  document.getElementById('user-name').textContent   = currentUser.username;
-  document.getElementById('user-role').textContent   = role;
+  _refreshSidebarUser();
 
   document.querySelectorAll('.nav-dashboard,.nav-myreqs,.nav-bac,.nav-supply,.nav-budget,.nav-accounting,.nav-cash,.nav-rcao,.nav-arda,.nav-track,.nav-users,.nav-suppliers,.nav-endusers,.nav-audit')
     .forEach(function(el){ el.classList.add('hidden'); });
@@ -294,7 +290,8 @@ function initApp(){
   navigate(startPage);
 
   autoRefreshId = setInterval(function(){ silentLoadData(); }, 30000);
-  document.getElementById('live-indicator').style.display='inline';
+  var liveEl = document.getElementById('live-indicator');
+  if (liveEl) liveEl.style.display = 'inline';
 }
 
 function injectDatalist(id, vals){
@@ -371,7 +368,7 @@ function silentLoadData(){ _silentRefresh=true; if(currentPage&&PAGE_LOADERS[cur
 function departmentPageNav(active){
   var steps=[
     {k:'bac',l:'BAC',badge:'badge-amber'},
-    {k:'supply',l:'Supply',badge:'badge-teal'},
+    {k:'supply',l:'Supply & Property',badge:'badge-teal'},
     {k:'budget',l:'Budget',badge:'badge-violet'},
     {k:'rcao',l:'RCAO',badge:'badge-op'},
     {k:'arda',l:'ARDA',badge:'badge-op'},
@@ -418,7 +415,7 @@ var PAGE_TEMPLATES={
       document.querySelectorAll('.nav-'+page).forEach(function(el){ el.classList.add('hidden'); });
     });
     return renderIncludedTemplate('tpl-myreqs', {
-      '{{CURRENT_ROLE}}': esc2(currentUser && currentUser.role ? currentUser.role : '—')
+      '{{CURRENT_ROLE}}': esc2(currentUser && currentUser.role ? _roleLabel(currentUser.role) : '—')
     });
   },
   bac:function(){ return renderIncludedTemplate('tpl-bac', {'{{DEPT_SWITCHER}}': departmentPageNav('bac')}); },

@@ -1177,7 +1177,7 @@ var DASHBOARD_DEPT_META = {
   }
 };
 
-var DASHBOARD_RETURN_TARGETS = { bac:'BAC', supply:'Supply', budget:'Budget', accounting:'Accounting', cash:'Cashier', rcao:'RCAO', arda:'ARDA', enduser:'END USER' };
+var DASHBOARD_RETURN_TARGETS = { bac:'BAC', supply:'Supply & Property', budget:'Budget', accounting:'Accounting', cash:'Cashier', rcao:'RCAO', arda:'ARDA', enduser:'END USER' };
 
 function isRequestingOfficeTarget(value) {
   var v = String(value || '').trim().toUpperCase();
@@ -2050,7 +2050,7 @@ var PAGE_LOADERS={
 
   audit: function(){
     var tb = document.getElementById('audit-tbody'); if(!tb) return;
-    tb.innerHTML='<tr><td colspan="5"><div class="loading"><div class="spinner"></div> Loading audit logs…</div></td></tr>';
+    if (!_silentRefresh) tb.innerHTML='<tr><td colspan="5"><div class="loading"><div class="spinner"></div> Loading audit logs…</div></td></tr>';
     google.script.run
       .withSuccessHandler(function(rows){ cachedRows['audit'] = rows; renderAuditTable(rows); })
       .withFailureHandler(function(e){ if(tb) tb.innerHTML='<tr><td colspan="5"><div style="color:var(--red);padding:20px;text-align:center;">Error: '+e.message+'</div></td></tr>'; })
@@ -2098,12 +2098,13 @@ function renderUsersTable(rows){
       return '<tr>'+
         '<td>'+esc2(r.firstName||'—')+'</td>'+
         '<td>'+esc2(r.lastName||'—')+'</td>'+
-        '<td class="td-primary">'+esc2(r.username||'—')+'</td>'+
+        '<td class="td-primary td-wrap">'+esc2(r.email||'—')+'</td>'+
         '<td>'+roleBadge(r.role)+'</td>'+
         '<td><span class="badge '+statusClass+'">'+statusText+'</span></td>'+
         '<td><div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
           '<button class="btn-sm edit" onclick="openEditUserModal('+r._rowNum+')">✏ Update</button>'+
-          '<button class="btn-sm danger" onclick="doDeleteUser('+r._rowNum+',\''+esc(r.username)+'\')">🗑 Delete</button>'+
+          '<button class="btn-sm warn" onclick="doResetUserPin('+r._rowNum+',\''+esc(r.email)+'\')">🔑 Reset PIN</button>'+
+          '<button class="btn-sm danger" onclick="doDeleteUser('+r._rowNum+',\''+esc(r.email)+'\')">🗑 Delete</button>'+
         '</div></div></td>'+
       '</tr>';
     }).join('');
@@ -2132,8 +2133,8 @@ function printUsersTable(){
   if (!rows.length) { showToast('No user data to export.','info'); return; }
   var staffRows = rows.filter(function(r){ return !r.isEndUser; });
   var euRows    = rows.filter(function(r){ return !!r.isEndUser; });
-  var headers = ['First Name','Last Name','Username','Role','Status'];
-  function getCells(r){ return [r.firstName||'—', r.lastName||'—', r.username||'—', r.role||'—', r.isActive?'Active':'Inactive']; }
+  var headers = ['First Name','Last Name','Email','Role','Status'];
+  function getCells(r){ return [r.firstName||'—', r.lastName||'—', r.email||'—', _roleLabel(r.role)||'—', r.isActive?'Active':'Inactive']; }
   var contentHtml =
     '<div class="ps">Department Staff ('+staffRows.length+')</div>'+_buildPrintTable(headers, staffRows, getCells)+
     '<div class="ps">End Users ('+euRows.length+')</div>'+_buildPrintTable(headers, euRows, getCells);
@@ -2145,8 +2146,8 @@ function csvExportUsersTable() {
   if (!rows.length) { showToast('No user data to export.','info'); return; }
   var now = new Date();
   csvDownload('DAR-RO5-Users-'+formatPHTime(now).replace(/[: ]/g,'-')+'.csv',
-    ['Type','First Name','Last Name','Username','Role','Status'], rows,
-    function(r){ return [r.isEndUser?'End User':'Staff', r.firstName||'', r.lastName||'', r.username||'', r.role||'', r.isActive?'Active':'Inactive']; });
+    ['Type','First Name','Last Name','Email','Role','Status'], rows,
+    function(r){ return [r.isEndUser?'End User':'Staff', r.firstName||'', r.lastName||'', r.email||'', _roleLabel(r.role)||'', r.isActive?'Active':'Inactive']; });
 }
 
 function renderSuppliersTable(rows){
@@ -2204,7 +2205,7 @@ function supplierStatusBadge(status){
 function roleBadge(role){
   var r = String(role||'').toUpperCase();
   var cls = {'ADMIN':'role-admin','BAC':'role-bac','SUPPLY':'role-supply','BUDGET':'role-budget','ACCOUNTING':'role-accounting','CASHIER':'role-cash','CASH':'role-cash','RCAO':'role-bac','ARDA':'role-bac'}[r] || 'role-enduser';
-  return '<span class="role-badge '+cls+'">'+r+'</span>';
+  return '<span class="role-badge '+cls+'">'+_roleLabel(r)+'</span>';
 }
 
 function openAddUserModal(){
@@ -2216,11 +2217,10 @@ function openAddUserModal(){
 }
 
 function switchUserTab(tab){
-  var prevUsername = (document.getElementById('uf-username')||{}).value || '';
-  var prevPassword = (document.getElementById('uf-password')||{}).value || '';
+  var prevEmail = (document.getElementById('uf-email')||{}).value || '';
   userModalState.tab = tab;
   var data = userModalState.mode === 'edit'
-    ? { username: prevUsername || userModalState.username, role: '', password: prevPassword }
+    ? { email: prevEmail || userModalState.email, role: '' }
     : {};
   document.getElementById('user-modal-body').innerHTML = buildAddUserTabs(tab, data);
 }
@@ -2236,10 +2236,9 @@ function buildAddUserTabs(activeTab, data){
 
 function buildStaffTabForm(data){
   data = data || {};
-  var isEdit = !!data.username;
   var staffRoles = ALL_ROLES_JS.filter(function(r){ return END_USER_ROLES_JS.indexOf(r) === -1; });
   var rolesHtml = staffRoles.map(function(r){
-    return '<option'+(r===(data.role||'')?' selected':'')+' value="'+r+'">'+r+'</option>';
+    return '<option'+(r===(data.role||'')?' selected':'')+' value="'+r+'">'+_roleLabel(r)+'</option>';
   }).join('');
   var isActive = data.isActive !== false;
   return '<div class="form-grid">'+
@@ -2247,10 +2246,8 @@ function buildStaffTabForm(data){
     '<input class="form-input" id="uf-first-name" type="text" value="'+esc(data.firstName||'')+'" placeholder="e.g. John"/></div>'+
     '<div class="form-group"><label class="form-label">Last Name</label>'+
     '<input class="form-input" id="uf-last-name" type="text" value="'+esc(data.lastName||'')+'" placeholder="e.g. Smith"/></div>'+
-    '<div class="form-group"><label class="form-label">Username <span class="req">*</span></label>'+
-    '<input class="form-input" id="uf-username" type="text" value="'+esc(data.username||'')+'" placeholder="e.g. jsmith"/></div>'+
-    '<div class="form-group"><label class="form-label">Password'+(isEdit?'':' <span class="req">*</span>')+'</label>'+
-    '<input class="form-input" id="uf-password" type="text" value="" placeholder="'+(isEdit?'Leave blank to keep current':'Initial password')+'"/></div>'+
+    '<div class="form-group full"><label class="form-label">Email <span class="req">*</span></label>'+
+    '<input class="form-input" id="uf-email" type="email" value="'+esc(data.email||'')+'" placeholder="e.g. jsmith@dar.gov.ph"/></div>'+
     '<div class="form-group full"><label class="form-label">Role <span class="req">*</span></label>'+
     '<select class="form-select" id="uf-role"><option value="">— Select Role —</option>'+rolesHtml+'</select></div>'+
     '<div class="form-group full"><label class="form-label" style="display:flex;align-items:center;gap:8px;"><input class="form-checkbox" id="uf-active" type="checkbox" '+(isActive?'checked':'')+'/> <span>Active User</span></label></div>'+
@@ -2259,10 +2256,9 @@ function buildStaffTabForm(data){
 
 function buildEndUserTabForm(data){
   data = data || {};
-  var isEdit = !!data.username;
   var isActive = data.isActive !== false;
   var euRolesHtml = endUsers.map(function(r){
-    return '<option'+(r===(data.role||'')?' selected':'')+' value="'+r+'">'+r+'</option>';
+    return '<option'+(r===(data.role||'')?' selected':'')+' value="'+r+'">'+_roleLabel(r)+'</option>';
   }).join('');
   if (!euRolesHtml) euRolesHtml = '<option disabled>No end user roles found — add them in End User Management</option>';
   return '<div class="form-grid">'+
@@ -2270,10 +2266,8 @@ function buildEndUserTabForm(data){
     '<input class="form-input" id="uf-first-name" type="text" value="'+esc(data.firstName||'')+'" placeholder="e.g. John"/></div>'+
     '<div class="form-group"><label class="form-label">Last Name</label>'+
     '<input class="form-input" id="uf-last-name" type="text" value="'+esc(data.lastName||'')+'" placeholder="e.g. Smith"/></div>'+
-    '<div class="form-group"><label class="form-label">Username <span class="req">*</span></label>'+
-    '<input class="form-input" id="uf-username" type="text" value="'+esc(data.username||'')+'" placeholder="e.g. hr_office"/></div>'+
-    '<div class="form-group"><label class="form-label">Password'+(isEdit?'':' <span class="req">*</span>')+'</label>'+
-    '<input class="form-input" id="uf-password" type="text" value="" placeholder="'+(isEdit?'Leave blank to keep current':'Initial password')+'"/></div>'+
+    '<div class="form-group full"><label class="form-label">Email <span class="req">*</span></label>'+
+    '<input class="form-input" id="uf-email" type="email" value="'+esc(data.email||'')+'" placeholder="e.g. hr_office@dar.gov.ph"/></div>'+
     '<div class="form-group full"><label class="form-label">Role <span class="req">*</span></label>'+
     '<select class="form-select" id="uf-role"><option value="">— Select Role —</option>'+euRolesHtml+'</select></div>'+
     '<div class="form-group full"><label class="form-label" style="display:flex;align-items:center;gap:8px;"><input class="form-checkbox" id="uf-active" type="checkbox" '+(isActive?'checked':'')+'/> <span>Active User</span></label></div>'+
@@ -2286,9 +2280,9 @@ function openEditUserModal(rowNum){
   var row  = rows.find(function(r){ return r._rowNum === rowNum; });
   if (!row) { showToast('User data not found. Please refresh.','error'); return; }
   var tab = row.isEndUser ? 'enduser' : 'staff';
-  userModalState = { mode:'edit', rowNum:rowNum, username:row.username, tab:tab };
+  userModalState = { mode:'edit', rowNum:rowNum, email:row.email, tab:tab };
   document.getElementById('user-modal-title').textContent = 'Update User';
-  document.getElementById('user-modal-meta').textContent  = 'Editing: '+row.username;
+  document.getElementById('user-modal-meta').textContent  = 'Editing: '+row.email;
   document.getElementById('user-modal-body').innerHTML    = buildAddUserTabs(tab, row);
   document.getElementById('user-modal-save').textContent  = 'Save Updates';
   document.getElementById('user-modal').classList.add('open');
@@ -2298,18 +2292,15 @@ function saveUserModal(){
   var btn      = document.getElementById('user-modal-save');
   var firstName = (document.getElementById('uf-first-name').value||'').trim();
   var lastName = (document.getElementById('uf-last-name').value||'').trim();
-  var username = (document.getElementById('uf-username').value||'').trim();
-  var password = (document.getElementById('uf-password').value||'').trim();
+  var email    = (document.getElementById('uf-email').value||'').trim().toLowerCase();
   var role     = (document.getElementById('uf-role').value||'').trim();
   var isActive = (document.getElementById('uf-active')||{}).checked;
   var isEndUser = userModalState.tab === 'enduser';
 
-  if (!username) { showToast('Username is required.','error'); return; }
-  if (!role)     { showToast('Role is required.','error'); return; }
-  if (userModalState.mode === 'add' && !password) { showToast('Password is required for new users.','error'); return; }
+  if (!email) { showToast('Email is required.','error'); return; }
+  if (!role)  { showToast('Role is required.','error'); return; }
 
-  var userData = { firstName:firstName, lastName:lastName, username:username, role:role, isEndUser:isEndUser, isActive:isActive };
-  if (password) userData.password = password;
+  var userData = { firstName:firstName, lastName:lastName, email:email, role:role, isEndUser:isEndUser, isActive:isActive };
   btn.disabled = true;
 
   if (userModalState.mode === 'add') {
@@ -2318,7 +2309,7 @@ function saveUserModal(){
       .withSuccessHandler(function(res){
         btn.disabled=false; btn.textContent='Add User';
         document.getElementById('user-modal').classList.remove('open');
-        if (res&&res.success) { showToast('✅ User added: '+username+' ('+res.userId+')','success'); loadData(); }
+        if (res&&res.success) { showToast('✅ User added: '+email+' ('+res.userId+')','success'); loadData(); }
         else showToast('Error: '+(res&&res.message||'Unknown'),'error');
         userModalState={};
       })
@@ -2337,6 +2328,22 @@ function saveUserModal(){
       .withFailureHandler(function(e){ btn.disabled=false; btn.textContent='Save Updates'; showToast('Error: '+e.message,'error'); })
       .updateUser(userModalState.rowNum, userData, currentUser.username);
   }
+}
+
+function doResetUserPin(rowNum, email) {
+  showConfirm({
+    type:'warn', icon:'🔑', title:'Reset PIN',
+    message:'Reset the PIN for "'+email+'"? They will be required to set a new PIN on their next login.',
+    ok:'Reset PIN', cancel:'Cancel'
+  }, function(){
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (res && res.success) showToast('PIN reset for "'+email+'".','success');
+        else showToast('Error: '+(res&&res.message||'Unknown'),'error');
+      })
+      .withFailureHandler(function(e){ showToast('Error: '+e.message,'error'); })
+      .resetUserPin(rowNum, currentUser.username);
+  });
 }
 
 function doDeleteUser(rowNum, username){
@@ -2702,14 +2709,14 @@ function _getDeptExportSpec(page) {
     if (tab === 'new') {
       displayRows = rows.filter(function(r){ return isReturnBackRow(r) || isReturnPending(r); });
     } else {
-      var rtLabel = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page]||'';
+      var rtLabel = {bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page]||'';
       displayRows = rows.filter(function(r){
         if (!isReturnPending(r)) return false;
         return String(r['RETURNED FROM']||'').trim() === rtLabel;
       });
     }
   } else if (renderTab === 'returndone') {
-    var rtLabelD = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page]||'';
+    var rtLabelD = {bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier'}[page]||'';
     displayRows = rows.filter(function(r){
       if (!isReturnResolved(r)) return false;
       return String(r['RETURNED FROM']||'').trim() === rtLabelD;
@@ -2740,7 +2747,7 @@ function _getDeptExportSpec(page) {
     });
   }
 
-  var DEPT_TITLES = {bac:'BAC',supply:'Supply',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA'};
+  var DEPT_TITLES = {bac:'BAC',supply:'Supply & Property',budget:'Budget',accounting:'Accounting',cash:'Cashier',rcao:'RCAO',arda:'ARDA'};
   var TAB_LABELS  = {active:'Active',done:'Completed',cancelled:'Cancelled',returned:'Returned',returndone:'Return Done',new:'New'};
   var title = (DEPT_TITLES[page]||page) + ' — ' + (TAB_LABELS[renderTab]||'Active') + ' Transactions';
 

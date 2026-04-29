@@ -707,19 +707,78 @@ document.addEventListener('scroll', function() { closeAllActionMenus(); }, true)
 </head>
 <body>
 
-<!-- ═══════ LOGIN ═══════ -->
+<!-- ═══════ ACCESS SCREEN (loading / denied) ═══════ -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
       <div class="login-logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
       <div><div class="t1">DAR Regional Office V</div><div class="t2">Procurement Monitoring System</div></div>
     </div>
-    <div class="login-title">Welcome back</div>
-    <div class="login-sub">Sign in with your department credentials to continue.</div>
-    <div class="login-field"><label class="login-label">Username</label><input class="login-input" id="login-username" type="text" placeholder="Enter username" autocomplete="username"/></div>
-    <div class="login-field"><label class="login-label">Password</label><input class="login-input" id="login-password" type="password" placeholder="Enter password" autocomplete="current-password"/></div>
-    <div class="login-err" id="login-err"></div>
-    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In →</button>
+
+    <!-- Shown while checkAccess() is in flight -->
+    <div id="access-loading">
+      <div class="login-title">Checking access&hellip;</div>
+      <div class="login-sub">Please wait while we verify your Google account.</div>
+      <div style="display:flex;justify-content:center;margin-top:28px;">
+        <div class="spinner" style="width:28px;height:28px;border-width:3px;"></div>
+      </div>
+    </div>
+
+    <!-- Shown when the user has multiple active roles -->
+    <div id="access-role-select" style="display:none;">
+      <div class="login-title">Select Your Role</div>
+      <div class="login-sub">Your account has multiple roles. Choose one to continue.</div>
+      <div id="role-select-list" style="display:flex;flex-direction:column;gap:10px;margin-top:24px;"></div>
+    </div>
+
+    <!-- Shown to enter existing PIN -->
+    <div id="access-pin" style="display:none;">
+      <div class="login-title">Enter Your PIN</div>
+      <div class="login-sub">Enter your 6-digit PIN to continue.</div>
+      <div class="login-field" style="margin-top:24px;">
+        <label class="login-label">6-Digit PIN</label>
+        <input class="login-input" id="pin-entry" type="password" maxlength="6" inputmode="numeric" placeholder="••••••"
+               style="text-align:center;font-size:22px;letter-spacing:6px;"
+               onkeydown="if(event.key==='Enter') submitPin()"/>
+      </div>
+      <div id="pin-attempts-msg" style="font-size:12.5px;color:var(--red);font-weight:600;min-height:18px;margin-bottom:10px;text-align:center;"></div>
+      <button class="login-btn" id="pin-submit-btn" onclick="submitPin()">Verify PIN</button>
+    </div>
+
+    <!-- Shown when PIN is not yet set (first login) -->
+    <div id="access-pin-setup" style="display:none;">
+      <div class="login-title">Create Your PIN</div>
+      <div class="login-sub">You don't have a PIN yet. Set a 6-digit PIN to secure your account.</div>
+      <div class="login-field" style="margin-top:20px;">
+        <label class="login-label">New PIN</label>
+        <input class="login-input" id="pin-new" type="password" maxlength="6" inputmode="numeric" placeholder="••••••"
+               style="text-align:center;font-size:22px;letter-spacing:6px;"/>
+      </div>
+      <div class="login-field">
+        <label class="login-label">Confirm PIN</label>
+        <input class="login-input" id="pin-confirm" type="password" maxlength="6" inputmode="numeric" placeholder="••••••"
+               style="text-align:center;font-size:22px;letter-spacing:6px;"
+               onkeydown="if(event.key==='Enter') submitSetupPin()"/>
+      </div>
+      <div id="pin-setup-msg" style="font-size:12.5px;color:var(--red);font-weight:600;min-height:18px;margin-bottom:10px;text-align:center;"></div>
+      <button class="login-btn" id="pin-setup-btn" onclick="submitSetupPin()">Set PIN &amp; Continue</button>
+    </div>
+
+    <!-- Shown after the user signs out -->
+    <div id="access-signedout" style="display:none;">
+      <div class="login-title">Signed Out</div>
+      <div class="login-sub">You have been signed out successfully.</div>
+      <button class="login-btn" style="margin-top:24px;" onclick="doLoginAgain()">Sign In Again</button>
+    </div>
+
+    <!-- Shown when access is denied -->
+    <div id="access-denied" style="display:none;">
+      <div class="login-title" style="color:var(--red);">Access Denied</div>
+      <div class="login-sub" id="access-denied-msg">Your account is not authorised to use this system.</div>
+      <div style="margin-top:20px;background:var(--red-light);border:1px solid #fca5a5;border-radius:10px;padding:14px 16px;font-size:12.5px;color:var(--red);font-weight:600;line-height:1.6;">
+        Contact your system administrator to request access.
+      </div>
+    </div>
   </div>
 </div>
 
