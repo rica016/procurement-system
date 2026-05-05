@@ -24,43 +24,44 @@ function _auditRowHTML(r){
   '</tr>';
 }
 
-function _applyAuditFilter(){
-  var tb  = document.getElementById('audit-tbody');
-  var sub = document.getElementById('audit-panel-sub');
-  var clearBtn = document.getElementById('audit-date-clear');
-  if (!tb) return;
-
-  var q    = (document.getElementById('audit-search').value||'').toLowerCase();
-  var from = document.getElementById('audit-date-from').value; // "YYYY-MM-DD" or ""
-  var to   = document.getElementById('audit-date-to').value;
-
-  // Show/hide the Clear button
-  if (clearBtn) clearBtn.style.display = (from||to) ? '' : 'none';
-
-  var filtered = _auditRows.filter(function(r){
-    // Text search
+// Shared predicate — avoids duplicating filter logic between _applyAuditFilter and printAndClearAuditLogs.
+function _buildAuditFilterFn(q, from, to) {
+  return function(r) {
     if (q) {
-      var hay = [r.timestamp,r.username,r.action,r.department,r.recordId].join(' ').toLowerCase();
+      var hay = [r.timestamp, r.username, r.action, r.department, r.recordId].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    // Date range — timestamp field is expected as "YYYY-MM-DD HH:MM:SS" or similar
     if (from || to) {
-      // Extract just the date part (first 10 chars) regardless of separator
-      var ts = String(r.timestamp||'').trim();
-      // Handle common formats: "2025-04-07 14:30" or "04/07/2025 14:30"
-      var datePart = ts.slice(0,10); // works for YYYY-MM-DD…
-      // Fallback: try parsing as Date if slice doesn't look like a date
+      var ts       = String(r.timestamp || '').trim();
+      var datePart = ts.slice(0, 10);
       if (!/^\d{4}-\d{2}-\d{2}/.test(datePart)) {
         var d = new Date(ts);
         if (!isNaN(d)) {
-          datePart = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+          datePart = d.getFullYear() + '-' +
+                     String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                     String(d.getDate()).padStart(2, '0');
         }
       }
       if (from && datePart < from) return false;
       if (to   && datePart > to)   return false;
     }
     return true;
-  });
+  };
+}
+
+function _applyAuditFilter(){
+  var tb  = document.getElementById('audit-tbody');
+  var sub = document.getElementById('audit-panel-sub');
+  var clearBtn = document.getElementById('audit-date-clear');
+  if (!tb) return;
+
+  var q    = (document.getElementById('audit-search').value || '').toLowerCase();
+  var from = document.getElementById('audit-date-from').value;
+  var to   = document.getElementById('audit-date-to').value;
+
+  if (clearBtn) clearBtn.style.display = (from || to) ? '' : 'none';
+
+  var filtered = _auditRows.filter(_buildAuditFilterFn(q, from, to));
 
   if (sub) sub.textContent = filtered.length + ' record' + (filtered.length!==1?'s':'') + ' · Most recent first' + (filtered.length < _auditRows.length ? ' (filtered)' : '');
   if (!filtered.length){ tb.innerHTML='<tr><td colspan="5">'+emptyRow(5)+'</td></tr>'; return; }
@@ -75,23 +76,7 @@ function printAndClearAuditLogs(){
   var from = (document.getElementById('audit-date-from').value||'');
   var to   = (document.getElementById('audit-date-to').value||'');
 
-  var filtered = _auditRows.filter(function(r){
-    if (q) {
-      var hay = [r.timestamp,r.username,r.action,r.department,r.recordId].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (from || to) {
-      var ts = String(r.timestamp||'').trim();
-      var datePart = ts.slice(0,10);
-      if (!/^\d{4}-\d{2}-\d{2}/.test(datePart)) {
-        var d = new Date(ts); if (!isNaN(d))
-          datePart = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      }
-      if (from && datePart < from) return false;
-      if (to   && datePart > to)   return false;
-    }
-    return true;
-  });
+  var filtered = _auditRows.filter(_buildAuditFilterFn(q, from, to));
 
   if (!filtered.length) { showToast('No records to export.','info'); return; }
 
@@ -384,9 +369,23 @@ function openViewModal(page, rowNum, viewMode){
   document.getElementById('main-modal').classList.add('open');
   if (page === 'enduser') {
     var pr = row['P.R NO.'] || row['P.R #'] || '—';
+    var category = row['CATEGORY'] || '—';
+    var poNo = row['P.O. NO.'] || row['P.O. No.'] || '—';
+    var poAmount = currency(row['P.O. AMOUNT'] || row['AMOUNT'] || '—');
+    var supplier = row['SUPPLIER'] || '—';
+    var particulars = row['PARTICULARS'] || '—';
+    var awardedTo = row['AWARDED TO'] || '—';
+    var iarNo = row['I.A.R  NO.'] || row['I.A.R #'] || '—';
+    var invoiceNo = row['INVOICE  NO.'] || row['INVOICE #'] || '—';
+    var orsNo = row['ORS NO.'] || '—';
+    var netAmount = currency(row['NET AMOUNT'] || row['ORS AMOUNT'] || '—');
+    var dvNo = row['DV NO.'] || '—';
+    var dateOfCheque = row['DATE OF CHEQUE'] || '—';
+    var completedAt = row['COMPLETED AT'] || '—';
     var returnedBy = row['RETURNED FROM'] || row['FORWARDED FROM'] || '—';
-    var remarks    = row['RETURN REMARKS'] || row['FORWARD REMARKS'] || '—';
-    var dateTime   = row['RETURNED DATE'] || '—';
+    var remarks = row['RETURN REMARKS'] || row['FORWARD REMARKS'] || '—';
+    var dateTime = row['RETURNED DATE'] || row['DATE RECEIVED'] || '—';
+
     document.getElementById('main-modal-body').innerHTML =
       '<div class="view-summary">'+
         '<div class="view-card">'+
@@ -399,6 +398,58 @@ function openViewModal(page, rowNum, viewMode){
         '</div>'+
       '</div>'+
       '<div class="view-grid">'+
+        '<div class="view-field">'+
+          '<div class="view-label">Category</div>'+
+          '<div class="view-value">'+esc2(category)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">P.O. No.</div>'+
+          '<div class="view-value">'+esc2(poNo)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">P.O. Amount</div>'+
+          '<div class="view-value">'+poAmount+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">Supplier</div>'+
+          '<div class="view-value">'+esc2(supplier)+'</div>'+
+        '</div>'+
+        '<div class="view-field full">'+
+          '<div class="view-label">Particulars</div>'+
+          '<div class="view-value">'+esc2(particulars)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">Awarded To</div>'+
+          '<div class="view-value">'+esc2(awardedTo)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">I.A.R No.</div>'+
+          '<div class="view-value">'+esc2(iarNo)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">Invoice No.</div>'+
+          '<div class="view-value">'+esc2(invoiceNo)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">ORS No.</div>'+
+          '<div class="view-value">'+esc2(orsNo)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">Net Amount</div>'+
+          '<div class="view-value">'+netAmount+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">DV No.</div>'+
+          '<div class="view-value">'+esc2(dvNo)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">Date of Cheque</div>'+
+          '<div class="view-value">'+esc2(dateOfCheque)+'</div>'+
+        '</div>'+
+        '<div class="view-field">'+
+          '<div class="view-label">Completed At</div>'+
+          '<div class="view-value">'+esc2(completedAt)+'</div>'+
+        '</div>'+
         '<div class="view-field">'+
           '<div class="view-label">Returned By</div>'+
           '<div class="view-value">'+esc2(returnedBy)+'</div>'+

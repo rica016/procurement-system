@@ -43,20 +43,119 @@ var TX_FIELD_ALIASES = {
   'TAX AMOUNT': ['TAX AMOUNT','TAX Amount']
 };
 
+// Only non-trivial mappings needed; unknown keys fall through as-is in normalizeDepartmentName.
 var DEPT_ALIASES = {
-  'BAC': 'BAC',
-  'SUPPLY': 'SUPPLY',
   'SUPPLY AND PROPERTY': 'SUPPLY',
-  'BUDGET': 'BUDGET',
-  'ACCOUNTING': 'ACCOUNTING',
-  'CASH': 'CASH',
-  'CASHIER': 'CASH',
-  'RCAO': 'RCAO',
-  'ARDA': 'ARDA',
-  'END USER': 'END USER',
-  'REQUESTING OFFICE': 'END USER',
-  'COMPLETED': 'COMPLETED'
+  'CASHIER':             'CASH',
+  'REQUESTING OFFICE':   'END USER'
 };
+
+var STATUS = {
+  PROCESSING: 'PROCESSING',
+  RETURNED:   'RETURNED',
+  COMPLETED:  'COMPLETED',
+  CANCELLED:  'CANCELLED',
+  UNDO:       'UNDO'
+};
+
+// ── Security Configuration ─────────────────────────────────────────────────
+var SECURITY_CONFIG = {
+  SESSION_TIMEOUT_MINUTES: 60,           // Auto-logout after 60 minutes
+  MAX_LOGIN_ATTEMPTS: 5,                  // Max failed login attempts
+  LOCKOUT_DURATION_MINUTES: 15,          // Lockout period after max attempts
+  LOGIN_ATTEMPT_WINDOW_MINUTES: 30       // Window for counting attempts
+};
+
+// ── Rate Limiting & Session Management ──────────────────────────────────────
+
+function getLoginAttemptKey(email) {
+  return 'LOGIN_ATTEMPTS:' + String(email || '').toLowerCase();
+}
+
+function recordLoginAttempt(email, success) {
+  try {
+    var key = getLoginAttemptKey(email);
+    var cache = CacheService.getUserCache();
+    var data = cache.get(key);
+    var attempts = data ? JSON.parse(data) : { count: 0, lastAttempt: 0, lastSuccess: 0 };
+    
+    var now = Date.now();
+    var windowStart = now - (SECURITY_CONFIG.LOGIN_ATTEMPT_WINDOW_MINUTES * 60 * 1000);
+    
+    // Reset counter if outside window
+    if (attempts.lastAttempt < windowStart) {
+      attempts.count = 0;
+    }
+    
+    if (success) {
+      attempts.lastSuccess = now;
+      attempts.count = 0;  // Reset on successful login
+    } else {
+      attempts.count++;
+      attempts.lastAttempt = now;
+    }
+    
+    cache.put(key, JSON.stringify(attempts), 3600);  // Cache for 1 hour
+  } catch (e) {
+    // Silently fail rate limiting if cache unavailable
+  }
+}
+
+function isLoginLockedOut(email) {
+  try {
+    var key = getLoginAttemptKey(email);
+    var cache = CacheService.getUserCache();
+    var data = cache.get(key);
+    if (!data) return false;
+    
+    var attempts = JSON.parse(data);
+    if (attempts.count < SECURITY_CONFIG.MAX_LOGIN_ATTEMPTS) return false;
+    
+    var lockoutEnd = attempts.lastAttempt + (SECURITY_CONFIG.LOCKOUT_DURATION_MINUTES * 60 * 1000);
+    return Date.now() < lockoutEnd;
+  } catch (e) {
+    return false;
+  }
+}
+
+function hashPin(pin) {
+  try {
+    var salt = 'DAR_PMS_SALT_v1';  // Fixed salt for consistent hashing
+    var input = String(pin || '') + salt;
+    return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input)
+      .map(function(b){ return String.fromCharCode(b & 255); })
+      .join('');
+  } catch (e) {
+    // Fallback to basic encoding if digest fails
+    return Utilities.base64Encode(String(pin || '') + 'DAR_PMS_SALT_v1');
+  }
+}
+
+function hashPinToHex(pin) {
+  try {
+    var salt = 'DAR_PMS_SALT_v1';
+    var input = String(pin || '') + salt;
+    var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
+    var hex = '';
+    for (var i = 0; i < digest.length; i++) {
+      var byte = digest[i] & 0xFF;
+      hex += ('0' + byte.toString(16)).slice(-2);
+    }
+    return hex;
+  } catch (e) {
+    return '';
+  }
+}
+
+function verifyPinHash(providedPin, storedHash) {
+  try {
+    if (!storedHash) return false;
+    var providedHash = hashPinToHex(providedPin);
+    return providedHash === storedHash;
+  } catch (e) {
+    return false;
+  }
+}
 
 function doGet() {
   return HtmlService.createTemplateFromFile('index').evaluate()
@@ -210,6 +309,13 @@ function getTxValueByCandidates(record, candidates) {
     if (record.hasOwnProperty(c) && String(record[c] || '').trim() !== '') return record[c];
   }
   return '';
+}
+
+// Reads a field from a transaction record, automatically resolving field-name aliases.
+function pickTxField(record, key, fallback) {
+  var candidates = getTxCandidateKeys(key).slice();
+  if (fallback) candidates.push(fallback);
+  return getTxValueByCandidates(record, candidates);
 }
 
 function setTransactionFieldsByTracking(ss, trackingNo, data) {
@@ -383,8 +489,7 @@ function logAudit(username, action, department, recordId) {
   }
 }
 
-function logTransactionHistory(trackingNo, prNo, action, fromDept, toDept, username, remarks) {
-  var _ = prNo;
+function logTransactionHistory(trackingNo, prNo, action, fromDept, toDept, username, remarks) { // eslint-disable-line no-unused-vars
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   ensureCoreSheets(ss);
   appendHistoryLog(ss, {
@@ -438,6 +543,76 @@ function getTrackingMetaMap(ss) {
   return out;
 }
 
+// Scans a transaction's history to derive display-ready metadata for one row.
+// Extracted from buildDepartmentRows to keep the main loop readable.
+function computeHistoryMeta(currentDept, currentStatus, history) {
+  var statusUpper   = String(currentStatus || '').trim().toUpperCase();
+  var allowNotified = statusUpper !== STATUS.PROCESSING &&
+                      statusUpper !== 'RETURN TO PROCESSING' &&
+                      statusUpper !== STATUS.UNDO;
+
+  var meta = {
+    receivedAt:          '',
+    completedAt:         '',
+    cancelledAt:         '',
+    forwardedFromDept:   '',
+    returnedFromDept:    '',
+    returnedFromDate:    '',
+    returnedFromRemarks: '',
+    displayStatus:       statusUpper === STATUS.UNDO ? STATUS.PROCESSING : (currentStatus || STATUS.PROCESSING),
+    isNewNotified:       false,
+    latestForwardIdx:    -1,
+    isReturnBack:        false,
+    returnBackFromDept:  ''
+  };
+
+  for (var z = history.length - 1; z >= 0; z--) {
+    var hz        = history[z];
+    var hzAction  = String(hz.action || '').toUpperCase();
+    var hzToDept  = normalizeDepartmentName(hz.toDept);
+    var hzFromDept= normalizeDepartmentName(hz.fromDept);
+
+    if (!meta.completedAt  && hzAction === 'COMPLETED') meta.completedAt  = hz.timestamp;
+    if (!meta.cancelledAt  && hzAction === 'CANCELLED') meta.cancelledAt  = hz.timestamp;
+
+    if (!meta.receivedAt && hzToDept === currentDept && hzAction === 'RECEIVED') {
+      meta.receivedAt = hz.timestamp;
+    }
+    if (!meta.returnedFromDept && hzAction === 'RETURNED' && hzToDept === currentDept) {
+      meta.returnedFromDept    = displayDepartmentName(hzFromDept);
+      meta.returnedFromDate    = hz.timestamp || '';
+      meta.returnedFromRemarks = hz.remarks   || '';
+    }
+    if (!meta.isNewNotified && allowNotified && hzAction === 'FORWARD') {
+      meta.isNewNotified    = hz.isNotified === false || String(hz.isNotified || '').toLowerCase() === 'false';
+      meta.latestForwardIdx = z;
+      if (!meta.forwardedFromDept && hzToDept === currentDept) {
+        meta.forwardedFromDept = displayDepartmentName(hzFromDept);
+      }
+      break;
+    }
+    if (meta.completedAt && meta.cancelledAt && meta.receivedAt) break;
+  }
+
+  // A transaction is "returning" to this dept if it was previously processed here
+  // (this dept appears as fromDept in history before the latest forward entry).
+  if (meta.isNewNotified && meta.latestForwardIdx > 0) {
+    for (var k = 0; k < meta.latestForwardIdx; k++) {
+      var hk = history[k];
+      if (normalizeDepartmentName(hk.fromDept) === currentDept) {
+        meta.isReturnBack = true;
+      }
+      if (meta.isReturnBack &&
+          String(hk.action || '').toUpperCase() === 'RETURNED' &&
+          normalizeDepartmentName(hk.fromDept) === currentDept) {
+        meta.returnBackFromDept = hk.toDept;
+      }
+    }
+  }
+
+  return meta;
+}
+
 function buildDepartmentRows(deptName) {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   ensureCoreSheets(ss);
@@ -483,139 +658,81 @@ function buildDepartmentRows(deptName) {
     var t = txRows[j];
     if (dept !== 'ALL' && t.currentDept !== dept) continue;
 
-    var txRecord = t.record || {};
-    var meta = metaMap[t.trackingNo] || {};
-    var history = byTracking[t.trackingNo] || [];
-    var latest = history.length ? history[history.length - 1] : null;
+    var txRecord  = t.record || {};
+    var txMeta    = metaMap[t.trackingNo] || {};
+    var history   = byTracking[t.trackingNo] || [];
+    var latest    = history.length ? history[history.length - 1] : null;
+    var hm        = computeHistoryMeta(t.currentDept, t.currentStatus, history);
 
-    function pickTx(key, fallback) {
-      var candidates = getTxCandidateKeys(key).slice();
-      if (fallback) candidates.push(fallback);
-      var val = getTxValueByCandidates(txRecord, candidates);
-      return val === '' ? '' : val;
-    }
-
-    var prNo = pickTx('P.R NO.') || meta.prNo || '';
-    var office = pickTx('END-USER / REQUESTED BY') || meta.requestingOffice || '';
-    var category = pickTx('CATEGORY') || meta.category || '';
-
-    var receivedAt = '';
-    var completedAt = '';
-    var cancelledAt = '';
-    var forwardedFromDept = '';
-    var returnedFromDept = '';
-    var returnedFromDate = '';
-    var returnedFromRemarks = '';
-    var statusUpper = String(t.currentStatus || '').trim().toUpperCase();
-    var allowNotifiedFromHistory = statusUpper !== 'PROCESSING' && statusUpper !== 'RETURN TO PROCESSING' && statusUpper !== 'UNDO';
-    var displayStatus = statusUpper === 'UNDO' ? 'PROCESSING' : (t.currentStatus || 'PROCESSING');
-    var isNewNotified = false;
-    var latestForwardIdx = -1;
-    for (var z = history.length - 1; z >= 0; z--) {
-      var hz = history[z];
-      if (!completedAt && String(hz.action || '').toUpperCase() === 'COMPLETED') completedAt = hz.timestamp;
-      if (!cancelledAt && String(hz.action || '').toUpperCase() === 'CANCELLED') cancelledAt = hz.timestamp;
-      if (!receivedAt && normalizeDepartmentName(hz.toDept) === t.currentDept && String(hz.action || '').toUpperCase() === 'RECEIVED') {
-        receivedAt = hz.timestamp;
-      }
-      if (!returnedFromDept && String(hz.action || '').toUpperCase() === 'RETURNED' && normalizeDepartmentName(hz.toDept) === t.currentDept) {
-        returnedFromDept = displayDepartmentName(normalizeDepartmentName(hz.fromDept));
-        returnedFromDate = hz.timestamp || '';
-        returnedFromRemarks = hz.remarks || '';
-      }
-      if (!isNewNotified && allowNotifiedFromHistory && String(hz.action || '').toUpperCase() === 'FORWARD') {
-        isNewNotified = hz.isNotified === false || String(hz.isNotified || '').toLowerCase() === 'false';
-        latestForwardIdx = z;
-        if (!forwardedFromDept && normalizeDepartmentName(hz.toDept) === t.currentDept) {
-          forwardedFromDept = displayDepartmentName(normalizeDepartmentName(hz.fromDept));
-        }
-        break;
-      }
-      if (completedAt && cancelledAt && receivedAt) break;
-    }
-    // A transaction is "returning" to this dept if it was previously processed here
-    // (i.e., this dept appears as fromDept in any history entry before the latest forward)
-    var isReturnBack = false;
-    var returnBackFromDept = ''; // the dept that forwarded it back (e.g. END USER)
-    if (isNewNotified && latestForwardIdx > 0) {
-      for (var k = 0; k < latestForwardIdx; k++) {
-        if (normalizeDepartmentName(history[k].fromDept) === t.currentDept) {
-          isReturnBack = true;
-        }
-        // Track the most recent Returned event where this dept returned it to someone —
-        // that recipient is who eventually forwarded it back
-        if (isReturnBack && String(history[k].action || '').toUpperCase() === 'RETURNED' &&
-            normalizeDepartmentName(history[k].fromDept) === t.currentDept) {
-          returnBackFromDept = history[k].toDept;
-        }
-      }
-    }
+    var prNo     = pickTxField(txRecord, 'P.R NO.')                || txMeta.prNo             || '';
+    var office   = pickTxField(txRecord, 'END-USER / REQUESTED BY') || txMeta.requestingOffice || '';
+    var category = pickTxField(txRecord, 'CATEGORY')               || txMeta.category          || '';
 
     out.push({
-      _rowNum: t._rowNum,
-      'TRACKING NO.': t.trackingNo,
-      'P.R #': prNo,
-      'P.R NO.': prNo,
-      'END-USER / REQUESTED BY': office,
-      'END USER': office,
-      'CATEGORY': category,
-      'PHIGEPS POSTED': pickTx('PHIGEPS POSTED'),
-      'APPROVED ABC': pickTx('APPROVED ABC'),
-      'RFQ': pickTx('RFQ'),
-      'COMPLETE RFQ RETURNED': pickTx('COMPLETE RFQ RETURNED'),
-      'RFQ DATE OF COMPLETION': pickTx('RFQ DATE OF COMPLETION'),
-      'ABSTRACT OF AWARD': pickTx('ABSTRACT OF AWARD'),
-      'AWARDED TO': pickTx('AWARDED TO'),
-      'DATE OF AWARD': pickTx('DATE OF AWARD'),
-      'MODE OF PROCUREMENT': pickTx('MODE OF PROCUREMENT'),
-      'BAC RESO': pickTx('BAC RESO'),
-      'BAC RESO STATUS': pickTx('BAC RESO STATUS'),
-      'NOA': pickTx('NOA'),
-      'NTP': pickTx('NTP'),
-      'P.O. No.': pickTx('P.O. NO.'),
-      'P.O. NO.': pickTx('P.O. NO.'),
-      'P.O. DATE': pickTx('P.O. DATE'),
-      'DOCUMENT TYPE': pickTx('DOCUMENT TYPE'),
-      'SUPPLIER': pickTx('SUPPLIER'),
-      'PARTICULARS': pickTx('PARTICULARS'),
-      'AMOUNT': pickTx('P.O. AMOUNT') || pickTx('ORS AMOUNT'),
-      'P.O. AMOUNT': pickTx('P.O. AMOUNT'),
-      'DATE TRANSMITTED TO SUPPLIER': pickTx('DATE TRANSMITTED TO SUPPLIER'),
-      'DATE RECEIVED BY SUPPLIER': pickTx('DATE RECEIVED BY SUPPLIER'),
-      'COA DATE RECEIVED': pickTx('COA DATE RECEIVED'),
-      'I.A.R #': pickTx('I.A.R  NO.'),
-      'I.A.R  NO.': pickTx('I.A.R  NO.'),
-      'INVOICE #': pickTx('INVOICE  NO.'),
-      'INVOICE  NO.': pickTx('INVOICE  NO.'),
-      'ORS NO.': pickTx('ORS NO.'),
-      'BUPR NO.': pickTx('BUPR NO.'),
-      'ORS AMOUNT': pickTx('ORS AMOUNT'),
-      'DV No.': pickTx('DV NO.'),
-      'DV NO.': pickTx('DV NO.'),
-      'Net Amount': pickTx('NET AMOUNT'),
-      'NET AMOUNT': pickTx('NET AMOUNT'),
-      'TAX Amount': pickTx('TAX AMOUNT'),
-      'TAX AMOUNT': pickTx('TAX AMOUNT'),
-      'CHEQUE NO. / LDDAP': pickTx('CHEQUE NO. / LDDAP'),
-      'DATE OF CHEQUE': pickTx('DATE OF CHEQUE'),
-      'RCAO': pickTx('RCAO'),
-      'ARDA': pickTx('ARDA'),
-      'STATUS': displayStatus,
-      'CURRENT DEPT': t.currentDept,
-      'FORWARDED FROM': forwardedFromDept,
-      'FORWARD REMARKS': latest ? latest.remarks : '',
-      'COMPLETED AT': completedAt,
-      'CANCELLED AT': cancelledAt,
-      'RETURN TO': '',
-      'RETURNED FROM': isReturnBack ? displayDepartmentName(returnBackFromDept) : returnedFromDept,
-      'RETURN REMARKS': returnedFromRemarks,
-      'RETURNED DATE': isReturnBack && latest ? latest.timestamp : returnedFromDate,
-      'RETURN RECEIVED DATE': '',
-      'RETURN RECEIVED REMARKS': '',
-      'IS NOTIFIED': isNewNotified ? 'TRUE' : '',
-      'IS NEW': isNewNotified ? 'TRUE' : '',
-      'IS RETURN BACK': isReturnBack ? 'TRUE' : '',
-      'DATE RECEIVED': receivedAt || (latest ? latest.timestamp : '')
+      _rowNum:                         t._rowNum,
+      'TRACKING NO.':                  t.trackingNo,
+      'P.R #':                         prNo,
+      'P.R NO.':                       prNo,
+      'END-USER / REQUESTED BY':       office,
+      'END USER':                      office,
+      'CATEGORY':                      category,
+      'PHIGEPS POSTED':                pickTxField(txRecord, 'PHIGEPS POSTED'),
+      'APPROVED ABC':                  pickTxField(txRecord, 'APPROVED ABC'),
+      'RFQ':                           pickTxField(txRecord, 'RFQ'),
+      'COMPLETE RFQ RETURNED':         pickTxField(txRecord, 'COMPLETE RFQ RETURNED'),
+      'RFQ DATE OF COMPLETION':        pickTxField(txRecord, 'RFQ DATE OF COMPLETION'),
+      'ABSTRACT OF AWARD':             pickTxField(txRecord, 'ABSTRACT OF AWARD'),
+      'AWARDED TO':                    pickTxField(txRecord, 'AWARDED TO'),
+      'DATE OF AWARD':                 pickTxField(txRecord, 'DATE OF AWARD'),
+      'MODE OF PROCUREMENT':           pickTxField(txRecord, 'MODE OF PROCUREMENT'),
+      'BAC RESO':                      pickTxField(txRecord, 'BAC RESO'),
+      'BAC RESO STATUS':               pickTxField(txRecord, 'BAC RESO STATUS'),
+      'NOA':                           pickTxField(txRecord, 'NOA'),
+      'NTP':                           pickTxField(txRecord, 'NTP'),
+      'P.O. No.':                      pickTxField(txRecord, 'P.O. NO.'),
+      'P.O. NO.':                      pickTxField(txRecord, 'P.O. NO.'),
+      'P.O. DATE':                     pickTxField(txRecord, 'P.O. DATE'),
+      'DOCUMENT TYPE':                 pickTxField(txRecord, 'DOCUMENT TYPE'),
+      'SUPPLIER':                      pickTxField(txRecord, 'SUPPLIER'),
+      'PARTICULARS':                   pickTxField(txRecord, 'PARTICULARS'),
+      'AMOUNT':                        pickTxField(txRecord, 'P.O. AMOUNT') || pickTxField(txRecord, 'ORS AMOUNT'),
+      'P.O. AMOUNT':                   pickTxField(txRecord, 'P.O. AMOUNT'),
+      'DATE TRANSMITTED TO SUPPLIER':  pickTxField(txRecord, 'DATE TRANSMITTED TO SUPPLIER'),
+      'DATE RECEIVED BY SUPPLIER':     pickTxField(txRecord, 'DATE RECEIVED BY SUPPLIER'),
+      'COA DATE RECEIVED':             pickTxField(txRecord, 'COA DATE RECEIVED'),
+      'I.A.R #':                       pickTxField(txRecord, 'I.A.R  NO.'),
+      'I.A.R  NO.':                    pickTxField(txRecord, 'I.A.R  NO.'),
+      'INVOICE #':                     pickTxField(txRecord, 'INVOICE  NO.'),
+      'INVOICE  NO.':                  pickTxField(txRecord, 'INVOICE  NO.'),
+      'ORS NO.':                       pickTxField(txRecord, 'ORS NO.'),
+      'BUPR NO.':                      pickTxField(txRecord, 'BUPR NO.'),
+      'ORS AMOUNT':                    pickTxField(txRecord, 'ORS AMOUNT'),
+      'DV No.':                        pickTxField(txRecord, 'DV NO.'),
+      'DV NO.':                        pickTxField(txRecord, 'DV NO.'),
+      'Net Amount':                    pickTxField(txRecord, 'NET AMOUNT'),
+      'NET AMOUNT':                    pickTxField(txRecord, 'NET AMOUNT'),
+      'TAX Amount':                    pickTxField(txRecord, 'TAX AMOUNT'),
+      'TAX AMOUNT':                    pickTxField(txRecord, 'TAX AMOUNT'),
+      'CHEQUE NO. / LDDAP':            pickTxField(txRecord, 'CHEQUE NO. / LDDAP'),
+      'DATE OF CHEQUE':                pickTxField(txRecord, 'DATE OF CHEQUE'),
+      'RCAO':                          pickTxField(txRecord, 'RCAO'),
+      'ARDA':                          pickTxField(txRecord, 'ARDA'),
+      'STATUS':                        hm.displayStatus,
+      'CURRENT DEPT':                  t.currentDept,
+      'FORWARDED FROM':                hm.forwardedFromDept,
+      'FORWARD REMARKS':               latest ? latest.remarks : '',
+      'COMPLETED AT':                  hm.completedAt,
+      'CANCELLED AT':                  hm.cancelledAt,
+      'RETURN TO':                     '',
+      'RETURNED FROM':                 hm.isReturnBack ? displayDepartmentName(hm.returnBackFromDept) : hm.returnedFromDept,
+      'RETURN REMARKS':                hm.returnedFromRemarks,
+      'RETURNED DATE':                 hm.isReturnBack && latest ? latest.timestamp : hm.returnedFromDate,
+      'RETURN RECEIVED DATE':          '',
+      'RETURN RECEIVED REMARKS':       '',
+      'IS NOTIFIED':                   hm.isNewNotified ? 'TRUE' : '',
+      'IS NEW':                        hm.isNewNotified ? 'TRUE' : '',
+      'IS RETURN BACK':                hm.isReturnBack  ? 'TRUE' : '',
+      'DATE RECEIVED':                 hm.receivedAt || (latest ? latest.timestamp : '')
     });
   }
 
@@ -778,15 +895,23 @@ function checkAccess(selectedRole) {
       return { granted: false, message: 'Unable to identify your Google account. Please sign in with your organisational account.' };
     }
 
+    // Check if account is locked out
+    if (isLoginLockedOut(email)) {
+      recordLoginAttempt(email, false);
+      return { granted: false, message: 'Too many failed login attempts. Please try again in ' + SECURITY_CONFIG.LOCKOUT_DURATION_MINUTES + ' minutes.' };
+    }
+
     var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = ss.getSheetByName(SHEETS.USERS);
     if (!sheet) {
-      return { granted: false, message: 'User registry (' + SHEETS.USERS + ' sheet) not found. Contact Admin.' };
+      recordLoginAttempt(email, false);
+      return { granted: false, message: 'System configuration error. Contact Admin.' };
     }
 
     var data = sheet.getDataRange().getValues();
     if (data.length < 2) {
-      return { granted: false, message: 'No users registered in the system. Contact Admin.' };
+      recordLoginAttempt(email, false);
+      return { granted: false, message: 'System not configured. Contact Admin.' };
     }
 
     var hdrs  = data[0].map(function(h){ return String(h || '').trim().toUpperCase(); });
@@ -800,7 +925,8 @@ function checkAccess(selectedRole) {
     var pinCol = hm['PIN'];
 
     if (eCol === undefined || rCol === undefined) {
-      return { granted: false, message: 'Users sheet is missing EMAIL or ROLE column. Contact Admin.' };
+      recordLoginAttempt(email, false);
+      return { granted: false, message: 'System configuration error. Contact Admin.' };
     }
 
     // Collect all rows for this email, active ones only
@@ -821,9 +947,10 @@ function checkAccess(selectedRole) {
     }
 
     if (activeMatches.length === 0) {
+      recordLoginAttempt(email, false);
       var msg = hasInactive
         ? 'Your account is inactive. Contact Admin to restore access.'
-        : 'Access denied. ' + email + ' is not registered in the system. Contact Admin.';
+        : 'Access denied. Contact Admin.';
       return { granted: false, message: msg };
     }
 
@@ -844,18 +971,21 @@ function checkAccess(selectedRole) {
         if (activeMatches[j].role === String(selectedRole).trim().toUpperCase()) { chosen = activeMatches[j]; break; }
       }
       if (!chosen) {
+        recordLoginAttempt(email, false);
         return { granted: false, message: 'Selected role not found for your account. Please try again.' };
       }
+      recordLoginAttempt(email, true);
       logAudit(email, 'LOGIN', chosen.role, '-');
       return { granted: true, email: email, role: chosen.role, isEndUser: chosen.isEU, firstName: chosen.firstName, lastName: chosen.lastName, pinSet: chosen.pinSet };
     }
 
     // Single active role — grant directly (selectedRole is ignored)
     var match = activeMatches[0];
+    recordLoginAttempt(email, true);
     logAudit(email, 'LOGIN', match.role || '-', '-');
     return { granted: true, email: email, role: match.role, isEndUser: match.isEU, firstName: match.firstName, lastName: match.lastName, pinSet: match.pinSet };
   } catch (e) {
-    return { granted: false, message: 'Auth error: ' + e.message };
+    return { granted: false, message: 'Authentication error. Please refresh and try again.' };
   }
 }
 
@@ -939,7 +1069,7 @@ function verifyPin(pin, role) {
       if (rowEmail !== email.toLowerCase()) continue;
       if (rowRole  !== String(role || '').trim().toUpperCase()) continue;
       var stored = pinCol !== undefined ? String(data[i][pinCol] || '').trim() : '';
-      if (stored === String(pin || '').trim()) {
+      if (verifyPinHash(String(pin || '').trim(), stored)) {
         logAudit(email, 'PIN VERIFIED', rowRole, '-');
         return { success: true };
       }
@@ -970,7 +1100,8 @@ function setMyPin(newPin, role) {
       var rowRole  = rCol !== undefined ? String(data[i][rCol] || '').trim().toUpperCase() : '';
       if (rowEmail !== email.toLowerCase()) continue;
       if (String(role || '').trim().toUpperCase() && rowRole !== String(role || '').trim().toUpperCase()) continue;
-      sheet.getRange(i + 1, pinCol + 1).setValue(pin);
+      var pinHash = hashPinToHex(pin);
+      sheet.getRange(i + 1, pinCol + 1).setValue(pinHash);
       logAudit(email, 'SET PIN', rowRole || '-', '-');
       return { success: true };
     }
@@ -1389,9 +1520,7 @@ function findRowNumByTracking(trackingNo) {
   return 0;
 }
 
-function updateEndUserSupplyFields(rowNum, data, username) {
-  var _ = rowNum;
-  var _2 = data;
+function updateEndUserSupplyFields(rowNum, data, username) { // eslint-disable-line no-unused-vars
   logAudit(username || 'SYSTEM', 'END USER EDIT', 'SUPPLY', 'N/A');
   return {success:true};
 }

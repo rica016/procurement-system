@@ -97,9 +97,9 @@ var MYREQS_DEPT_META = {
     title:'Requesting Office',
     returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Date &amp; Time</th><th>Actions</th></tr>',
     activeHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Forwarded From</th><th>Remarks</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Completed At</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Category</th><th>P.O. No.</th><th>P.O. Amount</th><th>Supplier</th><th>Particulars</th><th>Awarded To</th><th>I.A.R No.</th><th>Invoice No.</th><th>ORS No.</th><th>Net Amount</th><th>DV No.</th><th>Date of Cheque</th><th>Completed At</th><th>Actions</th></tr>',
     returnDoneHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Date &amp; Time</th><th>Actions</th></tr>',
-    activeCols:7, otherCols:5, returnedCols:6, returnDoneCols:6
+    activeCols:7, otherCols:16, returnedCols:6, returnDoneCols:6
   }
 };
 
@@ -490,7 +490,18 @@ function renderMyReqsTable(reqs) {
         '</div></div>';
       return '<tr class="completed-row">'+
         trackingPrCell(r)+
-        '<td class="td-mono">'+esc2(r['DATE RECEIVED']||'—')+'</td>'+
+        '<td>'+esc2(r['CATEGORY']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['P.O. NO.']||'—')+'</td>'+
+        '<td>'+currency(r['P.O. AMOUNT'])+'</td>'+
+        '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
+        '<td class="td-wrap">'+esc2(r['PARTICULARS']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['AWARDED TO']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['I.A.R  NO.']||r['I.A.R #']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['INVOICE  NO.']||r['INVOICE #']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['ORS NO.']||'—')+'</td>'+
+        '<td>'+currency(r['NET AMOUNT']||r['ORS AMOUNT'])+'</td>'+
+        '<td class="td-mono">'+esc2(r['DV NO.']||'—')+'</td>'+
+        '<td class="td-mono">'+esc2(r['DATE OF CHEQUE']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['COMPLETED AT']||'—')+'</td>'+
         '<td>'+actionBtnsDone+'</td>'+
       '</tr>';

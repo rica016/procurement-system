@@ -269,16 +269,8 @@ function _handleAccessResponse(res) {
       document.getElementById('pin-new').focus();
     }
   } else if (res && res.needsRoleSelect) {
-    _showPanel('access-role-select');
-    var list = document.getElementById('role-select-list');
-    list.innerHTML = '';
-    res.roles.forEach(function(r) {
-      var btn = document.createElement('button');
-      btn.className   = 'login-btn';
-      btn.textContent = _roleLabel(r.role);
-      btn.onclick     = function() { selectRoleAndLogin(r.role); };
-      list.appendChild(btn);
-    });
+    _pendingGrant = res;
+    _renderRoleSelectList(res.roles);
   } else {
     _showDenied(res && res.message);
   }
@@ -317,6 +309,34 @@ function submitPin() {
     .verifyPin(pin, _pendingGrant.role);
 }
 
+function _renderRoleSelectList(roles) {
+  _showPanel('access-role-select');
+  var list = document.getElementById('role-select-list');
+  list.innerHTML = '';
+  roles.forEach(function(r) {
+    var btn        = document.createElement('button');
+    btn.className  = 'login-btn';
+    btn.textContent = _roleLabel(r.role);
+    btn.onclick    = function() { selectRoleAndLogin(r.role); };
+    list.appendChild(btn);
+  });
+}
+
+function cancelEnterPin() {
+  var pinEl     = document.getElementById('pin-entry');
+  var msgEl     = document.getElementById('pin-attempts-msg');
+  var submitBtn = document.getElementById('pin-submit-btn');
+  if (pinEl)     { pinEl.value = ''; pinEl.disabled = false; }
+  if (msgEl)     msgEl.textContent = '';
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify PIN'; }
+
+  if (_pendingGrant && _pendingGrant.roles && _pendingGrant.roles.length) {
+    _renderRoleSelectList(_pendingGrant.roles);
+    return;
+  }
+  doLoginAgain();
+}
+
 function submitSetupPin() {
   var newPin     = (document.getElementById('pin-new').value     || '').trim();
   var confirmPin = (document.getElementById('pin-confirm').value || '').trim();
@@ -340,6 +360,21 @@ function submitSetupPin() {
       msgEl.textContent = 'System error: ' + err.message;
     })
     .setMyPin(newPin, _pendingGrant.role);
+}
+
+function cancelSetupPin() {
+  var newPinEl = document.getElementById('pin-new');
+  var confEl   = document.getElementById('pin-confirm');
+  var msgEl    = document.getElementById('pin-setup-msg');
+  if (newPinEl) newPinEl.value    = '';
+  if (confEl)   confEl.value      = '';
+  if (msgEl)    msgEl.textContent = '';
+
+  if (_pendingGrant && _pendingGrant.roles && _pendingGrant.roles.length) {
+    _renderRoleSelectList(_pendingGrant.roles);
+    return;
+  }
+  doLoginAgain();
 }
 
 function doLoginAgain() {
