@@ -903,7 +903,7 @@ var lastTrackSearchResult = null;
 function printTrackTimeline() {
   if (!lastTrackSearchResult) { showToast('Search a transaction first.','info'); return; }
   var res = lastTrackSearchResult;
-  var labels = {BAC:'BAC','SUPPLY AND PROPERTY':'Supply & Property',BUDGET:'Budget',ACCOUNTING:'Accounting',CASH:'Cashier',RCAO:'RCAO',ARDA:'ARDA','END USER':'Requesting Office'};
+  var labels = {BAC:'BAC','SUPPLY AND PROPERTY':'Supply & Property',BUDGET:'Budget',ACCOUNTING:'Accounting',CASH:'Cashier',RCAO:'RCAO',ARDA:'ARDA','END USER':'Requesting Office',COMPLETED:'Completed'};
   var isCompleted = String(res.currentStatus||'').trim().toUpperCase() === 'COMPLETED';
   var currentSection = labels[res.currentSection] || res.currentSection || '—';
 
@@ -970,8 +970,8 @@ function doTrackSearch(){
       }
       if (res.error){ lastTrackSearchResult = null; out.innerHTML='<div class="track-error">⚠ '+esc2(res.error)+'</div>'; return; }
       lastTrackSearchResult = res;
-      var icons ={'BAC':'📋','SUPPLY AND PROPERTY':'📦','BUDGET':'💰','ACCOUNTING':'🧾','CASH':'💳','RCAO':'🗂️','ARDA':'🛡️','END USER':'🏢'};
-      var labels={'BAC':'BAC','SUPPLY AND PROPERTY':'Supply & Property','BUDGET':'Budget','ACCOUNTING':'Accounting','CASH':'Cashier','RCAO':'RCAO','ARDA':'ARDA','END USER':'Requesting Office'};
+      var icons ={'BAC':'📋','SUPPLY AND PROPERTY':'📦','BUDGET':'💰','ACCOUNTING':'🧾','CASH':'💳','RCAO':'🗂️','ARDA':'🛡️','END USER':'🏢','COMPLETED':'✅'};
+      var labels={'BAC':'BAC','SUPPLY AND PROPERTY':'Supply & Property','BUDGET':'Budget','ACCOUNTING':'Accounting','CASH':'Cashier','RCAO':'RCAO','ARDA':'ARDA','END USER':'Requesting Office','COMPLETED':'Completed'};
 
       var timeline = Array.isArray(res.timeline) ? res.timeline : [];
 

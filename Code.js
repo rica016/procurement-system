@@ -1871,18 +1871,24 @@ function searchTransaction(query) {
     if (!match) return null;
 
     var history = getHistoryRows(ss).filter(function(r){ return r.trackingNo === match.trackingNo; });
+    var statusUpper = String(match.currentStatus || '').trim().toUpperCase();
+    var isForwardedComplete = /^FORWARDED TO\s+/.test(statusUpper);
+    var effectiveStatus = isForwardedComplete ? 'COMPLETED' : (match.currentStatus || 'PROCESSING');
+    var effectiveSection = isForwardedComplete ? 'COMPLETED' : (match.currentDept === 'SUPPLY' ? 'SUPPLY AND PROPERTY' : match.currentDept);
     var timeline = ['BAC','SUPPLY','BUDGET','ACCOUNTING','CASH','RCAO','ARDA'].map(function(d){
       var reached = history.some(function(h){ return h.toDept === d || h.fromDept === d; });
       var last = null;
       for (var k = history.length - 1; k >= 0; k--) {
         if (history[k].toDept === d || history[k].fromDept === d) { last = history[k]; break; }
       }
+      var isForwarded = last && /^FORWARD/.test(String(last.action || '').toUpperCase());
+      var isDone = reached && (effectiveStatus === 'COMPLETED' || isForwarded);
       return {
         section: d === 'SUPPLY' ? 'SUPPLY AND PROPERTY' : d,
         reached: reached,
         status: last ? (last.status || '') : '',
-        completed: match.currentStatus === 'COMPLETED' && normalizeDepartmentName(match.currentDept) === 'COMPLETED',
-        completedAt: (match.currentStatus === 'COMPLETED' && last) ? last.timestamp : '',
+        completed: isDone,
+        completedAt: (isDone && last) ? last.timestamp : '',
         returnedFrom: '',
         returnRemarks: '',
         returnReceivedRemarks: '',
@@ -1896,8 +1902,8 @@ function searchTransaction(query) {
       prNo: match.prNo || meta.prNo || '',
       office: match.requestingOffice || meta.requestingOffice || '',
       item: '',
-      currentSection: match.currentDept === 'SUPPLY' ? 'SUPPLY AND PROPERTY' : match.currentDept,
-      currentStatus: match.currentStatus,
+      currentSection: effectiveSection,
+      currentStatus: effectiveStatus,
       currentReturnRemarks: '',
       currentReturnReceivedRemarks: '',
       timeline: timeline,
