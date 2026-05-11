@@ -1008,11 +1008,12 @@ function doTrackSearch(){
       var pendingCount = Math.max(0, timeline.length - reachedCount);
 
       var tlHTML = timeline.map(function(t){
-        var cls = t.completed ? 'done' : (t.reached ? 'active' : 'pending');
+        var isReturned = t.reached && !t.completed && String(t.status||'').toUpperCase() === 'RETURNED';
+        var cls = t.completed ? 'done' : (t.reached ? (isReturned ? 'returned' : 'active') : 'pending');
         return '<div class="tl-item tl-'+cls+'">'+
-          '<div class="tl-icon '+cls+'">'+(t.completed?'✓':(t.reached?'●':'○'))+'</div>'+
+          '<div class="tl-icon '+cls+'">'+(t.completed?'✓':(t.reached?(isReturned?'↩':'●'):'○'))+'</div>'+
           '<div class="tl-content">'+
-            '<div class="tl-top"><div class="tl-section">'+(icons[t.section]||'📝')+' '+(labels[t.section]||t.section)+'</div><span class="tl-chip '+cls+'">'+(t.completed?'Completed':(t.reached?'In Progress':'Pending'))+'</span></div>'+
+            '<div class="tl-top"><div class="tl-section">'+(icons[t.section]||'📝')+' '+(labels[t.section]||t.section)+'</div><span class="tl-chip '+cls+'">'+(t.completed?'Completed':(t.reached?(isReturned?'Returned':'In Progress'):'Pending'))+'</span></div>'+
             '<div class="tl-status '+cls+'">'+(t.reached?(t.status||'—'):'Not yet reached')+'</div>'+
             '<div class="tl-meta-stack">'+
               (t.returnedFrom?'<div class="tl-time">Returned From: '+esc2(t.returnedFrom)+'</div>':'')+

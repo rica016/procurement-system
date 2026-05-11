@@ -1882,6 +1882,7 @@ function searchTransaction(query) {
         if (history[k].toDept === d || history[k].fromDept === d) { last = history[k]; break; }
       }
       var isForwarded = last && /^FORWARD/.test(String(last.action || '').toUpperCase());
+      var isReturnedAction = last && String(last.action || '').toUpperCase() === 'RETURNED';
       var isDone = reached && (effectiveStatus === 'COMPLETED' || isForwarded);
       return {
         section: d === 'SUPPLY' ? 'SUPPLY AND PROPERTY' : d,
@@ -1892,7 +1893,7 @@ function searchTransaction(query) {
         returnedFrom: '',
         returnRemarks: '',
         returnReceivedRemarks: '',
-        returnedDate: ''
+        returnedDate: (isReturnedAction && !isDone) ? last.timestamp : ''
       };
     });
 
