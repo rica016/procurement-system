@@ -1,228 +1,145 @@
-<div align="center">
+# DAR Procurement Monitoring System
 
-# 📊 DAR Procurement Monitoring System
-### A web-based procurement tracking solution for the Department of Agrarian Reform
+Web-based procurement workflow tracker for DAR, built on Google Apps Script + Google Sheets.
 
-![Status](https://img.shields.io/badge/Status-Active-brightgreen)
-![Platform](https://img.shields.io/badge/Platform-Google%20Apps%20Script-4285F4?logo=google)
-![Database](https://img.shields.io/badge/Database-Google%20Sheets-34A853?logo=googlesheets)
-![License](https://img.shields.io/badge/License-Internal%20Use-blue)
+## Overview
 
-</div>
+This system tracks procurement requests end-to-end across BAC, Supply, Budget, Accounting, Cash, RCAO, ARDA, and End User touchpoints. It stores transactional data in Google Sheets and serves the UI through Apps Script HtmlService.
 
----
+## Current Features
 
-## 📌 Overview
+### Workflow and Tracking
+- Central transaction list keyed by TRACKING NO.
+- Department page data with completed-copy behavior for previously processed departments.
+- Return-aware workflow: receive, return, continue returned, receive-and-forward, and complete flows.
+- Timeline/search view that derives effective section and status from history.
 
-The **DAR Procurement Monitoring System (PMS)** is a web-based platform built entirely on **Google Apps Script**, designed to streamline and monitor procurement transactions across multiple departments within the Department of Agrarian Reform (DAR). It centralizes transaction data, improves inter-department coordination, and ensures transparency throughout the procurement lifecycle — all without requiring external hosting or a separate database.
+### Security and Access
+- Google Workspace identity check via Session.getActiveUser().getEmail().
+- Multi-role login handling with role selection when one email has multiple active roles.
+- Login rate limiting:
+  - Max attempts: 5
+  - Lockout duration: 15 minutes
+  - Attempt window: 30 minutes
+- PIN lifecycle:
+  - Per-user 6-digit PIN setup
+  - SHA-256 + salt pin hashing (hex storage)
+  - PIN verification and admin reset support
 
----
+### Admin and Data Maintenance
+- User management (active/inactive, role, end-user flag, PIN reset).
+- Supplier and end-user master list management.
+- Audit log write/read/delete operations.
+- Auto-create/repair core sheets and required headers.
 
-## 🚀 Features
+## Core Data Sheets
 
-### 📄 Transaction Management
-- Create, update, and track procurement transactions in real time
-- View all department-related data from a unified dashboard
+The app ensures these sheets exist:
+- TRANSACTIONS
+- TRANSACTION_HISTORY
+- USERS
+- SUPPLIERS
+- END_USERS
+- AUDIT_LOGS
 
-### 🔄 Workflow Tracking
-Monitor transaction movement across the following departments:
-
-| Department | Role |
-|---|---|
-| BAC | Bids and Awards Committee — initiates and manages bidding |
-| Supply | Handles supply-related processing |
-| Budget | Budget allocation and clearance |
-| Accounting | Financial review and recording |
-| Cashier | Final payment processing |
-
-**Transaction Statuses:**
-- `New` — Freshly submitted transaction
-- `Active / In Progress` — Currently being processed
-- `Returned` — Sent back to originating department
-- `Completed` — Fully processed and closed
-- `Cancelled` — Voided transaction
-
-### 🔁 Return Handling
-- Send transactions back to originating departments with detailed remarks
-- Tracks: **Returned By**, **Return Remarks**, and **Forward Remarks**
-
-### 📝 BAC Resolution Tracking
-Manage BAC Resolution for Award with the following statuses:
-
-| Status | Description |
-|---|---|
-| Draft | Initial preparation stage |
-| For Signature | Awaiting signatories |
-| Partially Signed | Some signatures obtained |
-| Fully Signed | All signatures complete |
-| Approved | Officially approved |
-| Returned | Sent back for revision |
-
-### 🔐 User & Role Management
-- Admin-controlled user access
-- Department-based role assignments
-
-### 📊 Google Sheets as Database
-- All data stored directly in Google Sheets
-- No external database or server required
-- Column ranges mapped per department (see [System Structure](#️-system-structure))
-
----
-
-## 🏗️ System Structure
-
-### Department-to-Column Mapping
-
-| Department | Column Range | Purpose |
-|---|---|---|
-| BAC | A – P | Core procurement data |
-| Supply | Q – AA | Supply chain details |
-| Budget | AB – AD | Budget allocation info |
-| Accounting | AE – AG | Financial records |
-| Cashier | AH – AI | Payment processing |
-
----
-
-## 🔄 Procurement Workflow
-
-```
-[New] ──► [Active / In Progress] ──► [Completed / Cancelled]
-                  │                           ▲
-                  ▼                           │
-             [Returned] ──► [Received] ──► [Active]
-```
-
-- A returned transaction includes **Return Remarks** from the sending department
-- Once acknowledged, it re-enters the **Active / In Progress** state
-- Forwarding includes **Forward Remarks** for the receiving department
-
----
-
-## 🖥️ Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend | Google Apps Script |
-| Frontend | HTML, CSS, JavaScript (served via GAS `HtmlService`) |
-| Database | Google Sheets |
-| Hosting | Google Apps Script Web App (no external server needed) |
-| Dev Tools | Apps Script IDE / Clasp (CLI), Git |
-| AI Assistance | Claude Code / GitHub Copilot |
-
----
-
-## ⚙️ Setup & Deployment
+## Deployment Guide
 
 ### Prerequisites
-- A **Google Account** with access to Google Drive
-- The target **Google Sheets** file set up with the correct column structure
-- *(Optional)* [Clasp](https://github.com/google/clasp) for local development
 
----
+1. Google account with access to the target spreadsheet.
+2. A Google Sheet that will be used as the datastore.
+3. Apps Script project bound to that sheet, or standalone script with the correct Spreadsheet ID.
+4. Node.js + npm if you will use clasp locally.
 
-### Option A — Direct via Apps Script IDE
+### A. Bind and Configure the Script
 
-1. Open your Google Sheet
-2. Go to **Extensions → Apps Script**
-3. Paste or upload the project source files
-4. Click **Deploy → New Deployment**
-   - Type: **Web App**
-   - Execute as: `Me`
-   - Who has access: `Anyone within [your organization]` *(or as needed)*
-5. Click **Deploy** and copy the Web App URL
-6. Share the URL with your department users
+1. Open your spreadsheet.
+2. Go to Extensions > Apps Script.
+3. Paste/upload the project files.
+4. Confirm SPREADSHEET_ID in Code.js points to your active spreadsheet.
+5. Run setupSheets once from the Apps Script editor to initialize missing tabs/headers.
 
----
+### B. Link Your Google Cloud Console Project (Standard Project)
 
-### Option B — Using Clasp (Local Development)
+Since you already created a Google Cloud project, link it to this Apps Script project:
 
-**1. Install Clasp**
+1. In Apps Script editor, open Project Settings.
+2. Under Google Cloud Platform (GCP) Project, click Change project.
+3. Enter your GCP Project Number and link it.
+4. In Google Cloud Console for that project:
+   - Enable APIs used by your deployment (at minimum Apps Script API for clasp operations).
+   - Configure OAuth consent screen if users outside your internal workspace will access it.
+   - Add authorized test users if app is in testing mode.
+5. Return to Apps Script and verify the linked project is shown in settings.
+
+Notes:
+- For internal DAR use on Workspace, Internal user type is typically enough.
+- If you deploy to broader audiences, complete consent screen and verification requirements as needed.
+
+### C. Deploy as Web App (Apps Script UI)
+
+1. Click Deploy > New deployment.
+2. Type: Web app.
+3. Execute as: User accessing the web app (current manifest setting) or Me, based on your security model.
+4. Who has access: choose appropriate audience (domain/internal/public as required).
+5. Deploy, authorize scopes, then copy the web app URL.
+
+If you update code, use Manage deployments to edit and redeploy.
+
+### D. Deploy from Local with clasp
+
+1. Install clasp:
+
 ```bash
 npm install -g @google/clasp
 ```
 
-**2. Log in to your Google account**
+2. Login:
+
 ```bash
 clasp login
 ```
 
-**3. Clone the Apps Script project**
-```bash
-clasp clone <your-script-id>
-```
-> Find your Script ID under **Project Settings** in the Apps Script IDE.
+3. Clone or set script:
 
-**4. Make changes locally, then push**
+```bash
+clasp clone <SCRIPT_ID>
+```
+
+4. Push local updates:
+
 ```bash
 clasp push
 ```
 
-**5. Deploy as Web App**
+5. Create a version and deploy:
+
 ```bash
-clasp deploy --description "v1.0 Initial Release"
+clasp version "Docs/feature update"
+clasp deploy --description "Web app update"
 ```
 
----
+## Runtime Notes
 
-### 🔑 Configuration
+- Runtime: V8
+- Timezone: Asia/Manila
+- Web app manifest defaults:
+  - access: ANYONE
+  - executeAs: USER_DEPLOYING
 
-In your `Code.gs` (or equivalent config file), update the following:
+Review these values in appsscript.json before production release to ensure they match DAR policy.
 
-```javascript
-const SPREADSHEET_ID = 'your-google-sheet-id-here';
-const SHEET_NAME = 'Transactions'; // or your actual sheet name
-```
+## Operational Checklist
 
----
+Before go-live:
 
-## 👤 User Roles
+1. Confirm USERS sheet has active accounts and roles.
+2. Confirm each required sheet exists with headers.
+3. Test login with a single-role account and a multi-role account.
+4. Test PIN set, verify, and admin reset.
+5. Test forward, return, receive, and complete paths.
+6. Confirm audit logs are written for key actions.
 
-| Role | Access Level |
-|---|---|
-| **Admin** | Full access to all departments, users, and data |
-| **Department User** | Limited to assigned department; can update statuses and remarks |
+## License
 
----
-
-## 📌 Terminology / Naming Conventions
-
-| Term | Definition |
-|---|---|
-| **Returned By** | The department that sent the transaction back |
-| **Return Remarks** | Reason or notes for the return |
-| **Forward Remarks** | Notes added when forwarding to the next department |
-| **Status** | Current state of the transaction in the workflow |
-
----
-
-## 📈 Planned Improvements
-
-- [ ] 📧 Email notifications per department upon status change
-- [ ] 📊 Dashboard with analytics and charts
-- [ ] 🔑 Google OAuth-based authentication
-- [ ] 🗂️ Audit logs for all transaction changes
-- [ ] 📱 Mobile-responsive UI improvements
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome for authorized collaborators.
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Commit your changes: `git commit -m "Add: your feature description"`
-4. Push to the branch: `git push origin feature/your-feature-name`
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is developed for **internal use within the Department of Agrarian Reform (DAR)**. Unauthorized distribution or use outside DAR is not permitted.
-
----
-
-<div align="center">
-  Built with ❤️ for the Department of Agrarian Reform
-</div>
+Internal DAR use only.

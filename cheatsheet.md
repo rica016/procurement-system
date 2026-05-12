@@ -1,71 +1,95 @@
-# 🗂️ Clasp Cheatsheet
+# Clasp Cheatsheet (DARPMSv2)
 
-> Google Apps Script CLI — quick reference for VS Code
+Quick command reference for this Apps Script project.
 
----
-
-## 🔐 Authentication
+## 1) Authentication
 
 ```bash
-clasp login     # Login to Google account
-clasp logout    # Logout
+clasp login
+clasp logout
 ```
 
----
+If you manage multiple Google accounts, verify active auth before deploy.
 
-## 📂 Project Setup
+## 2) Project Linking and Inspection
 
 ```bash
-clasp create --title "My Project"   # Create new Apps Script project
-clasp clone <SCRIPT_ID>             # Clone existing project
+clasp clone <SCRIPT_ID>
+clasp open-script
+clasp open
+clasp status
 ```
 
----
+- clasp open-script: opens Apps Script editor
+- clasp open: opens project in Google Drive
+- clasp status: shows changed local files
 
-## 📁 Open Project
+## 3) Daily Development Flow
 
 ```bash
-clasp open-script   # Open Apps Script in browser
+clasp pull
+# edit locally
+clasp push
 ```
 
----
-
-## 🚀 Deployment
+Optional auto-push while editing:
 
 ```bash
-clasp deploy                # Create a new deployment
-clasp deployments           # List all deployments
-clasp undeploy <DEPLOY_ID>  # Remove a deployment
+clasp push --watch
 ```
 
----
+## 4) Versioning and Deployment
 
-## 📜 Logs
+Create immutable version first, then deploy/update web app:
 
 ```bash
-clasp logs   # View execution logs
+clasp version "Describe release"
+clasp deploy --description "Web app release"
+clasp deployments
+clasp undeploy <DEPLOYMENT_ID>
 ```
 
----
-
-## ⚙️ Config
+Update an existing deployment:
 
 ```bash
-clasp status   # Check file changes
-clasp version  # Create a new version
+clasp deploy --deploymentId <DEPLOYMENT_ID> --description "Update existing web app"
 ```
 
----
-
-## 🧠 Common Workflow (Daily Use)
+## 5) Logs and Troubleshooting
 
 ```bash
-clasp pull        # Sync latest from remote
-# edit code in VS Code
-clasp push        # Upload local changes
-clasp open-script # Open in browser if needed
+clasp logs
 ```
 
----
+Useful checks:
 
-> 💡 **Tip:** Use `clasp push --watch` to auto-push every time you save a file in VS Code.
+```bash
+clasp status
+clasp deployments
+```
+
+## 6) Google Cloud Project Notes (Important)
+
+clasp commands work against the Apps Script project, but OAuth and API settings are controlled by the linked Google Cloud project.
+
+Checklist:
+
+1. Apps Script Project Settings -> Google Cloud Platform project is linked to your standard GCP project.
+2. In Google Cloud Console, enable Apps Script API.
+3. Configure OAuth consent screen (Internal or External based on audience).
+4. Add test users if app is still in testing mode.
+5. Redeploy web app after consent/scope changes.
+
+## 7) Recommended Release Sequence
+
+```bash
+git pull
+clasp pull
+# edit and test
+git add .
+git commit -m "Describe change"
+git push
+clasp push
+clasp version "Release note"
+clasp deploy --description "Production update"
+```
