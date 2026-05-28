@@ -252,23 +252,23 @@ function initApp(){
 
   _refreshSidebarUser();
 
-  document.querySelectorAll('.nav-dashboard,.nav-myreqs,.nav-bac,.nav-supply,.nav-budget,.nav-accounting,.nav-cash,.nav-rcao,.nav-arda,.nav-track,.nav-users,.nav-suppliers,.nav-endusers,.nav-audit')
+  document.querySelectorAll('.nav-dashboard,.nav-myreqs,.nav-bac,.nav-supply,.nav-budget,.nav-accounting,.nav-cash,.nav-rcao,.nav-arda,.nav-track,.nav-summary,.nav-users,.nav-suppliers,.nav-endusers,.nav-audit')
     .forEach(function(el){ el.classList.add('hidden'); });
 
   var navMap = {
-    'BAC':        ['.nav-bac','.nav-track'],
-    'SUPPLY':     ['.nav-supply','.nav-track'],
-    'BUDGET':     ['.nav-budget','.nav-track'],
-    'ACCOUNTING': ['.nav-accounting','.nav-track'],
-    'CASHIER':    ['.nav-cash','.nav-track'],
-    'CASH':       ['.nav-cash','.nav-track'],
-    'RCAO':       ['.nav-rcao','.nav-track'],
-    'ARDA':       ['.nav-arda','.nav-track'],
-    'ADMIN':      ['.nav-dashboard','.nav-track','.nav-users','.nav-suppliers','.nav-endusers','.nav-audit']
+    'BAC':        ['.nav-bac','.nav-track','.nav-summary'],
+    'SUPPLY':     ['.nav-supply','.nav-track','.nav-summary'],
+    'BUDGET':     ['.nav-budget','.nav-track','.nav-summary'],
+    'ACCOUNTING': ['.nav-accounting','.nav-track','.nav-summary'],
+    'CASHIER':    ['.nav-cash','.nav-track','.nav-summary'],
+    'CASH':       ['.nav-cash','.nav-track','.nav-summary'],
+    'RCAO':       ['.nav-rcao','.nav-track','.nav-summary'],
+    'ARDA':       ['.nav-arda','.nav-track','.nav-summary'],
+    'ADMIN':      ['.nav-dashboard','.nav-track','.nav-summary','.nav-users','.nav-suppliers','.nav-endusers','.nav-audit']
   };
 
   if (isEndUser && role !== 'ADMIN') {
-    ['.nav-myreqs','.nav-track'].forEach(function(sel){
+    ['.nav-myreqs','.nav-track','.nav-summary'].forEach(function(sel){
       document.querySelectorAll(sel).forEach(function(el){ el.classList.remove('hidden'); });
     });
   } else {
@@ -365,6 +365,7 @@ var PAGE_META={
   accounting: {title:'Accounting',        sub:'Disbursement Vouchers & Tax'},
   cash:       {title:'Cashier',          sub:'Cheque / LDDAP Payment Processing'},
   track:      {title:'Track Transaction', sub:'Search by Tracking No.'},
+  summary:    {title:'Transaction Summary', sub:'Concise overview of a transaction'},
   users:      {title:'User Management',   sub:'Manage system users and their roles'},
   suppliers:  {title:'Supplier Management',  sub:'Manage supplier records and availability status'},
   endusers:   {title:'End User Role Management', sub:'Manage end user roles'},
@@ -447,6 +448,7 @@ var PAGE_TEMPLATES={
   rcao:function(){ return renderIncludedTemplate('tpl-rcao', {'{{DEPT_SWITCHER}}': departmentPageNav('rcao')}); },
   arda:function(){ return renderIncludedTemplate('tpl-arda', {'{{DEPT_SWITCHER}}': departmentPageNav('arda')}); },
   track:function(){ return renderIncludedTemplate('tpl-track'); },
+  summary:function(){ return renderIncludedTemplate('tpl-summary'); },
   users:function(){ return renderIncludedTemplate('tpl-users'); },
   suppliers:function(){ return renderIncludedTemplate('tpl-suppliers'); },
   endusers:function(){ return renderIncludedTemplate('tpl-endusers'); },

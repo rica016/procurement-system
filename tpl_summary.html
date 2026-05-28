@@ -1,0 +1,14 @@
+<template id="tpl-summary">
+  <div class="panel">
+    <div class="panel-header"><div><div class="panel-title">📑 Transaction Summary</div><div class="panel-sub">Search by Tracking No. to list all existing transaction values and the latest activity visible to all departments.</div></div></div>
+    <div class="panel-body">
+      <div class="track-toolbar">
+        <input class="form-input track-input" id="summary-input" placeholder="DAR-YYYY-MM-XXXX" onkeydown="if(event.key==='Enter') doSummarySearch()"/>
+        <button class="tb-btn primary" onclick="doSummarySearch()">Search</button>
+        <button class="tb-btn" onclick="document.getElementById('summary-input').value='';document.getElementById('summary-result').innerHTML='';">Clear</button>
+        <button class="tb-btn" onclick="csvExportSummary()">Export</button>
+      </div>
+      <div id="summary-result" class="summary-result"></div>
+    </div>
+  </div>
+</template>

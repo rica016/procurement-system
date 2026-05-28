@@ -285,6 +285,10 @@ function getTransactionsRows(ss) {
     var row = data[i];
     var trackingNo = String(row[hm['TRACKING NO.']] || '').trim();
     if (!trackingNo) continue;
+    var record = {};
+    for (var j = 0; j < hdrs.length; j++) {
+      record[hdrs[j]] = row[j];
+    }
     out.push({
       _rowNum: i + 1,
       trackingNo: trackingNo,
@@ -292,7 +296,8 @@ function getTransactionsRows(ss) {
       requestingOffice: hm['END-USER / REQUESTED BY'] !== undefined ? String(row[hm['END-USER / REQUESTED BY']] || '').trim() : '',
       category: hm['CATEGORY'] !== undefined ? String(row[hm['CATEGORY']] || '').trim() : '',
       currentDept: normalizeDepartmentName(row[hm['CURRENT DEPT']]),
-      currentStatus: String(row[hm['CURRENT STATUS']] || '').trim() || 'PROCESSING'
+      currentStatus: String(row[hm['CURRENT STATUS']] || '').trim() || 'PROCESSING',
+      record: record
     });
   }
   return out;
@@ -1899,11 +1904,20 @@ function searchTransaction(query) {
     });
 
     var meta = getTrackingMetaMap(ss)[match.trackingNo] || {};
+    var record = match.record || {};
+    var summaryFields = TRANSACTIONS_HEADERS.map(function(label) {
+      var value = record.hasOwnProperty(label) ? record[label] : '';
+      return {
+        label: label,
+        value: String(value || '').trim() || '—'
+      };
+    });
     return {
       trackingNo: match.trackingNo,
       prNo: match.prNo || meta.prNo || '',
       office: match.requestingOffice || meta.requestingOffice || '',
       item: '',
+      summaryFields: summaryFields,
       currentSection: effectiveSection,
       currentStatus: effectiveStatus,
       currentReturnRemarks: '',

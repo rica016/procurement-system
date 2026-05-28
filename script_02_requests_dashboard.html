@@ -1095,6 +1095,109 @@ function doTrackSearch(){
     .searchTransaction(q);
 }
 
+var lastSummarySearchResult = null;
+
+function doSummarySearch(){
+  var q   = (document.getElementById('summary-input').value||'').trim();
+  var out = document.getElementById('summary-result');
+  if (!q){ lastSummarySearchResult = null; out.innerHTML=''; return; }
+  out.innerHTML='<div class="loading"><div class="spinner"></div> Searching…</div>';
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res){
+        lastSummarySearchResult = null;
+        out.innerHTML='<div class="track-empty"><div class="track-empty-icon">🔎</div><div class="track-empty-title">No transaction found</div><div class="track-empty-sub">No match for <strong>"'+esc2(q)+'"</strong>.</div></div>';
+        return;
+      }
+      if (res.error){ lastSummarySearchResult = null; out.innerHTML='<div class="track-error">⚠ '+esc2(res.error)+'</div>'; return; }
+      lastSummarySearchResult = res;
+
+      var icons ={'BAC':'📋','SUPPLY AND PROPERTY':'📦','BUDGET':'💰','ACCOUNTING':'🧾','CASH':'💳','RCAO':'🗂️','ARDA':'🛡️','END USER':'🏢','COMPLETED':'✅'};
+      var labels={'BAC':'BAC','SUPPLY AND PROPERTY':'Supply & Property','BUDGET':'Budget','ACCOUNTING':'Accounting','CASH':'Cashier','RCAO':'RCAO','ARDA':'ARDA','END USER':'Requesting Office','COMPLETED':'Completed'};
+      var timeline = Array.isArray(res.timeline) ? res.timeline : [];
+      var history = Array.isArray(res.history) ? res.history : [];
+      var latest = history.length ? history[history.length - 1] : null;
+      var currentSection = labels[res.currentSection] || res.currentSection || '—';
+      var headerMeta = esc2(res.office||'—') + (res.prNo ? ' · PR No. ' + esc2(res.prNo) : '');
+      var itemMeta = res.item ? '<div class="summary-meta">'+esc2(res.item)+'</div>' : '';
+      var kpiCompleted = timeline.filter(function(t){ return !!t.completed; }).length;
+      var kpiReached = timeline.filter(function(t){ return !!t.reached; }).length;
+      var summaryFields = Array.isArray(res.summaryFields) ? res.summaryFields : [];
+      var excludeMap = { 'RCAO':1, 'ARDA':1, 'CURRENT DEPT':1, 'CURRENT STATUS':1 };
+      var visibleFields = summaryFields.filter(function(f){
+        var lbl = String(f.label||'').toUpperCase();
+        return !excludeMap[lbl];
+      });
+      window._lastSummaryVisibleFields = visibleFields;
+      var allFieldHtml = visibleFields.map(function(field){
+        return '<div class="summary-field">'+
+          '<div class="summary-label">'+esc2(field.label||'')+'</div>'+ 
+          '<div class="summary-value">'+esc2(field.value||'—')+'</div>'+ 
+        '</div>';
+      }).join('');
+      var recentItems = history.slice(-5).reverse().map(function(h){
+        var flow = (h['FROM']&&h['TO']) ? h['FROM']+' → '+h['TO'] : (h['FROM']||h['TO']||'—');
+        return '<div class="summary-item">'+
+          '<div class="summary-dot">•</div>'+ 
+          '<div style="flex:1;min-width:0;">'+
+            '<div class="summary-item-top">'+
+              '<div class="summary-item-action">'+esc2(h['ACTION']||'—')+'</div>'+ 
+              '<div class="summary-item-meta">'+esc2(h['TIMESTAMP']||'')+'</div>'+ 
+            '</div>'+ 
+            '<div class="summary-item-meta">'+esc2(flow)+'</div>'+ 
+            (h['REMARKS'] ? '<div class="summary-item-remarks">'+esc2(h['REMARKS'])+'</div>' : '')+ 
+          '</div>'+ 
+        '</div>';
+      }).join('');
+
+      out.innerHTML='<div class="summary-shell">'+
+        '<div class="summary-card">'+
+          '<div class="summary-header">'+
+            '<div>'+ 
+              '<div class="summary-title">'+(res.trackingNo||'—')+'</div>'+ 
+              '<div class="summary-meta">'+headerMeta+'</div>'+ 
+              itemMeta+
+            '</div>'+ 
+            '<div class="track-header-status">'+statusBadge(res.currentStatus||'—')+'</div>'+ 
+          '</div>'+ 
+          '<div class="summary-body">'+
+            '<div class="summary-kpis">'+
+              '<div class="summary-kpi"><div class="summary-kpi-label">Steps</div><div class="summary-kpi-value">'+timeline.length+'</div></div>'+ 
+              '<div class="summary-kpi"><div class="summary-kpi-label">Reached</div><div class="summary-kpi-value">'+kpiReached+'</div></div>'+ 
+              '<div class="summary-kpi"><div class="summary-kpi-label">Completed</div><div class="summary-kpi-value">'+kpiCompleted+'</div></div>'+ 
+              '<div class="summary-kpi"><div class="summary-kpi-label">Activity Log</div><div class="summary-kpi-value">'+history.length+'</div></div>'+ 
+            '</div>'+ 
+            '<div class="summary-panel">'+
+              '<div class="summary-section">Summary</div>'+ 
+              '<div class="summary-fields">'+(allFieldHtml || '<div class="track-empty"><div class="track-empty-icon">—</div><div class="track-empty-title">No field values</div><div class="track-empty-sub">This transaction has no readable field data.</div></div>')+'</div>'+ 
+            '</div>'+ 
+            '<div style="height:14px"></div>'+ 
+            '<div class="summary-section">Recent Activity</div>'+ 
+            (recentItems || '<div class="track-empty"><div class="track-empty-icon">🕒</div><div class="track-empty-title">No activity log</div><div class="track-empty-sub">This transaction has no recorded history yet.</div></div>')+
+          '</div>'+ 
+        '</div>'+ 
+      '</div>';
+    })
+    .withFailureHandler(function(e){ lastSummarySearchResult = null; out.innerHTML='<div class="track-error">Error: '+esc2(e.message)+'</div>'; })
+    .searchTransaction(q);
+}
+
+function csvExportSummary() {
+  if (!lastSummarySearchResult) { showToast('Search a transaction first.','info'); return; }
+  var res = lastSummarySearchResult;
+  var fields = window._lastSummaryVisibleFields || (Array.isArray(res.summaryFields) ? res.summaryFields : []);
+  if (!fields.length) { showToast('No summary fields to export.','info'); return; }
+  function csvCell(v){ var s = String(v||''); return '"'+s.replace(/"/g,'""')+'"'; }
+  var lines = [];
+  lines.push(['Label','Value'].map(csvCell).join(','));
+  fields.forEach(function(f){ lines.push([f.label||'', f.value||''].map(csvCell).join(',')); });
+  var safeNo = String(res.trackingNo||document.getElementById('summary-input').value||'summary').replace(/[^A-Za-z0-9-]/g,'');
+  var filename = 'DAR-RO5-Summary-'+(safeNo||'export')+'.csv';
+  var blob = new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
 var dashboardTab = 'active';
 var dashboardDeptTab = 'all';
 var dashboardEnduserSubTab = 'nottaken';
