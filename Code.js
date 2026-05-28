@@ -120,21 +120,22 @@ function isLoginLockedOut(email) {
 
 function hashPin(pin) {
   try {
-    var salt = 'DAR_PMS_SALT_v1';  // Fixed salt for consistent hashing
-    var input = String(pin || '') + salt;
+    var salt = 'DAR_PMS_v1';
+    var pepper = '2026_OJT_CSPC';
+    var input = String(pin || '') + salt + pepper;
     return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input)
       .map(function(b){ return String.fromCharCode(b & 255); })
       .join('');
   } catch (e) {
-    // Fallback to basic encoding if digest fails
-    return Utilities.base64Encode(String(pin || '') + 'DAR_PMS_SALT_v1');
+    return Utilities.base64Encode(String(pin || '') + 'DAR_PMS_v1' + '2026_OJT_CSPC');
   }
 }
 
 function hashPinToHex(pin) {
   try {
-    var salt = 'DAR_PMS_SALT_v1';
-    var input = String(pin || '') + salt;
+    var salt = 'DAR_PMS_v1';
+    var pepper = '2026_OJT_CSPC';
+    var input = String(pin || '') + salt + pepper;
     var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
     var hex = '';
     for (var i = 0; i < digest.length; i++) {

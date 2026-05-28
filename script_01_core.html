@@ -277,6 +277,27 @@ function initApp(){
     });
   }
 
+  /* ── Show/hide sidebar section headers based on role ── */
+  function _sec(id, show) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = show ? '' : 'none';
+  }
+  var isAdminRole = (role === 'ADMIN');
+
+  // Overview: Admin only
+  _sec('section-overview', isAdminRole);
+
+  // Departments: dept staff + end users (not admin)
+  _sec('section-departments', !isAdminRole);
+
+  // Tracking + its divider: everyone
+  _sec('section-tracking', true);
+  _sec('divider-tracking', true);
+
+  // Admin section + its divider: Admin only
+  _sec('section-admin', isAdminRole);
+  _sec('divider-admin', isAdminRole);
+
   document.getElementById('app-screen').style.display='block';
 
   google.script.run.withSuccessHandler(function(list){ offices=list||[]; injectDatalist('office-datalist',offices); }).getRequestingOffices();
