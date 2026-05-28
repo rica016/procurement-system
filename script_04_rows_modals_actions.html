@@ -269,7 +269,7 @@ var ROW_BUILDERS={
       (showReturned?'<button class="btn-sm success" onclick="openCompleteReturnedModal(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'page\',\'supply\')">✔ Receive</button>':'')+
       '</div></div></td></tr>';
     var actions=show?'<div class="action-menu"><button class="action-dots" onclick="toggleActionMenu(this,event)">⋯</button><div class="action-popup">'+
-      '<button class="btn-sm view" onclick="openViewModal(\'supply\','+r._rowNum+')">👁 View</button>'+
+      '<button class="btn-sm view" onclick="openViewModal(\'supply\','+r._rowNum+',\'active\')">👁 View</button>'+
       '<button class="btn-sm edit" onclick="openEditModal(\'supply\','+r._rowNum+')">'+(isNew?'✔ Receive':'✏ Update')+'</button>'+
       (tab==='done'||tab==='cancelled'?'<button class="btn-sm warn" onclick="reopenCompletedRecord(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">↺ Undo</button>':'')+    
       (isReturnedNew?'<button class="btn-sm forward" onclick="continueReturnedNew(\'SUPPLY AND PROPERTY\','+r._rowNum+',\'supply\',this)">▶ Continue</button>':'')+
@@ -292,7 +292,7 @@ var ROW_BUILDERS={
       '<td class="td-mono">'+esc2(r['P.O. DATE']||'—')+'</td>'+
       '<td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td>'+
       '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
-      '<td class="td-wrap">'+esc2(r['PARTICULARS']||'—')+'</td>'+
+      '<td class="td-wrap td-particulars">'+esc2(r['PARTICULARS']||'—')+'</td>'+
       '<td>'+currency(r['P.O. AMOUNT']||r['AMOUNT'])+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE TRANSMITTED TO SUPPLIER']||'—')+'</td>'+
       '<td class="td-mono">'+esc2(r['DATE RECEIVED BY SUPPLIER']||'—')+'</td>'+

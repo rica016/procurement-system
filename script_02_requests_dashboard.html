@@ -47,8 +47,8 @@ var MYREQS_DEPT_META = {
   },
   supply: {
     title:'Supply & Property Records',
-    activeHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>P.O. NO.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Date Returned to Supply</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>P.O. NO.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Date Returned to Supply</th><th>Completed At</th><th>Actions</th></tr>',
+    activeHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>P.O. NO.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th class="th-particulars">Particulars</th><th>P.O. Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Date Returned to Supply</th><th>Status</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>P.O. NO.</th><th>P.O. Date</th><th>Doc Type</th><th>Supplier</th><th class="th-particulars">Particulars</th><th>P.O. Amount</th><th>Date Transmitted to Supplier</th><th>Date Received by Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Date Returned to Supply</th><th>Completed At</th><th>Actions</th></tr>',
     returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
     returnDoneHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
     activeCols:17, otherCols:17, returnedCols:6, returnDoneCols:8
@@ -97,7 +97,7 @@ var MYREQS_DEPT_META = {
     title:'Requesting Office',
     returnedHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Date &amp; Time</th><th>Actions</th></tr>',
     activeHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>Forwarded From</th><th>Remarks</th><th>Status</th><th>Actions</th></tr>',
-    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Category</th><th>P.O. No.</th><th>P.O. Amount</th><th>Supplier</th><th>Particulars</th><th>Awarded To</th><th>I.A.R No.</th><th>Invoice No.</th><th>ORS No.</th><th>Net Amount</th><th>DV No.</th><th>Date of Cheque</th><th>Completed At</th><th>Actions</th></tr>',
+    otherHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Category</th><th>P.O. No.</th><th>P.O. Amount</th><th>Supplier</th><th class="th-particulars">Particulars</th><th>Awarded To</th><th>I.A.R No.</th><th>Invoice No.</th><th>ORS No.</th><th>Net Amount</th><th>DV No.</th><th>Date of Cheque</th><th>Completed At</th><th>Actions</th></tr>',
     returnDoneHeader:'<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Date &amp; Time</th><th>Actions</th></tr>',
     activeCols:7, otherCols:16, returnedCols:6, returnDoneCols:6
   }
@@ -446,7 +446,7 @@ function renderMyReqsTable(reqs) {
         MYREQS_ALL_TX_COLUMNS.slice(2).map(function(col) {
           if (col === 'CURRENT DEPT') return '<td>'+esc2(String(r[col] || '').toUpperCase() || '—')+'</td>';
           if (col === 'CURRENT STATUS') return '<td>'+statusBadge(r[col] || r['STATUS'] || '—')+'</td>';
-          if (col === 'PARTICULARS') return '<td class="td-wrap">'+esc2(r[col] || '—')+'</td>';
+          if (col === 'PARTICULARS') return '<td class="td-wrap td-particulars">'+esc2(r[col] || '—')+'</td>';
           if (col === 'APPROVED ABC' || col === 'P.O. AMOUNT' || col === 'ORS AMOUNT' || col === 'NET AMOUNT' || col === 'TAX AMOUNT') {
             return '<td>'+currency(r[col])+'</td>';
           }
@@ -494,7 +494,7 @@ function renderMyReqsTable(reqs) {
         '<td class="td-mono">'+esc2(r['P.O. NO.']||'—')+'</td>'+
         '<td>'+currency(r['P.O. AMOUNT'])+'</td>'+
         '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
-        '<td class="td-wrap">'+esc2(r['PARTICULARS']||'—')+'</td>'+
+        '<td class="td-wrap td-particulars">'+esc2(r['PARTICULARS']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['AWARDED TO']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['I.A.R  NO.']||r['I.A.R #']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['INVOICE  NO.']||r['INVOICE #']||'—')+'</td>'+
@@ -540,7 +540,7 @@ function renderMyReqsTable(reqs) {
         '<td class="td-mono">'+esc2(r['P.O. DATE']||'—')+'</td>'+
         '<td>'+esc2(r['DOCUMENT TYPE']||'—')+'</td>'+
         '<td>'+esc2(r['SUPPLIER']||'—')+'</td>'+
-        '<td class="td-wrap">'+esc2(r['PARTICULARS']||'—')+'</td>'+
+        '<td class="td-wrap td-particulars">'+esc2(r['PARTICULARS']||'—')+'</td>'+
         '<td>'+currency(r['AMOUNT'])+'</td>'+
         '<td class="td-mono">'+esc2(r['DATE TRANSMITTED TO SUPPLIER']||'—')+'</td>'+
         '<td class="td-mono">'+esc2(r['DATE RECEIVED BY SUPPLIER']||'—')+'</td>'+
@@ -744,7 +744,7 @@ function renderAllTxTable() {
       }
       if (col === 'CURRENT STATUS') return '<td>'+statusBadge(r.currentStatus || fullRow['STATUS'] || '—')+'</td>';
       if (DASHBOARD_ALL_TX_CURRENCY[col]) return '<td>'+currency(fullRow[col])+'</td>';
-      if (col === 'PARTICULARS') return '<td class="td-wrap">'+esc2(fullRow[col]||'—')+'</td>';
+      if (col === 'PARTICULARS') return '<td class="td-wrap td-particulars">'+esc2(fullRow[col]||'—')+'</td>';
       return '<td>'+esc2(fullRow[col]||'—')+'</td>';
     }).join('')+'</tr>';
   }).join('');
@@ -1382,7 +1382,7 @@ function dashboardDeptRow(page, row, tab, actions) {
     fields.map(function(field){
       var tdClass = '';
       if (field === 'COMPLETED AT' || field === 'CANCELLED AT') tdClass = 'td-mono';
-      else if (field === 'PARTICULARS') tdClass = 'td-wrap';
+      else if (field === 'PARTICULARS') tdClass = 'td-wrap td-particulars';
       return '<td'+(tdClass ? ' class="'+tdClass+'"' : '')+'>'+dashboardDeptColumnValue(page, row, field)+'</td>';
     }).join('')+
     '<td>'+actions+'</td>'+
@@ -1793,7 +1793,7 @@ function renderDashboardTable() {
         if (col === 'CURRENT STATUS') return '<td>'+statusBadge(rawVal || r['STATUS'] || '—')+'</td>';
         if (col === 'TRACKING NO.' || col === 'P.R NO.') return dashboardPrimaryIdCell(col, rawVal, deptForRow);
         if (DASHBOARD_ALL_TX_CURRENCY[col]) return '<td>'+currency(rawVal || '—')+'</td>';
-        return '<td'+(col === 'PARTICULARS' ? ' class="td-wrap"' : '')+'>'+esc2(rawVal || '—')+'</td>';
+        return '<td'+(col === 'PARTICULARS' ? ' class="td-wrap td-particulars"' : '')+'>'+esc2(rawVal || '—')+'</td>';
       }).join('');
       return '<tr class="'+((isCompleted || dashboardIsReturnPending(r))?'completed-row':'')+'">'+allCells+'<td>'+actions+'</td></tr>';
     }
@@ -1894,12 +1894,12 @@ function switchTab(page,tab){
     },
     supply: {
       newCols:        '<tr><th>Tracking No.</th><th>P.R No.</th><th>Submitted Date</th><th>Forwarded By</th><th>Remarks</th><th>Actions</th></tr>',
-      activeCols:     '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Status</th><th>Actions</th></tr>',
+      activeCols:     '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th class="th-particulars">Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th>Status</th><th>Actions</th></tr>',
       returnedCols:   '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Actions</th></tr>',
       returndoneCols: '<tr><th>Tracking No.</th><th>P.R No.</th><th>Returned By</th><th>Remarks</th><th>Returned Date &amp; Time</th><th>Return To Remarks</th><th>Return Received Date</th><th>Actions</th></tr>',
-      doneCols:       '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
-      cancelledCols:  '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
-      otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th>Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
+      doneCols:       '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th class="th-particulars">Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>',
+      cancelledCols:  '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th class="th-particulars">Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Cancelled At</th><th>Actions</th></tr>',
+      otherCols:      '<tr><th>Tracking No.</th><th>P.R No.</th><th>Date Received</th><th>End User</th><th>P.O. NO.</th><th>P.O. DATE</th><th>Doc Type</th><th>Supplier</th><th class="th-particulars">Particulars</th><th>P.O. Amount</th><th>Date Transmitted</th><th>Date Received Supplier</th><th>COA Date Received</th><th>I.A.R NO.</th><th>Invoice NO.</th><th class="th-completed-at">Completed At</th><th>Actions</th></tr>'
     },
     budget: {
       newCols:        '<tr><th>Tracking No.</th><th>P.R No.</th><th>P.O. No.</th><th>P.O. Amount</th><th>Submitted Date</th><th>Forwarded By</th><th>Remarks</th><th>Actions</th></tr>',

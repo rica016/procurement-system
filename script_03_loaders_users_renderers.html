@@ -367,6 +367,10 @@ function openViewModal(page, rowNum, viewMode){
   document.getElementById('main-modal-save').style.display='none';
   document.getElementById('main-modal-cancel').textContent='Close';
   document.getElementById('main-modal').classList.add('open');
+  if (page === 'supply' && String(viewMode || '').toLowerCase() === 'active') {
+    document.getElementById('main-modal-body').innerHTML = buildSupplyActiveViewHTML(row);
+    return;
+  }
   if (page === 'enduser') {
     var pr = row['P.R NO.'] || row['P.R #'] || '—';
     var category = row['CATEGORY'] || '—';
@@ -591,6 +595,72 @@ function buildRowViewHTML(page,row){
   }).join('')+'</div>';
 
   return summary+grid;
+}
+
+function buildSupplyActiveViewHTML(row) {
+  var pr = row['P.R NO.'] || row['P.R #'] || '—';
+  var docType = row['DOCUMENT TYPE'] || '—';
+  var poNo = row['P.O. NO.'] || '—';
+  var poDate = row['P.O. DATE'] || '—';
+  var supplier = row['SUPPLIER'] || '—';
+  var particulars = row['PARTICULARS'] || '—';
+  var amount = currency(row['P.O. AMOUNT'] || '—');
+  var iarNo = row['I.A.R  NO.'] || row['I.A.R #'] || '—';
+  var invoiceNo = row['INVOICE  NO.'] || row['INVOICE #'] || '—';
+
+  return ''+
+    '<div class="view-summary">'+
+      '<div class="view-card">'+
+        '<div class="view-label">Tracking No. / P.R No.</div>'+
+        '<div class="view-value"><span class="td-tracking">'+esc2(row['TRACKING NO.']||'—')+'</span><br><span class="td-pr">'+esc2(pr)+'</span></div>'+ 
+      '</div>'+
+      '<div class="view-card">'+
+        '<div class="view-label">Status</div>'+
+        '<div class="view-value">'+statusBadge(row['STATUS']||'—')+'</div>'+ 
+      '</div>'+
+    '</div>'+
+    '<div class="view-grid">'+
+      '<div class="view-field">'+
+        '<div class="view-label">Date Received</div>'+ 
+        '<div class="view-value">'+esc2(row['DATE RECEIVED']||'—')+'</div>'+ 
+      '</div>'+
+      '<div class="view-field">'+
+        '<div class="view-label">End User</div>'+ 
+        '<div class="view-value">'+esc2(row['END USER']||'—')+'</div>'+ 
+      '</div>'+
+      '<div class="view-field">'+
+        '<div class="view-label">P.O. No.</div>'+ 
+        '<div class="view-value">'+esc2(poNo)+'</div>'+ 
+      '</div>'+
+      '<div class="view-field">'+
+        '<div class="view-label">P.O. Date</div>'+ 
+        '<div class="view-value">'+esc2(poDate)+'</div>'+ 
+      '</div>'+ 
+      '<div class="view-field">'+
+        '<div class="view-label">Doc Type</div>'+ 
+        '<div class="view-value">'+esc2(docType)+'</div>'+ 
+      '</div>'+
+      '<div class="view-field">'+
+        '<div class="view-label">Supplier</div>'+ 
+        '<div class="view-value">'+esc2(supplier)+'</div>'+ 
+      '</div>'+
+      '<div class="view-field full">'+
+        '<div class="view-label">Particulars</div>'+ 
+        '<div class="view-value">'+esc2(particulars)+'</div>'+ 
+      '</div>'+
+      '<div class="view-field">'+
+        '<div class="view-label">Amount</div>'+ 
+        '<div class="view-value">'+amount+'</div>'+ 
+      '</div>'+
+      '<div class="view-field">'+
+        '<div class="view-label">I.A.R #</div>'+ 
+        '<div class="view-value">'+esc2(iarNo)+'</div>'+ 
+      '</div>'+
+      '<div class="view-field">'+
+        '<div class="view-label">Invoice #</div>'+ 
+        '<div class="view-value">'+esc2(invoiceNo)+'</div>'+ 
+      '</div>'+
+    '</div>';
 }
 
 function buildNewItemViewHTML(page, targetRow, fromDept, sourceRow) {
